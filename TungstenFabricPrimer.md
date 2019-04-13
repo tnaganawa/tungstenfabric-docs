@@ -83,13 +83,13 @@ instances:
       webui:
       k8s_master:
       kubemanager:
-   ip: 172.31.12.85 ## k8s master's ip
+   ip: 172.31.14.47 ## k8s master's ip
   bms2:
    provider: bms
    roles:
      vrouter:
      k8s_node:
-   ip: 172.31.2.9 ## k8s node's ip
+   ip: 172.31.41.236 ## k8s node's ip
 contrail_configuration:
   CONTRAIL_CONTAINER_TAG: r5.0.1
   KUBERNETES_CLUSTER_PROJECT: {}
