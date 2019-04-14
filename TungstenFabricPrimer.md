@@ -1,3 +1,58 @@
+
+Table of Contents
+=================
+
+   * [A Tungsten Fabric Primer](#a-tungsten-fabric-primer)
+      * [1. Why Tungsten Fabric?](#1-why-tungsten-fabric)
+         * [I. Interoperability with ASIC](#i-interoperability-with-asic)
+         * [II. Scalability](#ii-scalability)
+      * [2. TungstenFabric, Up and Running](#2-tungstenfabric-up-and-running)
+         * [Appendix: external access](#appendix-external-access)
+      * [3. After this reading](#3-after-this-reading)
+   * [components in Tungsten Faric](#components-in-tungsten-faric)
+      * [overall picture](#overall-picture)
+      * [control, vRouter](#control-vrouter)
+      * [config (config-api, schema-transformer, svc-monitor)](#config-config-api-schema-transformer-svc-monitor)
+      * [schema-transformer](#schema-transformer)
+      * [svc-monitor](#svc-monitor)
+      * [config-database (zookeeper, cassandra, rabbitmq)](#config-database-zookeeper-cassandra-rabbitmq)
+      * [nodemgr](#nodemgr)
+      * [analytics](#analytics)
+      * [analytics-database](#analytics-database)
+      * [webui (webui-web, webui-job)](#webui-webui-web-webui-job)
+   * [Orchestrator integration](#orchestrator-integration)
+      * [openstack](#openstack)
+      * [vCenter](#vcenter)
+      * [kubernetes](#kubernetes)
+   * [HA Installation](#ha-installation)
+      * [HA behaivor of Tungsten Fabric components](#ha-behaivor-of-tungsten-fabric-components)
+      * [kubeadm](#kubeadm)
+      * [openstack](#openstack-1)
+      * [vCenter, to be investigated for vCenter HA part](#vcenter-to-be-investigated-for-vcenter-ha-part)
+   * [Monitoring integration](#monitoring-integration)
+      * [prometheus](#prometheus)
+      * [EFK](#efk)
+   * [Day 2 operation](#day-2-operation)
+      * [ist.py](#istpy)
+      * [contrail-api-cli](#contrail-api-cli)
+      * [webui](#webui)
+   * [Appendix](#appendix)
+      * [L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration](#l3vpn--evpn-t2t5-vxlanmpls-integration)
+      * [Service-Chain (L2, L3, NAT), BGPaaS](#service-chain-l2-l3-nat-bgpaas)
+      * [Multicluster](#multicluster)
+         * [routing / bridging, DNS, security-policy](#routing--bridging-dns-security-policy)
+         * [Inter AS option B/C](#inter-as-option-bc)
+      * [Multi orchestrator](#multi-orchestrator)
+         * [k8s openstack](#k8sopenstack)
+         * [k8s k8s](#k8sk8s)
+         * [openstack openstack](#openstackopenstack)
+         * [k8s vCenter](#k8svcenter)
+         * [openstack vCenter](#openstackvcenter)
+         * [vCenter vCenter](#vcentervcenter)
+         * [k8s openstack vCenter](#k8sopenstackvcenter)
+      * [Service Mesh](#service-mesh)
+
+
 # A Tungsten Fabric Primer
 
 Let me briefly describe what I have learnt in this two years journey around Tungsten Fabric.
@@ -739,6 +794,8 @@ xxx-exporter is a new word for nagios plugin ..
 # Appendix
 
 ## L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration
+
+## Service-Chain (L2, L3, NAT), BGPaaS
 
 ## Multicluster 
 ### routing / bridging, DNS, security-policy
