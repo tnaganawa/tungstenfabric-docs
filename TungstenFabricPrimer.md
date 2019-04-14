@@ -9,7 +9,7 @@ Table of Contents
       * [2. TungstenFabric, Up and Running](#2-tungstenfabric-up-and-running)
          * [Appendix: external access](#appendix-external-access)
       * [3. After this reading](#3-after-this-reading)
-   * [components in Tungsten Faric](#components-in-tungsten-faric)
+   * [Components in Tungsten Fabric](#components-in-tungsten-fabric)
       * [overall picture](#overall-picture)
       * [control, vRouter](#control-vrouter)
       * [config (config-api, schema-transformer, svc-monitor)](#config-config-api-schema-transformer-svc-monitor)
@@ -608,7 +608,7 @@ There are also several communication channel such as mail lists and slack. Pleas
 https://tungsten.io/community/
 
 
-# components in Tungsten Faric
+# Components in Tungsten Fabric
 
 There are a lot of different components in Tungsten Fabric.
 Let me briefly describe the usage of these parts.
