@@ -551,3 +551,210 @@ Those links will contain a lot of contents and links to other resources.
 
 There are also several communication channel such as mail lists and slack. Please try them if you need some help :)
 https://tungsten.io/community/
+
+
+# components in Tungsten Faric
+
+There are a lot of different components in Tungsten Fabric.
+Let me briefly describe the usage of these parts.
+
+## overall picture
+In summary, there are 7 roles and (up to) 30 micro-services in Tungsten Fabric.
+ - roles: vRouter, control, config, config-database, analytics (From 5.1, that can be further break down into analytics, analytics-snmp, analytics-alarm), analytics-database, webui
+
+Although there are a lot of components, in simple usecase, only 4 role will be required
+ - vRouter, control, config, config-database
+, although in most cases, webui also will be a requirement.
+
+You can also omit analytics if you're only interested in control-plane / data-plane part of Tungsten Fabric, although in that case, some feature (v1 service-chain, haproxy loadbalancer (and k8s ingress), SNAT etc) won't work well.
+
+## control, vRouter
+
+control, vRouter will be the control plane and data plane of Tungsten Fabric, so arguably, this is the most important part of Tungsten Fabric system.
+
+Since both control and vRouter use MPLS-VPN internally, I would recommend at least skimming through this material before delving into the detail of them.
+ - https://www.juniper.net/uk/en/training/certification/certification-tracks/sp-routing-switching-track?tab=jncis-sp
+ - https://www.juniper.net/uk/en/training/certification/certification-tracks/sp-routing-switching-track?tab=jncip-sp
+ 
+Since most of advanced features in control, vRouter is inherent in MPLS, those material will help to undestand what they are trying to do.
+
+Since control and vrouter-agent uses VPNV4 bgp internally, vRouter and it's internal VRFs will install prefix needed based on extended community (a.k.a route-target).
+So when containers of vms are created on vRouter, it can signal VPNV4 route to control, and it reflects all the routes to other vRouters, and dataplane will understand where to send the packets automatically.
+
+One interesting behaivor is vRouter's virtual-network could have multiple default gateway, with same ip and same mac! (similar behaivor with virtual-gateway-address, in junos's term)
+Since no VRRP is required to serve default gw for each virtual-network, it eliminates the bottleneck and lets everything fully  distributed.
+
+vRouter also is doing flow based handling for some features like statefull firewall, NAT, flow-based ECMP, ..
+That is an important difference, since that behaivor will introduce some tuning points, such as connection per second and maximum number of flows. (In packet based system, PPS (packet per second), and throughput (and latency in some case) will be the key)
+If you're system is keen on these parameter, perhaps you need to review these parameter also.
+
+Note: This behaivor is optionally disabled with 'packet-mode' parameter in 'ports' configuration
+
+## config (config-api, schema-transformer, svc-monitor)
+
+Config also has several components. Config-api serves an api endpoint for Tungsten Fabric configuration, which is used many components, like control, analytics, etc
+ - vRouter won't use that directly, since only the data needed is propagated from control, through xmpp
+
+Two processes, schema-transformer and svc-monitor, are doing important things, so let me also describe them.
+
+## schema-transformer
+
+This process is converting some abstract config parameter, such as logical-router, network-policy, service-chain, into the words of L3VPN.
+So it is one of the core components of Tungsten Fabric, and doing most of all the things which can't be explained simply by MPLS-VPN.
+
+Logical-router, as an example, internally creates a new route-target id, which will have all the prefix connected virtual-network has. So if virtual-network is attached logical-router, it would receive all the routes logical-router has.
+That behaivor uses MPLS-VPN internally, but route-target configuration is controlled by schema-transformer.
+
+So changes are propagated to dataplane in this manner:
+```
+edit config -> (rabbitmq) -> schema-transformer, which creates new route-target -> (internally edit config) -> (rabbitmq) -> control -> (xmpp) -> vrouter-agent -> (netlink) -> vrouter.ko
+```
+
+Schema-transformer also is doing all the things related to service-chain. I won't delve into all the detail of service chain, since that is not used simple DC usecases (even AWS VPC doesn't offer similar service currently), although internally, that's doing interesting handling of all the prefixes received around VRFs, and I personally think it is worth a read.
+
+Note: You can have all the detail in this book.
+ - https://mplsinthesdnera.net/
+
+## svc-monitor
+
+This process serves several services which have to use external processes internally, such as haproxy load balancer, v1 service-chain instance based on nova API, iptables MASQUERADE for SNAT, ... .
+
+Internally, vrouter-agent has some logic to kick haproxy or set iptables MASQUERADE, svc-monitor will kick that logic, when related service is defined.
+
+Svc-monitor chooses some vRouters to create these services, and instantiate some network function and do traffic handling to these elements. To choose one, it uses analytics-api's output (analytics/uves/vrouter), and pick one that is 'Functional'.
+ - https://github.com/Juniper/contrail-controller/blob/master/src/config/svc-monitor/svc_monitor/scheduler/vrouter_scheduler.py#L149
+
+That behaivor is the one reason currently analytics is required for TungstenFabric installation, although it might be changed in the future release.
+
+## config-database (zookeeper, cassandra, rabbitmq)
+
+Tungsten Fabric uses several databases. Most of the data are saved in cassandra, and if they are changed, rabbitmq is notified those changes to propagate other components, such as control, schema-transformer, svc-monitor, ...
+
+Zookeeper is used only for the operation that needs lock for consistency.
+For example, creating one port requires to assign one ip address, whose consistency is covered by zookeeper, so ip address assignment always will be one-by-one.
+
+## nodemgr
+
+I think most of the important components are covered by now, so I will cover other parts.
+Firstly, let me describe what nodemgr is.
+
+Nodemgr basically meant to be the source of the state of each node, so it checks things such as /'s usage, docker ps or cpu usage and send analytics UVE NodeStatus.
+ - https://github.com/Juniper/contrail-controller/blob/master/src/nodemgr/common/linux_sys_data.py
+
+This value could be the source of contrail-status, and other logic like analytics-alarm or svc-monitor, which check if this value is Functional when it choose vRouter, so to keep those Functional is fairly important to make Tungsten Fabric operational.
+
+This component have a bit different behaivor if assigned different role. So it is installed on each node, with slightly different behaivor.
+
+Additionaly, it also does the first provision of each nodes, which means to notify config-api that this ip has a role xxx assigned. So even if the analytics feature is not required, this module need to be there, at least for the first time a node is up.
+
+
+## analytics
+
+Tungsten Fabric analytics has a lot of features, but most of the feature is currently optional, so let me skip most of the components.
+If interested, please check those links for snmp, lldp, alarms etc.
+ - http://www.opencontrail.org/sandesh-a-sdn-analytics-interface/
+ - http://www.opencontrail.org/operational-state-in-the-opencontrail-system-uve-user-visible-entities-through-analytics-api/
+ - http://www.opencontrail.org/contrail-alerts/
+ - http://www.opencontrail.org/overlay-to-physical-network-correlation/
+
+Analytics itself has curious architecture, which covers both of logs/flows, and stats. 
+ - AFAIK, those are frequently covered by different set of systems, such as EFK for logs/flows and prometheus for stats
+
+If you need something handy for all of them, Tungsten Fabric analytics will be a good fit.
+
+Most of the important metrics analytics serve is tagged as UVE (User Visible Entity), and have a URL to serve data with JSON format.
+ - http://(analytics-ip):8081/analytics/uves has all the values available
+ 
+If you need to integrate Tungsten Fabric with other monitoring systems, that could be a good start point.
+
+## analytics-database
+
+Analytics also uses several databases like redis, cassandra, kafka (internally, it also uses zookeeper for HA deployment of optional components).
+
+If only analytics is used, redis is the only requirement and even in this setup, most of webui feature is available.
+ - Most of the visualization uses UVEs so that can be available even if cassandra is not installed
+
+Cassandra is needed if you need 'Query' feature of webui, which retrieve logs/flows or stats in cassndra db.
+
+Kafka is used to propagate UVEs to analytics-alarms, so if you want to use alarm feature, kafka is also required.
+
+## webui (webui-web, webui-job)
+
+Finally, webui is reached.
+It basically is a simple webui, to see the status of components and to configure parameters for Tungsten Fabric.
+
+A bit interesting behaivor is it uses AJAX behaivor, to update some graph which needs long query against analytics-api (such as Monitor > Dashboard access), and that async job is covered by webui-job process.
+
+
+# Orchestrator integration
+
+Tungsten Fabric has been integrated with several orchestrators.
+
+Internally, Tungsten Fabric's orchestrator integration components basically do the same things with each orchstrator.
+ 1. assign a port when vm or container is up
+ 2. plug that to vm or container
+ 
+Let me describe what is done for each orchestrator.
+
+## openstack
+neutron plugin sends the event to Tungsten Fabric controller, and nova-compute plug that to vm
+
+## vCenter
+vcenter-plugin receive events from vCenter and create a port. vcenter-manager receive events from ESXi, and set vRouter and vDS.
+
+## kubernetes
+
+kubemanager receive events from kube-apiserver and create a port. cni plug that to container
+
+# HA Installation
+
+## HA behaivor of Tungsten Fabric components
+
+## kubeadm
+k8s master HA, and standalone, or non-nested install based on YAML
+
+## openstack
+ansible-deployer
+
+## vCenter, to be investigated for vCenter HA part
+ansible-deployer
+
+# Monitoring integration
+
+example to integrate other monitoring systems
+
+## prometheus
+xxx-exporter is a new word for nagios plugin ..
+
+## EFK
+
+# Day 2 operation
+## ist.py
+ operational command
+## contrail-api-cli
+ show configuration
+## webui
+ configuration command
+
+# Appendix
+
+## L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration
+
+## Multicluster 
+### routing / bridging, DNS, security-policy
+### Inter AS option B/C
+
+## Multi orchestrator
+
+### k8s+openstack
+
+### k8s+k8s
+### openstack+openstack
+
+### k8s+vCenter
+### openstack+vCenter
+### vCenter+vCenter
+
+### k8s+openstack+vCenter
+
+## Service Mesh
