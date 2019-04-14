@@ -13,8 +13,8 @@ Table of Contents
       * [overall picture](#overall-picture)
       * [control, vRouter](#control-vrouter)
       * [config (config-api, schema-transformer, svc-monitor)](#config-config-api-schema-transformer-svc-monitor)
-      * [schema-transformer](#schema-transformer)
-      * [svc-monitor](#svc-monitor)
+        * [schema-transformer](#schema-transformer)
+        * [svc-monitor](#svc-monitor)
       * [config-database (zookeeper, cassandra, rabbitmq)](#config-database-zookeeper-cassandra-rabbitmq)
       * [nodemgr](#nodemgr)
       * [analytics](#analytics)
@@ -652,7 +652,7 @@ Config also has several components. Config-api serves an api endpoint for Tungst
 
 Two processes, schema-transformer and svc-monitor, are doing important things, so let me also describe them.
 
-## schema-transformer
+### schema-transformer
 
 This process is converting some abstract config parameter, such as logical-router, network-policy, service-chain, into the words of L3VPN.
 So it is one of the core components of Tungsten Fabric, and doing most of all the things which can't be explained simply by MPLS-VPN.
@@ -670,7 +670,7 @@ Schema-transformer also is doing all the things related to service-chain. I won'
 Note: You can have all the detail in this book.
  - https://mplsinthesdnera.net/
 
-## svc-monitor
+### svc-monitor
 
 This process serves several services which have to use external processes internally, such as haproxy load balancer, v1 service-chain instance based on nova API, iptables MASQUERADE for SNAT, ... .
 
@@ -780,6 +780,7 @@ example to integrate other monitoring systems
 
 ## prometheus
 xxx-exporter is a new word for nagios plugin ..
+ - https://github.com/tnaganawa/ovirt-tungstenfabric-integration
 
 ## EFK
 
@@ -804,14 +805,29 @@ xxx-exporter is a new word for nagios plugin ..
 ## Multi orchestrator
 
 ### k8s+openstack
+works well
+ - https://github.com/Juniper/contrail-ansible-deployer/wiki/Deployment-Example:-Contrail-and-Kubernetes-and-Openstack
 
 ### k8s+k8s
+cluster_names can be changed, but currently doesn't seem to work well ..
+ - https://github.com/Juniper/contrail-container-builder/blob/master/containers/kubernetes/kube-manager/entrypoint.sh#L28
+
 ### openstack+openstack
+to be investigated
 
 ### k8s+vCenter
+should work well, not tried yet
+
 ### openstack+vCenter
+curios, since vCenter could have tenancy / fwaas v2 / lbaas integrated
+
 ### vCenter+vCenter
+multi-vcenter, to be investigated
+ - might be achieved, since multiple vcenter-plugins might consume events from vcenter in parallel
 
 ### k8s+openstack+vCenter
 
 ## Service Mesh
+istio is working well, multicluster could be interesting subject
+ - https://www.youtube.com/watch?v=VSNc9qd2poA
+ - https://istio.io/docs/setup/kubernetes/install/multicluster/vpn/
