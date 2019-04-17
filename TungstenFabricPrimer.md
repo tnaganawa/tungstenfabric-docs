@@ -830,7 +830,7 @@ ansible-deployer
 
 Since Tungsten Fabric has decent monitoring / alarm features, it could be a requirement to integrate them to full-fledged monitoring systems.
 
-Let me describe ways to integrate them with promethesus and EFK, as an example.
+Let me describe how to integrate them with promethesus and EFK, as an example.
 
 ## Prometheus
 
