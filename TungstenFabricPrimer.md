@@ -828,11 +828,24 @@ ansible-deployer
 
 # Monitoring integration
 
-example to integrate other monitoring systems
+Since Tungsten Fabric has decent monitoring / alarm features, it could be a requirement to integrate them to full-fledged monitoring systems.
+
+Let me describe ways to integrate them with promethesus and EFK, as an example.
 
 ## Prometheus
-xxx-exporter is a new word for nagios plugin ..
+
+To monitor and visualize what's going on in Tungsten Fabric systems, arguably, the first candidate will be prometheus these days.
+ - Even if that's not the case, several tools, such as zabbix support scraping prometheus format, so this could be a common format among monitoring tools: https://www.zabbix.com/documentation/4.2/manual/config/items/itemtypes/prometheus
+
+To scraped by prometheus, Tungsten Fabric's metrics need to be exported in prometheus exporter format, and there are two ways to achieve this.
+ 1. Directly export metrics from introspect HTTP Server (this feature is not availale today)
+ 2. Export values from analytics, or from analytics UVE (it could be available today)
+
+As the first step, I tried a short script (WIP) to export values to prometheus.
+ - Currently, limited number of vRouters's metrics, like number of packets, number of bytes, number of flows, number of drop packets are exported
  - https://github.com/tnaganawa/ovirt-tungstenfabric-integration
+
+Those values also can be used to send alerts from prometheus, rather than from analytics-alarms.
 
 ## EFK
 
