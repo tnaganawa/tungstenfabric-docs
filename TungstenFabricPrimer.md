@@ -802,6 +802,21 @@ So with Tungsten Fabric, it is much easier to use both VMIs simultaneously, with
 
 ## HA behaivor of Tungsten Fabric components
 
+When setup for serious traiffc is planned, HA always will be a requirement.
+
+Tungsten Fabric has a decent HA implmentation, which are already documented there.
+ - http://www.opencontrail.org/opencontrail-architecture-documentation/#section2_7
+
+One thing I'd like to add is cassandra's keyspace has different replication-factor between configdb and analyticsdb.
+ - configdb: https://github.com/Juniper/contrail-controller/blob/master/src/config/common/vnc_cassandra.py#L609
+ - analytics: https://github.com/Juniper/contrail-analytics/blob/master/contrail-collector/db_handler.cc#L524
+
+Since configdb's data is replicated to all cassandras, it is fairly unlikely to lose some data, even if some node's disk has crashed and needs to be wiped out.
+On the other hand, since analyticsdb's replication-factor is always two, if two nodes lost data simultaneously, the data could be lost.
+
+In Up and Running chapter, I descirbed 1 controller and 1 vRouter setting, so no HA case is covered yet (And no overlay traffic case, indeed!)
+Let me describe more realistic case, with 3 controllers and 2 computes for each orchestrator.
+
 ## kubeadm
 k8s master HA, and standalone, or non-nested install based on YAML
 
