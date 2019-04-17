@@ -843,7 +843,7 @@ To scraped by prometheus, Tungsten Fabric's metrics need to be exported in prome
 
 As the first step, I tried a short script (WIP) to export values to prometheus.
  - Currently, limited number of vRouters's metrics, like number of packets, number of bytes, number of flows, number of drop packets are exported
- - https://github.com/tnaganawa/ovirt-tungstenfabric-integration
+ - https://github.com/tnaganawa/tf-analytics-exporter
 
 Those values also can be used to send alerts from prometheus, rather than from analytics-alarms.
 
