@@ -24,7 +24,7 @@ Table of Contents
       * [Openstack](#openstack)
       * [kubernetes](#kubernetes)
       * [vCenter](#vcenter)
-   * [HA Installation](#ha-installation)
+   * [More on Installation](#more-on-installation)
       * [HA behaivor of Tungsten Fabric components](#ha-behaivor-of-tungsten-fabric-components)
       * [kubeadm](#kubeadm)
       * [Openstack](#openstack-1)
@@ -798,7 +798,7 @@ Please note that those behaivor will be kicked only when vm is attached to dv-po
 Since vRouter's behaivor is the same with other cases, sharing virtual-networks between vCenter and openstack, or route leak between them are also readily available.
 So with Tungsten Fabric, it is much easier to use both VMIs simultaneously, with shared networks and network services, such as fw, lb, and so on.
 
-# HA Installation
+# More on Installation
 
 ## HA behaivor of Tungsten Fabric components
 
