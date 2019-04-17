@@ -10,7 +10,7 @@ Table of Contents
          * [Appendix: external access](#appendix-external-access)
       * [3. After this reading](#3-after-this-reading)
    * [Components in Tungsten Fabric](#components-in-tungsten-fabric)
-      * [overall picture](#overall-picture)
+      * [Overall picture](#overall-picture)
       * [control, vRouter](#control-vrouter)
       * [config (config-api, schema-transformer, svc-monitor)](#config-config-api-schema-transformer-svc-monitor)
         * [schema-transformer](#schema-transformer)
@@ -21,16 +21,16 @@ Table of Contents
       * [analytics-database](#analytics-database)
       * [webui (webui-web, webui-job)](#webui-webui-web-webui-job)
    * [Orchestrator integration](#orchestrator-integration)
-      * [openstack](#openstack)
+      * [Openstack](#openstack)
       * [vCenter](#vcenter)
       * [kubernetes](#kubernetes)
    * [HA Installation](#ha-installation)
       * [HA behaivor of Tungsten Fabric components](#ha-behaivor-of-tungsten-fabric-components)
       * [kubeadm](#kubeadm)
-      * [openstack](#openstack-1)
+      * [Openstack](#openstack-1)
       * [vCenter, to be investigated for vCenter HA part](#vcenter-to-be-investigated-for-vcenter-ha-part)
    * [Monitoring integration](#monitoring-integration)
-      * [prometheus](#prometheus)
+      * [Prometheus](#prometheus)
       * [EFK](#efk)
    * [Day 2 operation](#day-2-operation)
       * [ist.py](#istpy)
@@ -613,7 +613,7 @@ https://tungsten.io/community/
 There are a lot of different components in Tungsten Fabric.
 Let me briefly describe the usage of these parts.
 
-## overall picture
+## Overall picture
 In summary, there are 7 roles and (up to) 30 micro-services in Tungsten Fabric.
  - roles: vRouter, control, config, config-database, analytics (From 5.1, that can be further break down into analytics, analytics-snmp, analytics-alarm), analytics-database, webui
 
@@ -751,15 +751,52 @@ Internally, Tungsten Fabric's orchestrator integration components basically do t
  
 Let me describe what is done for each orchestrator.
 
-## openstack
-neutron plugin sends the event to Tungsten Fabric controller, and nova-compute plug that to vm
+## Openstack
 
-## vCenter
-vcenter-plugin receive events from vCenter and create a port. vcenter-manager receive events from ESXi, and set vRouter and vDS.
+When used with openstack, neutron-plugin (https://github.com/Juniper/contrail-neutron-plugin) will be the main interface between openstack and Tungsten Fabric Controller.
+
+Neutron-plugin will be directly loaded in neutron-api process (some modules need to be specified in neutron.conf), and that logic will do things related to neutron request/response, such as network-list or port-create, and so on.
+
+One feature of this module is that it won't use neutron db, which will be created in MySQL in typical openstack setup.
+
+Since it directly uses Tungsten Fabric db, some features, such as bridge assignment to vm, will be a bit more difficult to achieve.
+ - Since nova still uses the same vif assign logic, it might not be impossible to emulate neutron response to assign specific vif-type which can be used in neutron, although not all combination is tested, AFAIK.
+ - SR-IOV is the exception of this, since emulation of that is supported and tested well
+  - https://github.com/Juniper/contrail-controller/wiki/SRIOV
+
+When a port is assigned vif-type: vrouter, which will be automatically done by 'create port' API through that neutron-plugin, it will use nova-vif-driver for vRouter (https://github.com/Juniper/contrail-nova-vif-driver), which will do some tasks other than just creating a tap device when called, such as creating vif on vRouter through vrouter-port-control script, etc.
+ - In most cases, you don't need to delve into the detail of those behaivor. Although in some situations like live migration stopped somewhere, you might need to be careful about the status of vif ..
 
 ## kubernetes
 
-kubemanager receive events from kube-apiserver and create a port. cni plug that to container
+When used with kubernetes, the behaivor is similar to openstack case, although it uses CNI for nova-vif-driver, and kube-manager for neutron-api.
+ - https://github.com/Juniper/contrail-controller/tree/master/src/container/cni
+ - https://github.com/Juniper/contrail-controller/tree/master/src/container/kube-manager
+
+So when a container is created, kube-manager will create a port in Tungsten Fabric controller, and cni will assign that port to that container.
+
+
+## vCenter
+
+vCenter / Tungsten Fabric integration takes a bit different approach with kvm, since modules can't be installed directly on ESXi.
+
+Firstly, to make the overlay available between ESXis, one vRouterVM needs to be created on each ESXi (that is a simple CentOS vm internally)
+
+When one vm is created on that ESXi, and that was attached to dv-portgroup which was created by vcenter-plugin (https://github.com/Juniper/contrail-vcenter-plugin) when a virtual-network is created in 'vCenter' tenant, vcenter-manager (https://github.com/Juniper/contrail-vcenter-manager), which is installed on each vRouterVM with ESXi's ip / user / pass, will do two things.
+ 1. Set one vlan-id to the specific dv-portgroup port where that vm is attached
+ 2. Create a vif on the vRouterVM with interface(vlan) with the same vlan-id with that dv-portgroup port, and the VRF for that virtual-network
+
+So when a vm sent a traffic, it will got tagged when it goes into dvswitch, and reach vRouterVM, and untagged there and go into the specific VRF, that the vm belongs to.
+ - Since traffic from each vm will be tagged with different vlan-id, micro-segmentation also will be achieved
+
+After traffic go into vRouterVM, it will be the same behaivor with kvm case.
+
+Please note that those behaivor will be kicked only when vm is attached to dv-portgroups create by Tungsten Fabric controller, so vm's interfaces can be still assigned to some vSS or vDS, to use underlay access.
+ - It is even possible to install vCenter and Tungsten Fabric controller to the same ESXi with vRouters (one ESXi install), if it is assigned to such as 'VM Network', rather than dv-portgroups created by Tungsten Fabric controller.
+
+
+Since vRouter's behaivor is the same with other cases, sharing virtual-networks between vCenter and openstack, or route leak between them are also readily available.
+So with Tungsten Fabric, it is much easier to use both VMIs simultaneously, with shared networks and network services, such as fw, lb, and so on.
 
 # HA Installation
 
@@ -768,7 +805,7 @@ kubemanager receive events from kube-apiserver and create a port. cni plug that 
 ## kubeadm
 k8s master HA, and standalone, or non-nested install based on YAML
 
-## openstack
+## Openstack
 ansible-deployer
 
 ## vCenter, to be investigated for vCenter HA part
@@ -778,7 +815,7 @@ ansible-deployer
 
 example to integrate other monitoring systems
 
-## prometheus
+## Prometheus
 xxx-exporter is a new word for nagios plugin ..
  - https://github.com/tnaganawa/ovirt-tungstenfabric-integration
 
