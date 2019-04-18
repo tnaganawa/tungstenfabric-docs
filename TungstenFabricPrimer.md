@@ -828,14 +828,14 @@ ansible-deployer
 
 # Monitoring integration
 
-Since Tungsten Fabric has decent monitoring / alarm features, it could be a requirement to integrate them to full-fledged monitoring systems.
+Although Tungsten Fabric has decent monitoring / alarm features, it could be a requirement to integrate them to full-fledged monitoring systems.
 
 Let me describe how to integrate them with promethesus and EFK, as an example.
 
 ## Prometheus
 
-To monitor and visualize what's going on in Tungsten Fabric systems, arguably, the first candidate will be prometheus these days.
- - Even if that's not the case, several tools, such as zabbix support scraping prometheus format, so this could be a common format among monitoring tools: https://www.zabbix.com/documentation/4.2/manual/config/items/itemtypes/prometheus
+To monitor and visualize what's going on in Tungsten Fabric systems, prometheus will be one possible choice.
+ - Several tools, such as zabbix, support scraping prometheus format, so this also could be useful as a common format among monitoring tools: https://www.zabbix.com/documentation/4.2/manual/config/items/itemtypes/prometheus
 
 To scraped by prometheus, Tungsten Fabric's metrics need to be exported in prometheus exporter format, and there are two ways to achieve this.
  1. Directly export metrics from introspect HTTP Server (this feature is not availale today)
