@@ -816,9 +816,102 @@ On the other hand, since analyticsdb's replication-factor is always two, if two 
 
 In Up and Running chapter, I descirbed 1 controller and 1 vRouter setting, so no HA case is covered yet (And no overlay traffic case, indeed!)
 Let me describe more realistic case, with 3 controllers and 2 computes for each orchestrator.
+ - In this chapter, I'll use opencontrailnightly:latest repo, since several features are not available in 5.0.1 release, but please notice that this repo could be a bit unstable in some cases.
 
 ## kubeadm
-k8s master HA, and standalone, or non-nested install based on YAML
+
+When I'm writing this document, ansible-deployer haven't yet supported k8s master HA.
+ - https://bugs.launchpad.net/juniperopenstack/+bug/1761137
+
+Since kubeadm already supports k8s master HA,
+ - https://kubernetes.io/docs/setup/independent/high-availability/
+ 
+I'll describe the way to integrate kubeadm based k8s install and YAML based Tungsten Fabric install.
+ - https://github.com/Juniper/contrail-ansible-deployer/wiki/Provision-Contrail-Kubernetes-Cluster-in-Non-nested-Mode
+
+As other CNIs, Tungsten Fabric also can be installed directly by 'kubectl apply' command, but to achieve this, you need to configure some parameters, such as IP addr of controller nodes, manually.
+
+```
+(on all nodes)
+# cat <<CONTENTS > install-k8s-packages.sh
+bash -c 'cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg
+     https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+EOF'
+setenforce 0
+yum install -y kubelet kubeadm kubectl docker
+systemctl enable docker && systemctl start docker
+systemctl enable kubelet && systemctl start kubelet
+echo 1 > /proc/sys/net/bridge/bridge-nf-call-iptables
+swapoff -a
+CONTENTS
+
+# bash install-k8s-packages.sh
+
+
+(on k8s master nodes)
+# kubeadm init
+ - commands like that will be shown, which needs to be saved for later use
+kubeadm join 172.31.18.113:6443 --token we70in.mvy0yu0hnxb6kxip --discovery-token-ca-cert-hash sha256:13cf52534ab14ee1f4dc561de746e95bc7684f2a0355cb82eebdbd5b1e9f3634
+
+# mkdir -p $HOME/.kube
+# cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+# chown $(id -u):$(id -g) $HOME/.kube/config
+
+# yum -y install git
+# git clone https://github.com/Juniper/contrail-container-builder.git
+# cd /root/contrail-container-builder/kubernetes/manifests
+# cat <<EOF > ../../common.env
+CONTRAIL_CONTAINER_TAG=latest
+CONTRAIL_REGISTRY=opencontrailnightly
+EOF
+
+# ./resolve-manifest.sh contrail-standalone-kubernetes.yaml > cni-tungsten-fabric.yaml 
+# vi cni-tungsten-fabric.yaml
+(manually modify those lines)
+ - lines which includes ANALYTICS_API_VIP, CONFIG_API_VIP, VROUTER_GATEWAY need to be deleted
+ - Several lines which include ANALYTICS_NODES. ANALYTICSDB_NODES, CONFIG_NODES, CONFIGDB_NODES, CONTROL_NODES, CONTROLLER_NODES, RABBITMQ_NODES, ZOOKEEPER_NODES need to be set properly, like CONFIG_NODES: ip1,ip2,ip3
+# kubectl apply -f cni-tungsten-fabric.yaml
+
+
+(on k8s nodes)
+ - type kubeadm join commands, which is previosly saved
+# kubeadm join 172.31.18.113:6443 --token we70in.mvy0yu0hnxb6kxip --discovery-token-ca-cert-hash sha256:13cf52534ab14ee1f4dc561de746e95bc7684f2a0355cb82eebdbd5b1e9f3634
+
+
+(on k8s master node)
+# cat <<EOF > set-label.sh
+masternodes=$(kubectl get node | grep -w master | awk '{print $1}')
+agentnodes=$(kubectl get node | grep -v -w -e master -e NAME | awk '{print $1}')
+for i in config configdb analytics webui control
+do
+ for masternode in ${masternodes}
+ do
+  kubectl label node ${masternode} node-role.opencontrail.org/${i}=
+ done
+done
+
+for i in ${agentnodes}
+do
+ kubectl label node ${i} node-role.opencontrail.org/agent=
+done
+EOF
+
+# bash set-label.sh
+```
+
+Then you will have kubernetes environment with TungstenFabric CNI fully up, which supports many typical CNI features, and several advance features, like namespace based network isolation or type: loadbalancer k8s service based on ECMP.
+ - https://github.com/Juniper/contrail-specs/blob/master/kubernetes.md
+ - https://github.com/Juniper/contrail-specs/blob/master/kubernetes-5.0.md
+
+It can also be extended to multi-cluster or multi-orchestrator environment, which I'll describe in appendix.
+
 
 ## Openstack
 ansible-deployer
