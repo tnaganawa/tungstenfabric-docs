@@ -26,6 +26,7 @@ Table of Contents
       * [vCenter](#vcenter)
    * [More on Installation](#more-on-installation)
       * [HA behaivor of Tungsten Fabric components](#ha-behaivor-of-tungsten-fabric-components)
+      * [Multi-NIC installation](#multi-nic-installation)
       * [kubeadm](#kubeadm)
       * [Openstack](#openstack-1)
       * [vCenter, to be investigated for vCenter HA part](#vcenter-to-be-investigated-for-vcenter-ha-part)
@@ -800,6 +801,11 @@ So with Tungsten Fabric, it is much easier to use both VMIs simultaneously, with
 
 # More on Installation
 
+In Up and Running chapter, I descirbed 1 controller and 1 vRouter setting, so no HA case is covered yet (And no overlay traffic case, indeed!)
+Let me describe more realistic case, with 3 controllers and 2 computes (and possibly with multi-NICs) for each orchestrator.
+ - In this chapter, I'll use opencontrailnightly:latest repo, since several features are not available in 5.0.1 release, but please notice that this repo could be a bit unstable in some cases.
+
+
 ## HA behaivor of Tungsten Fabric components
 
 When setup for serious traiffc is planned, HA always will be a requirement.
@@ -814,9 +820,30 @@ One thing I'd like to add is cassandra's keyspace has different replication-fact
 Since configdb's data is replicated to all cassandras, it is fairly unlikely to lose some data, even if some node's disk has crashed and needs to be wiped out.
 On the other hand, since analyticsdb's replication-factor is always two, if two nodes lost data simultaneously, the data could be lost.
 
-In Up and Running chapter, I descirbed 1 controller and 1 vRouter setting, so no HA case is covered yet (And no overlay traffic case, indeed!)
-Let me describe more realistic case, with 3 controllers and 2 computes for each orchestrator.
- - In this chapter, I'll use opencontrailnightly:latest repo, since several features are not available in 5.0.1 release, but please notice that this repo could be a bit unstable in some cases.
+## Multi-NIC installation
+
+When installing Tungsten Fabric, there are many situations that requires multi-nic installation, such as separate NIC for management plane and control / data plane.
+ - Bonding is not included in this discussion, since bond0 can be directly specified by VROUTER_GATEWAY parameter
+
+Let me clarify curious behavior of vRouter in this setup.
+
+For controller / analytics, that won't be much different from typical linux installation, since linux will work well with multiple NICs and its own routing-table, including the use of static route.
+
+On the other hand, in vRouter nodes, you need to be a bit careful, since vRouter won't use linux routing-table when it sends packets, rather it always sends packets to one and only one gateway ip.
+ - It can be set with gateway parameter in contrail-vrouter-agent.conf, and VROUTER_GATEWAY in vrouter-agent container's environment variable
+
+So when setting up multi-nic installation, you need to be a bit careful if you need to specify VROUTER_GATEWAY.
+
+If it doesn't specified, vrouter-agent container will pick the nic that holds default route of that node, although that won't be the correct NIC, if internet access (0.0.0.0/0) is covered by management NIC, rather than data plane NIC.
+
+In such situation, you need to explicitly specify VROUTER_GATEWAY parameter.
+
+Because of those behavior, you also need to be a bit careful when you want to send packets from vms or containers to the NICs other than one NIC vRouter uses, since it also doesn't check linux routing-table, and it always uses the same NIC with other vRouter traffic.
+ - AFAIK, packets from link-local serivce or gatewayless also show similar behavior
+
+In such situation, you might need to use simple-gateway or SR-IOV.
+ - https://github.com/Juniper/contrail-controller/wiki/Simple-Gateway
+
 
 ## kubeadm
 
