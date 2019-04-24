@@ -25,7 +25,7 @@ Table of Contents
       * [kubernetes](#kubernetes)
       * [vCenter](#vcenter)
    * [More on Installation](#more-on-installation)
-      * [HA behaivor of Tungsten Fabric components](#ha-behaivor-of-tungsten-fabric-components)
+      * [HA behavior of Tungsten Fabric components](#ha-behavior-of-tungsten-fabric-components)
       * [Multi-NIC installation](#multi-nic-installation)
       * [kubeadm](#kubeadm)
       * [Openstack](#openstack-1)
@@ -87,7 +87,7 @@ Moreover, in control plane perspective, it has a curious feature named route tar
  - This feature means if vRouters doesn't have a prefix with that route-target, control plane drop that prefix when it received
 
 Since in cloud service, customer uses limited part of cloud providers' DCs, and different customer will use different route-target, vRouters and controllers don't need to know all the prefixes.
-Route target filtering feature makes that behaivor possible, and dramatically reduce the number of prefixes each vRouter (and each controller if RR is used between them) needs to take care of, which makes this control plane much more scalable.
+Route target filtering feature makes that behavior possible, and dramatically reduce the number of prefixes each vRouter (and each controller if RR is used between them) needs to take care of, which makes this control plane much more scalable.
 
 
 Combininng them with other features like security-policy, network-policy/logical-router (it is similar to VPC peerling or transit-gateway in AWS), I think it will be a good candidate of VPC infrastructure (similar to AWS/Azure/GCP VPC/vnet) for both of private cloud or managed cloud world, and that makes it so interesting platform which is worth a try.
@@ -637,14 +637,14 @@ Since most of advanced features in control, vRouter is inherent in MPLS, those m
 Since control and vrouter-agent uses VPNV4 bgp internally, vRouter and it's internal VRFs will install prefix needed based on extended community (a.k.a route-target).
 So when containers or vms are created on vRouter, it can signal VPNV4 route to control, and it reflects all the routes to other vRouters, and dataplane will understand where to send the packets automatically.
 
-One interesting behaivor is vRouter's virtual-network could have multiple default gateway, with same ip and same mac! (similar behaivor with virtual-gateway-address, in junos's term)
+One interesting behavior is vRouter's virtual-network could have multiple default gateway, with same ip and same mac! (similar behavior with virtual-gateway-address, in junos's term)
 Since no VRRP is required to serve default gw for each virtual-network, it eliminates the bottleneck and lets everything fully  distributed.
 
 vRouter also is doing flow based handling for some features like statefull firewall, NAT, flow-based ECMP, ..
-That is an important difference, since that behaivor will introduce some tuning points, such as connection per second and maximum number of flows. (In packet based system, PPS (packet per second), and throughput (and latency in some case) will be the key)
+That is an important difference, since that behavior will introduce some tuning points, such as connection per second and maximum number of flows. (In packet based system, PPS (packet per second), and throughput (and latency in some case) will be the key)
 If you're system is keen on these parameter, perhaps you need to review these parameter also.
 
-Note: This behaivor is optionally disabled with 'packet-mode' parameter in 'ports' configuration
+Note: This behavior is optionally disabled with 'packet-mode' parameter in 'ports' configuration
 
 ## config (config-api, schema-transformer, svc-monitor)
 
@@ -659,7 +659,7 @@ This process is converting some abstract config parameter, such as logical-route
 So it is one of the core components of Tungsten Fabric, and doing most of all the things which can't be explained simply by MPLS-VPN.
 
 Logical-router, as an example, internally creates a new route-target id, which will have all the prefix connected virtual-network has. So if virtual-network is attached logical-router, it would receive all the routes logical-router has.
-That behaivor uses MPLS-VPN internally, but route-target configuration is controlled by schema-transformer.
+That behavior uses MPLS-VPN internally, but route-target configuration is controlled by schema-transformer.
 
 So changes are propagated to dataplane in this manner:
 ```
@@ -680,7 +680,7 @@ Internally, vrouter-agent has some logic to kick haproxy or set iptables MASQUER
 Svc-monitor chooses some vRouters to create these services, and instantiate some network function and do traffic handling to these elements. To choose one, it uses analytics-api's output (analytics/uves/vrouter), and pick one that is 'Functional'.
  - https://github.com/Juniper/contrail-controller/blob/master/src/config/svc-monitor/svc_monitor/scheduler/vrouter_scheduler.py#L149
 
-That behaivor is the one reason currently analytics is required for TungstenFabric installation, although it might be changed in the future release.
+That behavior is the one reason currently analytics is required for TungstenFabric installation, although it might be changed in the future release.
 
 ## config-database (zookeeper, cassandra, rabbitmq)
 
@@ -699,7 +699,7 @@ Nodemgr basically meant to be the source of the state of each node, so it checks
 
 This value could be the source of contrail-status, and other logic like analytics-alarm or svc-monitor, which check if this value is Functional when it choose vRouter, so to keep those Functional is fairly important to make Tungsten Fabric operational.
 
-This component have a bit different behaivor if assigned different role. So it is installed on each node, with slightly different behaivor.
+This component have a bit different behavior if assigned different role. So it is installed on each node, with slightly different behavior.
 
 Additionaly, it also does the first provision of each nodes, which means to notify config-api that this ip has a role xxx assigned. So even if the analytics feature is not required, this module need to be there, at least for the first time a node is up.
 
@@ -739,7 +739,7 @@ Kafka is used to propagate UVEs to analytics-alarms, so if you want to use alarm
 Finally, webui is reached.
 It basically is a simple webui, to see the status of components and to configure parameters for Tungsten Fabric.
 
-A bit interesting behaivor is it uses AJAX behaivor, to update some graph which needs long query against analytics-api (such as Monitor > Dashboard access), and that async job is covered by webui-job process.
+A bit interesting behavior is it uses AJAX behavior, to update some graph which needs long query against analytics-api (such as Monitor > Dashboard access), and that async job is covered by webui-job process.
 
 
 # Orchestrator integration
@@ -766,11 +766,11 @@ Since it directly uses Tungsten Fabric db, some features, such as bridge assignm
   - https://github.com/Juniper/contrail-controller/wiki/SRIOV
 
 When a port is assigned vif-type: vrouter, which will be automatically done by 'create port' API through that neutron-plugin, it will use nova-vif-driver for vRouter (https://github.com/Juniper/contrail-nova-vif-driver), which will do some tasks other than just creating a tap device when called, such as creating vif on vRouter through vrouter-port-control script, etc.
- - In most cases, you don't need to delve into the detail of those behaivor. Although in some situations like live migration stopped somewhere, you might need to be careful about the status of vif ..
+ - In most cases, you don't need to delve into the detail of those behavior. Although in some situations like live migration stopped somewhere, you might need to be careful about the status of vif ..
 
 ## kubernetes
 
-When used with kubernetes, the behaivor is similar to openstack case, although it uses CNI for nova-vif-driver, and kube-manager for neutron-api.
+When used with kubernetes, the behavior is similar to openstack case, although it uses CNI for nova-vif-driver, and kube-manager for neutron-api.
  - https://github.com/Juniper/contrail-controller/tree/master/src/container/cni
  - https://github.com/Juniper/contrail-controller/tree/master/src/container/kube-manager
 
@@ -790,13 +790,13 @@ When one vm is created on that ESXi, and that was attached to dv-portgroup which
 So when a vm sent a traffic, it will got tagged when it goes into dvswitch, and reach vRouterVM, and untagged there and go into the specific VRF, that the vm belongs to.
  - Since traffic from each vm will be tagged with different vlan-id, micro-segmentation also will be achieved
 
-After traffic go into vRouterVM, it will be the same behaivor with kvm case.
+After traffic go into vRouterVM, it will be the same behavior with kvm case.
 
-Please note that those behaivor will be kicked only when vm is attached to dv-portgroups create by Tungsten Fabric controller, so vm's interfaces can be still assigned to some vSS or vDS, to use underlay access.
+Please note that those behavior will be kicked only when vm is attached to dv-portgroups create by Tungsten Fabric controller, so vm's interfaces can be still assigned to some vSS or vDS, to use underlay access.
  - It is even possible to install vCenter and Tungsten Fabric controller to the same ESXi with vRouters (one ESXi install), if it is assigned to such as 'VM Network', rather than dv-portgroups created by Tungsten Fabric controller.
 
 
-Since vRouter's behaivor is the same with other cases, sharing virtual-networks between vCenter and openstack, or route leak between them are also readily available.
+Since vRouter's behavior is the same with other cases, sharing virtual-networks between vCenter and openstack, or route leak between them are also readily available.
 So with Tungsten Fabric, it is much easier to use both VMIs simultaneously, with shared networks and network services, such as fw, lb, and so on.
 
 # More on Installation
@@ -806,7 +806,7 @@ Let me describe more realistic case, with 3 controllers and 2 computes (and poss
  - In this chapter, I'll use opencontrailnightly:latest repo, since several features are not available in 5.0.1 release, but please notice that this repo could be a bit unstable in some cases.
 
 
-## HA behaivor of Tungsten Fabric components
+## HA behavior of Tungsten Fabric components
 
 When setup for serious traiffc is planned, HA always will be a requirement.
 
