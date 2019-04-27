@@ -29,7 +29,7 @@ Table of Contents
       * [Multi-NIC installation](#multi-nic-installation)
       * [kubeadm](#kubeadm)
       * [Openstack](#openstack-1)
-      * [vCenter](#vcenter)
+      * [vCenter](#vcenter-1)
    * [Monitoring integration](#monitoring-integration)
       * [Prometheus](#prometheus)
       * [EFK](#efk)
@@ -1444,7 +1444,19 @@ For more detailed configuration of ansible-deployer (including multi-NIC sample)
  - https://github.com/Juniper/contrail-ansible-deployer/wiki/Configuration-Sample-for-Multi-Node-Openstack-HA-and-Contrail-(multi-interface)
 
 ## vCenter
-ansible-deployer
+
+Tungsten Fabric can be well integrated with vCenter, as already described orchestrator integration section.
+
+To try this feature, you can follow these instructions.
+ - https://github.com/Juniper/contrail-ansible-deployer/blob/master/README_vcenter.md
+ - Let me note that vRouterVM's OVF file is not publicly available currently
+
+Since HA behavior of Tungsten Fabric is completely the same as the one from kubernetes and openstack installation, I don't describe the detail of them.
+
+For orchestrator side HA, vCenter HA is available.
+ - I haven't yet tried this combination, but since vCenter HA will use the same IP for vCenter service, I think there is high possibility that vcenter-plugin can work with vCenter HA.
+
+Multi-vCenter or cross-vCenter (when link-mode is used) will be a bit interesting subject. I will discuss them further in Appendix.
 
 # Monitoring integration
 
