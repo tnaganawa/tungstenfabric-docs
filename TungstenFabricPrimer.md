@@ -29,7 +29,7 @@ Table of Contents
       * [Multi-NIC installation](#multi-nic-installation)
       * [kubeadm](#kubeadm)
       * [Openstack](#openstack-1)
-      * [vCenter, to be investigated for vCenter HA part](#vcenter-to-be-investigated-for-vcenter-ha-part)
+      * [vCenter](#vcenter)
    * [Monitoring integration](#monitoring-integration)
       * [Prometheus](#prometheus)
       * [EFK](#efk)
@@ -941,9 +941,509 @@ It can also be extended to multi-cluster or multi-orchestrator environment, whic
 
 
 ## Openstack
-ansible-deployer
 
-## vCenter, to be investigated for vCenter HA part
+Openstack HA installation is directly covered by ansible-deployer.
+
+For this example setup, I used 5 EC2 instances (AMI is the same, ami-3185744e).
+2 vcpu, 8 GB mem, 20 GB disk is assigned to those instances. VPC has CIDR with 172.31.0.0/16.
+
+```
+yum -y install epel-release
+yum -y install git ansible-2.4.2.0
+ssh-keygen
+cd .ssh/
+cat id_rsa.pub >> authorized_keys
+cd
+git clone http://github.com/Juniper/contrail-ansible-deployer
+cd contrail-ansible-deployer
+vi config/instances.yaml
+(replace contents with this)
+provider_config:
+  bms:
+   ssh_user: root
+   ssh_public_key: /root/.ssh/id_rsa.pub
+   ssh_private_key: /root/.ssh/id_rsa
+   domainsuffix: local
+   ntpserver: 0.centos.pool.ntp.org
+instances:
+  bms1:
+    provider: bms
+    ip: 172.31.6.90 # controller1's ip
+    roles:
+      config_database:
+      config:
+      control:
+      analytics:
+      webui:
+      openstack:
+  bms2:
+    provider: bms
+    ip: 172.31.25.90 # controller2's ip
+    roles:
+      config_database:
+      config:
+      control:
+      analytics:
+      webui:
+      openstack:
+  bms3:
+    provider: bms
+    ip: 172.31.31.242 # controller3's ip
+    roles:
+      config_database:
+      config:
+      control:
+      analytics:
+      webui:
+      openstack:
+  bms11:
+    provider: bms
+    ip: 172.31.42.209 # compute1's ip
+    roles:
+      vrouter:
+      openstack_compute:
+  bms12:
+    provider: bms
+    ip: 172.31.15.199 # compute2's ip
+    roles:
+      vrouter:
+      openstack_compute:
+contrail_configuration:
+  RABBITMQ_NODE_PORT: 5673
+  AUTH_MODE: keystone
+  KEYSTONE_AUTH_URL_VERSION: /v3
+  JVM_EXTRA_OPTS: "-Xms128m -Xmx1g"
+kolla_config:
+  kolla_globals:
+    kolla_internal_vip_address: 172.31.0.11 ## kolla-ansible will deploy haproxy to serve HA vip
+  kolla_passwords:
+    keystone_admin_password: contrail123 # admin user's password
+global_configuration:
+
+
+## if previously described AMI is used, it uses cloud-init packages whose rpm dependency is not compatible with ansible-deployer in R5.1 and later. To workaroud this, I used these commands.
+yum -y remove PyYAML python-requests
+pip install PyYAML requests
+pip install ansible
+
+
+ansible-playbook -e orchestrator=openstack -i inventory/ playbooks/configure_instances.yml
+ - it takes about 10 minutes
+ansible-playbook -e orchestrator=openstack -i inventory/ playbooks/install_openstack.yml
+ - it takes about 40 minutes
+ansible-playbook -e orchestrator=openstack -i inventory/ playbooks/install_contrail.yml
+ - it takes about 20 minutes
+
+
+
+[root@ip-172-31-6-90 ~]# contrail-status 
+Pod              Service         Original Name                          State    Id            Status         
+                 redis           contrail-external-redis                running  23ef79b48ae8  Up 41 minutes  
+analytics        api             contrail-analytics-api                 running  3139f5fd9256  Up 36 minutes  
+analytics        collector       contrail-analytics-collector           running  89c9e02fb551  Up 36 minutes  
+analytics        nodemgr         contrail-nodemgr                       running  5eecb461f95c  Up 36 minutes  
+config           api             contrail-controller-config-api         running  fb0dc55f76c7  Up 39 minutes  
+config           device-manager  contrail-controller-config-devicemgr   running  8dbff58776a2  Up 39 minutes  
+config           nodemgr         contrail-nodemgr                       running  b64af838545d  Up 39 minutes  
+config           schema          contrail-controller-config-schema      running  83e0acf17e39  Up 39 minutes  
+config           svc-monitor     contrail-controller-config-svcmonitor  running  623e17e8e74e  Up 39 minutes  
+config-database  cassandra       contrail-external-cassandra            running  db30d874dce3  Up 40 minutes  
+config-database  nodemgr         contrail-nodemgr                       running  590463f627f6  Up 38 minutes  
+config-database  rabbitmq        contrail-external-rabbitmq             running  712ee26dda64  Up 40 minutes  
+config-database  zookeeper       contrail-external-zookeeper            running  46dbdec00e46  Up 40 minutes  
+control          control         contrail-controller-control-control    running  3e0e653d1588  Up 37 minutes  
+control          dns             contrail-controller-control-dns        running  2cebc37c18cf  Up 37 minutes  
+control          named           contrail-controller-control-named      running  112bd2d8ed5f  Up 37 minutes  
+control          nodemgr         contrail-nodemgr                       running  f2e0fdc4bfb2  Up 37 minutes  
+device-manager   dnsmasq         contrail-external-dnsmasq              running  f84b45234d70  Up 39 minutes  
+webui            job             contrail-controller-webui-job          running  3dece86513a1  Up 38 minutes  
+webui            web             contrail-controller-webui-web          running  408c772b1628  Up 38 minutes  
+
+== Contrail control ==
+control: active
+nodemgr: active
+named: active
+dns: active
+
+== Contrail config-database ==
+nodemgr: initializing (Disk for DB is too low. )
+zookeeper: active
+rabbitmq: active
+cassandra: active
+
+== Contrail analytics ==
+nodemgr: active
+api: active
+collector: active
+
+== Contrail webui ==
+web: active
+job: active
+
+== Contrail device-manager ==
+
+== Contrail config ==
+svc-monitor: backup
+nodemgr: active
+device-manager: backup
+api: active
+schema: backup
+
+
+[root@ip-172-31-25-90 ~]# contrail-status 
+Pod              Service         Original Name                          State    Id            Status         
+                 redis           contrail-external-redis                running  1ed7e967085e  Up 41 minutes  
+analytics        api             contrail-analytics-api                 running  7392ea345e83  Up 36 minutes  
+analytics        collector       contrail-analytics-collector           running  82332a53a566  Up 36 minutes  
+analytics        nodemgr         contrail-nodemgr                       running  89141bb180cd  Up 36 minutes  
+config           api             contrail-controller-config-api         running  b2af8bc8a6d7  Up 38 minutes  
+config           device-manager  contrail-controller-config-devicemgr   running  d8ed77431dfa  Up 39 minutes  
+config           nodemgr         contrail-nodemgr                       running  8c7f3d5f05e4  Up 39 minutes  
+config           schema          contrail-controller-config-schema      running  4a6099aaea2a  Up 39 minutes  
+config           svc-monitor     contrail-controller-config-svcmonitor  running  3a3e6d37b30e  Up 39 minutes  
+config-database  cassandra       contrail-external-cassandra            running  0b05e121c017  Up 40 minutes  
+config-database  nodemgr         contrail-nodemgr                       running  fb4857fe16c1  Up 39 minutes  
+config-database  rabbitmq        contrail-external-rabbitmq             running  a8137277a40f  Up 40 minutes  
+config-database  zookeeper       contrail-external-zookeeper            running  9571f4d9fde2  Up 40 minutes  
+control          control         contrail-controller-control-control    running  5460dc02cc03  Up 37 minutes  
+control          dns             contrail-controller-control-dns        running  17b27877ef6e  Up 37 minutes  
+control          named           contrail-controller-control-named      running  cdbe1bae4c40  Up 37 minutes  
+control          nodemgr         contrail-nodemgr                       running  cb36c2b4625a  Up 37 minutes  
+device-manager   dnsmasq         contrail-external-dnsmasq              running  dd9002e6f58d  Up 39 minutes  
+webui            job             contrail-controller-webui-job          running  60dc895d439e  Up 38 minutes  
+webui            web             contrail-controller-webui-web          running  3ddfb5e2e851  Up 38 minutes  
+
+== Contrail control ==
+control: active
+nodemgr: active
+named: active
+dns: active
+
+== Contrail config-database ==
+nodemgr: initializing (Disk for DB is too low. )
+zookeeper: active
+rabbitmq: active
+cassandra: active
+
+== Contrail analytics ==
+nodemgr: active
+api: active
+collector: active
+
+== Contrail webui ==
+web: active
+job: active
+
+== Contrail device-manager ==
+
+== Contrail config ==
+svc-monitor: backup
+nodemgr: active
+device-manager: active
+api: active
+schema: backup
+
+
+[root@ip-172-31-31-242 ~]# contrail-status 
+Pod              Service         Original Name                          State    Id            Status         
+                 redis           contrail-external-redis                running  172e35daca5a  Up 42 minutes  
+analytics        api             contrail-analytics-api                 running  2edf90837a43  Up 36 minutes  
+analytics        collector       contrail-analytics-collector           running  812d4c190841  Up 36 minutes  
+analytics        nodemgr         contrail-nodemgr                       running  d0eafce0d49d  Up 36 minutes  
+config           api             contrail-controller-config-api         running  7819c7792960  Up 39 minutes  
+config           device-manager  contrail-controller-config-devicemgr   running  c22addf8f1f1  Up 38 minutes  
+config           nodemgr         contrail-nodemgr                       running  bd742928f26e  Up 39 minutes  
+config           schema          contrail-controller-config-schema      running  8ad72d0a2c12  Up 39 minutes  
+config           svc-monitor     contrail-controller-config-svcmonitor  running  86283bfc21dc  Up 39 minutes  
+config-database  cassandra       contrail-external-cassandra            running  315d17494665  Up 41 minutes  
+config-database  nodemgr         contrail-nodemgr                       running  a78521b2b940  Up 39 minutes  
+config-database  rabbitmq        contrail-external-rabbitmq             running  dfefb054808b  Up 41 minutes  
+config-database  zookeeper       contrail-external-zookeeper            running  a16d1a2d259b  Up 41 minutes  
+control          control         contrail-controller-control-control    running  bc9ecb41131c  Up 37 minutes  
+control          dns             contrail-controller-control-dns        running  beff8cf11fdd  Up 37 minutes  
+control          named           contrail-controller-control-named      running  2322d5598a24  Up 37 minutes  
+control          nodemgr         contrail-nodemgr                       running  32b611d85d19  Up 37 minutes  
+device-manager   dnsmasq         contrail-external-dnsmasq              running  a0b3dd0ad254  Up 39 minutes  
+webui            job             contrail-controller-webui-job          running  257721b46207  Up 38 minutes  
+webui            web             contrail-controller-webui-web          running  c2e7b95e7321  Up 38 minutes  
+
+== Contrail control ==
+control: active
+nodemgr: active
+named: active
+dns: active
+
+== Contrail config-database ==
+nodemgr: initializing (Disk for DB is too low. )
+zookeeper: active
+rabbitmq: active
+cassandra: active
+
+== Contrail analytics ==
+nodemgr: active
+api: active
+collector: active
+
+== Contrail webui ==
+web: active
+job: active
+
+== Contrail device-manager ==
+
+== Contrail config ==
+svc-monitor: active
+nodemgr: active
+device-manager: backup
+api: active
+schema: active
+
+
+[root@ip-172-31-42-209 ~]# contrail-status 
+Pod      Service  Original Name           State    Id            Status         
+vrouter  agent    contrail-vrouter-agent  running  a17883037f12  Up 36 minutes  
+vrouter  nodemgr  contrail-nodemgr        running  6dc2258ac4f6  Up 36 minutes  
+
+vrouter kernel module is PRESENT
+== Contrail vrouter ==
+nodemgr: active
+agent: active
+
+
+[root@ip-172-31-15-199 ~]# contrail-status 
+Pod      Service  Original Name           State    Id            Status         
+vrouter  agent    contrail-vrouter-agent  running  a1e7767b3302  Up 36 minutes  
+vrouter  nodemgr  contrail-nodemgr        running  40d5613fec21  Up 36 minutes  
+
+vrouter kernel module is PRESENT
+== Contrail vrouter ==
+nodemgr: active
+agent: active
+```
+
+
+Then, you can create instances with openstack command.
+
+```
+docker cp /etc/kolla/kolla-toolbox/admin-openrc.sh kolla_toolbox:/var/tmp
+docker exec -it kolla_toolbox bash
+  source /var/tmp/admin-openrc.sh
+  cd /var/tmp
+  curl -O http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img
+  openstack image create cirros --disk-format qcow2 --public --container-format bare --file cirros-0.4.0-x86_64-disk.img
+  openstack flavor create --ram 512 --disk 1 --vcpus 1 m1.tiny
+  openstack network create testvn
+  openstack subnet create --subnet-range 192.168.100.0/24 --network testvn subnet1
+  NET_ID=`openstack network list | grep testvn | awk -F '|' '{print $2}' | tr -d ' '`
+  openstack server create --flavor m1.tiny --image cirros --nic net-id=${NET_ID} vm1
+  openstack server create --flavor m1.tiny --image cirros --nic net-id=${NET_ID} vm2
+  exit
+
+(on compute nodes)
+ip route ## check metadata ip of two instances
+ssh cirros@169.254.0.x
+  ping 192.168.100.4
+
+
+(kolla-toolbox)[ansible@ip-172-31-6-90 /]$ openstack server list
++--------------------------------------+------+--------+----------------------+--------+---------+
+| ID                                   | Name | Status | Networks             | Image  | Flavor  |
++--------------------------------------+------+--------+----------------------+--------+---------+
+| 9d66f0ed-d7d5-4a53-983d-dfba0385bd22 | vm2  | ACTIVE | testvn=192.168.100.4 | cirros | m1.tiny |
+| 6595b4c1-1e6f-4f02-8f66-83b6355065b2 | vm1  | ACTIVE | testvn=192.168.100.3 | cirros | m1.tiny |
++--------------------------------------+------+--------+----------------------+--------+---------+
+(kolla-toolbox)[ansible@ip-172-31-6-90 /]$ 
+
+[root@ip-172-31-42-209 ~]# ip route
+default via 172.31.32.1 dev vhost0 
+169.254.0.1 dev vhost0 proto 109 scope link 
+169.254.0.3 dev vhost0 proto 109 scope link 
+172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 
+172.31.32.0/20 dev vhost0 proto kernel scope link src 172.31.42.209 
+[root@ip-172-31-42-209 ~]# ssh cirros@169.254.0.3
+cirros@169.254.0.3's password: 
+$ ip -o a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast qlen 1000\    link/ether 02:79:59:ea:d4:17 brd ff:ff:ff:ff:ff:ff
+2: eth0    inet 192.168.100.3/24 brd 192.168.100.255 scope global eth0\       valid_lft forever preferred_lft forever
+2: eth0    inet6 fe80::79:59ff:feea:d417/64 scope link \       valid_lft forever preferred_lft forever
+$ 
+$ ping 192.168.100.4
+PING 192.168.100.4 (192.168.100.4): 56 data bytes
+64 bytes from 192.168.100.4: seq=0 ttl=64 time=13.876 ms
+64 bytes from 192.168.100.4: seq=1 ttl=64 time=2.417 ms
+64 bytes from 192.168.100.4: seq=2 ttl=64 time=2.375 ms
+^C
+--- 192.168.100.4 ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 2.375/6.222/13.876 ms
+$ 
+$
+
+
+[root@ip-172-31-15-199 ~]# ip route
+default via 172.31.0.1 dev vhost0 
+169.254.0.1 dev vhost0 proto 109 scope link 
+169.254.0.3 dev vhost0 proto 109 scope link 
+172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 
+172.31.0.0/20 dev vhost0 proto kernel scope link src 172.31.15.199 
+[root@ip-172-31-15-199 ~]# ssh cirros@169.254.0.3
+cirros@169.254.0.3's password: 
+$ ip -o a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast qlen 1000\    link/ether 02:08:e6:0d:1e:3b brd ff:ff:ff:ff:ff:ff
+2: eth0    inet 192.168.100.4/24 brd 192.168.100.255 scope global eth0\       valid_lft forever preferred_lft forever
+2: eth0    inet6 fe80::8:e6ff:fe0d:1e3b/64 scope link \       valid_lft forever preferred_lft forever
+$ 
+```
+
+
+Note: you might need this setting to be added, if compute nodes don't support kvm.
+```
+vi /etc/kolla/nova-compute/nova.conf
+(add them in [libvirt] section)
+virt_type=qemu
+cpu_mode=none
+
+docker restart nova_compute
+```
+
+Note: If AWS is used, you also need to set Networking > Manage IP Addresses from EC2 instance's right click menu, to allow access to the haproxy VIP from other nodes
+
+
+Finally, full HA between controllers and overlay between 2 computes are configured!
+
+There are some points that is not covered in this document, such as the behavior when some controllers are down, or live migration between them are performed between computes.
+When I tried live migration last time, about 1 sec packet loss is seen, but please check in your own setup, since there are a lot of points to be taken cared of. (prefix will be updated when live migration is finished)
+
+
+Looking through each controller's neighbor state and routing table, you can see curious difference between them.
+
+```
+[root@ip-172-31-6-90 ~]# ./contrail-introspect-cli/ist.py ctr nei
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| peer                   | peer_address  | peer_asn | encoding | peer_type | state       | send_state | flap_count | flap_time |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| ip-172-31-25-90.local  | 172.31.25.90  | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-31-242.local | 172.31.31.242 | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-42-209.local | 172.31.42.209 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+[root@ip-172-31-6-90 ~]# ./contrail-introspect-cli/ist.py --host 172.31.25.90 ctr nei
+Introspect Host: 172.31.25.90
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| peer                   | peer_address  | peer_asn | encoding | peer_type | state       | send_state | flap_count | flap_time |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| ip-172-31-31-242.local | 172.31.31.242 | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-6-90.local   | 172.31.6.90   | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-15-199.local | 172.31.15.199 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+[root@ip-172-31-6-90 ~]# 
+[root@ip-172-31-6-90 ~]# ./contrail-introspect-cli/ist.py --host 172.31.31.242 ctr nei
+Introspect Host: 172.31.31.242
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| peer                   | peer_address  | peer_asn | encoding | peer_type | state       | send_state | flap_count | flap_time |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| ip-172-31-25-90.local  | 172.31.25.90  | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-6-90.local   | 172.31.6.90   | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-15-199.local | 172.31.15.199 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-42-209.local | 172.31.42.209 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+[root@ip-172-31-6-90 ~]#
+[root@ip-172-31-6-90 ~]#
+
+[root@ip-172-31-6-90 ~]# ./contrail-introspect-cli/ist.py ctr route summary
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| name                                               | prefixes | paths | primary_paths | secondary_paths | infeasible_paths |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| default-domain:admin:testvn:testvn.inet.0          | 2        | 4     | 1             | 3               | 0                |
+| default-domain:default-                            | 0        | 0     | 0             | 0               | 0                |
+| project:__link_local__:__link_local__.inet.0       |          |       |               |                 |                  |
+| default-domain:default-project:dci-                | 0        | 0     | 0             | 0               | 0                |
+| network:__default__.inet.0                         |          |       |               |                 |                  |
+| default-domain:default-project:dci-network:dci-    | 0        | 0     | 0             | 0               | 0                |
+| network.inet.0                                     |          |       |               |                 |                  |
+| default-domain:default-project:default-virtual-    | 0        | 0     | 0             | 0               | 0                |
+| network:default-virtual-network.inet.0             |          |       |               |                 |                  |
+| inet.0                                             | 0        | 0     | 0             | 0               | 0                |
+| default-domain:default-project:ip-fabric:ip-       | 1        | 1     | 1             | 0               | 0                |
+| fabric.inet.0                                      |          |       |               |                 |                  |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+[root@ip-172-31-6-90 ~]# ./contrail-introspect-cli/ist.py --host 172.31.25.90 ctr route summary
+Introspect Host: 172.31.25.90
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| name                                               | prefixes | paths | primary_paths | secondary_paths | infeasible_paths |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| default-domain:admin:testvn:testvn.inet.0          | 2        | 4     | 1             | 3               | 0                |
+| default-domain:default-                            | 0        | 0     | 0             | 0               | 0                |
+| project:__link_local__:__link_local__.inet.0       |          |       |               |                 |                  |
+| default-domain:default-project:dci-                | 0        | 0     | 0             | 0               | 0                |
+| network:__default__.inet.0                         |          |       |               |                 |                  |
+| default-domain:default-project:dci-network:dci-    | 0        | 0     | 0             | 0               | 0                |
+| network.inet.0                                     |          |       |               |                 |                  |
+| default-domain:default-project:default-virtual-    | 0        | 0     | 0             | 0               | 0                |
+| network:default-virtual-network.inet.0             |          |       |               |                 |                  |
+| inet.0                                             | 0        | 0     | 0             | 0               | 0                |
+| default-domain:default-project:ip-fabric:ip-       | 1        | 1     | 1             | 0               | 0                |
+| fabric.inet.0                                      |          |       |               |                 |                  |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+[root@ip-172-31-6-90 ~]# ./contrail-introspect-cli/ist.py --host 172.31.31.242 ctr route summary
+Introspect Host: 172.31.31.242
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| name                                               | prefixes | paths | primary_paths | secondary_paths | infeasible_paths |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| default-domain:admin:testvn:testvn.inet.0          | 2        | 4     | 2             | 2               | 0                |
+| default-domain:default-                            | 0        | 0     | 0             | 0               | 0                |
+| project:__link_local__:__link_local__.inet.0       |          |       |               |                 |                  |
+| default-domain:default-project:dci-                | 0        | 0     | 0             | 0               | 0                |
+| network:__default__.inet.0                         |          |       |               |                 |                  |
+| default-domain:default-project:dci-network:dci-    | 0        | 0     | 0             | 0               | 0                |
+| network.inet.0                                     |          |       |               |                 |                  |
+| default-domain:default-project:default-virtual-    | 0        | 0     | 0             | 0               | 0                |
+| network:default-virtual-network.inet.0             |          |       |               |                 |                  |
+| inet.0                                             | 0        | 0     | 0             | 0               | 0                |
+| default-domain:default-project:ip-fabric:ip-       | 2        | 2     | 2             | 0               | 0                |
+| fabric.inet.0                                      |          |       |               |                 |                  |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+[root@ip-172-31-6-90 ~]#
+
+ 
+[root@ip-172-31-6-90 ~]# ./contrail-introspect-cli/ist.py --host 172.31.31.242 ctr route show 192.168.100.3
+Introspect Host: 172.31.31.242
+
+default-domain:admin:testvn:testvn.inet.0: 2 destinations, 4 routes (2 primary, 2 secondary, 0 infeasible)
+
+192.168.100.3/32, age: 0:01:18.234010, last_modified: 2019-Apr-27 14:03:19.075046
+    [XMPP (interface)|ip-172-31-42-209.local] age: 0:01:18.239011, localpref: 200, nh: 172.31.42.209, encap: ['gre', 'udp'], label: 25, AS path: None
+    [BGP|172.31.6.90] age: 0:01:18.230559, localpref: 200, nh: 172.31.42.209, encap: ['gre', 'udp'], label: 25, AS path: None
+
+
+[root@ip-172-31-6-90 ~]# ./contrail-introspect-cli/ist.py --host 172.31.31.242 ctr route show 192.168.100.4
+Introspect Host: 172.31.31.242
+
+default-domain:admin:testvn:testvn.inet.0: 2 destinations, 4 routes (2 primary, 2 secondary, 0 infeasible)
+
+192.168.100.4/32, age: 0:00:52.035230, last_modified: 2019-Apr-27 14:03:47.460835
+    [XMPP (interface)|ip-172-31-15-199.local] age: 0:00:52.039485, localpref: 200, nh: 172.31.15.199, encap: ['gre', 'udp'], label: 25, AS path: None
+    [BGP|172.31.25.90] age: 0:00:51.996464, localpref: 200, nh: 172.31.15.199, encap: ['gre', 'udp'], label: 25, AS path: None
+[root@ip-172-31-6-90 ~]# 
+```
+
+Since vRouter always have 2 XMPP connections, when 3 controllers are there, XMPP connection states are not the same between controllers, and routing tables could be a bit different between them.
+Considering route target filtering, it is even possible that they have completely different routing tables, if some of controllers don't received some specific route-target from XMPP.
+
+That is from the nature of scale-out behavior of Tungsten Fabric.
+
+
+
+For more detailed configuration of ansible-deployer (including multi-NIC sample), you can check those documents.
+ - https://github.com/Juniper/contrail-ansible-deployer/wiki/Contrail-with-Openstack-Kolla
+ - https://github.com/Juniper/contrail-ansible-deployer/wiki/Configuration-Sample-for-Multi-Node-Openstack-HA-and-Contrail-(single-interface)
+ - https://github.com/Juniper/contrail-ansible-deployer/wiki/Configuration-Sample-for-Multi-Node-Openstack-HA-and-Contrail-(multi-interface)
+
+## vCenter
 ansible-deployer
 
 # Monitoring integration
