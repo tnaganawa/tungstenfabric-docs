@@ -592,6 +592,14 @@ So it allows similar setting with network nodes based external access, which is 
 
 You can optionally use IPV4 bgp in combination with gatewayless, which is also recommended, since it dynamically updates the next-hops for each containers and directly send packets to the correct vRouters, which  eliminates bottleneck.
 
+Note: this virtual-network can also be used as a source of floating-ip.
+ 1. Set 'Advanced Options' > 'External' to this virtual-network (Then floating ip pool will be created with the name 'default')
+ 2. Assign floating ip from kubernetes or openstack
+ - for kubernetes,it will be the source of external-ip, and need to be specifed with this parameter to kube-manager: KUBERNETES_PUBLIC_FIP_POOL
+example:
+ KUBERNETES_PUBLIC_FIP_POOL={'domain': 'default-domain', 'project': 'default', 'network': 'public-network1', 'name': 'default' }
+ - for openstack, horizon or cli can be used to assign floating-ip to VMs,
+ 3. You can also directly assign floting-ip to specific port from Tungsten Fabric Webui. (Configure > Ports > edit > floating-ip)
 
 ## 3. After this reading
 
