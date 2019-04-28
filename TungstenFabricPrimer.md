@@ -858,13 +858,13 @@ In such situation, you might need to use simple-gateway or SR-IOV.
 When I'm writing this document, ansible-deployer haven't yet supported k8s master HA.
  - https://bugs.launchpad.net/juniperopenstack/+bug/1761137
 
-Since kubeadm already supports k8s master HA,
+Since kubeadm already supports k8s master HA, I'll describe the way to integrate kubeadm based k8s install and YAML based Tungsten Fabric install.
  - https://kubernetes.io/docs/setup/independent/high-availability/
- 
-I'll describe the way to integrate kubeadm based k8s install and YAML based Tungsten Fabric install.
  - https://github.com/Juniper/contrail-ansible-deployer/wiki/Provision-Contrail-Kubernetes-Cluster-in-Non-nested-Mode
 
-As other CNIs, Tungsten Fabric also can be installed directly by 'kubectl apply' command, but to achieve this, you need to configure some parameters, such as IP addr of controller nodes, manually.
+As other CNIs, Tungsten Fabric also can be installed directly by 'kubectl apply' command. But to achieve this, you need to configure some parameters, such as IP addr of controller nodes, manually.
+
+For this example setup, I used 5 EC2 instances (AMI is the same, ami-3185744e). 2 vcpu, 8 GB mem, 20 GB disk is assigned to those instances. VPC has CIDR with 172.31.0.0/16
 
 ```
 (on all nodes)
@@ -889,15 +889,79 @@ CONTENTS
 
 # bash install-k8s-packages.sh
 
+(on the first k8s master node)
+yum -y install haproxy
+# vi /etc/haproxy/haproxy.cfg
+(add those lines at the last of this file)
+listen kube
+  mode tcp
+  bind 0.0.0.0:1443
+  server master1 172.31.13.9:6443
+  server master2 172.31.8.73:6443
+  server master3 172.31.32.58:6443
+# systemctl start haproxy
+# systemctl enable haproxy
 
-(on k8s master nodes)
-# kubeadm init
- - commands like that will be shown, which needs to be saved for later use
-kubeadm join 172.31.18.113:6443 --token we70in.mvy0yu0hnxb6kxip --discovery-token-ca-cert-hash sha256:13cf52534ab14ee1f4dc561de746e95bc7684f2a0355cb82eebdbd5b1e9f3634
+# vi kubeadm-config.yaml 
+apiVersion: kubeadm.k8s.io/v1beta1
+kind: ClusterConfiguration
+kubernetesVersion: stable
+apiServer:
+  certSANs:
+  - "ip-172-31-13-9"
+controlPlaneEndpoint: "ip-172-31-13-9:1443"
+
+# kubeadm init --config=kubeadm-config.yaml
+
+(save those lines for later use)
+  kubeadm join ip-172-31-13-9:1443 --token mlq9gw.gt5m13cbro6c8xsu \
+    --discovery-token-ca-cert-hash sha256:677ea74fa03311a38ecb497d2f0803a5ea1eea85765aa2daa4503f24dd747f9a \
+    --experimental-control-plane
+  kubeadm join ip-172-31-13-9:1443 --token mlq9gw.gt5m13cbro6c8xsu \
+    --discovery-token-ca-cert-hash sha256:677ea74fa03311a38ecb497d2f0803a5ea1eea85765aa2daa4503f24dd747f9a 
 
 # mkdir -p $HOME/.kube
 # cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 # chown $(id -u):$(id -g) $HOME/.kube/config
+
+# cd /etc/kubernetes
+# tar czvf /tmp/k8s-master-ca.tar.gz pki/ca.crt pki/ca.key pki/sa.key pki/sa.pub pki/front-proxy-ca.crt pki/front-proxy-ca.key pki/etcd/ca.crt pki/etcd/ca.key admin.conf
+(scp that tar file to 2nd and 3rd k8s master node)
+
+(On 2nd and 3rd k8s master nodes)
+# mkdir -p /etc/kubernetes/pki/etcd
+# cd /etc/kubernetes
+# tar xvf /tmp/k8s-master-ca.tar.gz
+
+# kubeadm join ip-172-31-13-9:1443 --token mlq9gw.gt5m13cbro6c8xsu \
+    --discovery-token-ca-cert-hash sha256:677ea74fa03311a38ecb497d2f0803a5ea1eea85765aa2daa4503f24dd747f9a \
+    --experimental-control-plane
+
+(on k8s nodes)
+ - type kubeadm join commands, which is previosly saved
+# kubeadm join ip-172-31-13-9:1443 --token mlq9gw.gt5m13cbro6c8xsu \
+    --discovery-token-ca-cert-hash sha256:677ea74fa03311a38ecb497d2f0803a5ea1eea85765aa2daa4503f24dd747f9a
+
+(on the first k8s master node)
+# vi set-label.sh
+masternodes=$(kubectl get node | grep -w master | awk '{print $1}')
+agentnodes=$(kubectl get node | grep -v -w -e master -e NAME | awk '{print $1}')
+for i in config configdb analytics webui control
+do
+ for masternode in ${masternodes}
+ do
+  kubectl label node ${masternode} node-role.opencontrail.org/${i}=
+ done
+done
+
+for i in ${agentnodes}
+do
+ kubectl label node ${i} node-role.opencontrail.org/agent=
+done
+
+# bash set-label.sh
+
+
 
 # yum -y install git
 # git clone https://github.com/Juniper/contrail-container-builder.git
@@ -913,39 +977,379 @@ EOF
  - lines which includes ANALYTICS_API_VIP, CONFIG_API_VIP, VROUTER_GATEWAY need to be deleted
  - Several lines which include ANALYTICS_NODES. ANALYTICSDB_NODES, CONFIG_NODES, CONFIGDB_NODES, CONTROL_NODES, CONTROLLER_NODES, RABBITMQ_NODES, ZOOKEEPER_NODES need to be set properly, like CONFIG_NODES: ip1,ip2,ip3
 # kubectl apply -f cni-tungsten-fabric.yaml
-
-
-(on k8s nodes)
- - type kubeadm join commands, which is previosly saved
-# kubeadm join 172.31.18.113:6443 --token we70in.mvy0yu0hnxb6kxip --discovery-token-ca-cert-hash sha256:13cf52534ab14ee1f4dc561de746e95bc7684f2a0355cb82eebdbd5b1e9f3634
-
-
-(on k8s master node)
-# cat <<EOF > set-label.sh
-masternodes=$(kubectl get node | grep -w master | awk '{print $1}')
-agentnodes=$(kubectl get node | grep -v -w -e master -e NAME | awk '{print $1}')
-for i in config configdb analytics webui control
-do
- for masternode in ${masternodes}
- do
-  kubectl label node ${masternode} node-role.opencontrail.org/${i}=
- done
-done
-
-for i in ${agentnodes}
-do
- kubectl label node ${i} node-role.opencontrail.org/agent=
-done
-EOF
-
-# bash set-label.sh
 ```
 
-Then you will have kubernetes environment with TungstenFabric CNI fully up, which supports many typical CNI features, and several advance features, like namespace based network isolation or type: loadbalancer k8s service based on ECMP.
- - https://github.com/Juniper/contrail-specs/blob/master/kubernetes.md
- - https://github.com/Juniper/contrail-specs/blob/master/kubernetes-5.0.md
+I'll attach original and modified yaml file for further reference.
+ - https://github.com/tnaganawa/tungstenfabric-docs/cni-tungsten-fabric.yaml.orig
+ - https://github.com/tnaganawa/tungstenfabric-docs/cni-tungsten-fabric.yaml
 
-It can also be extended to multi-cluster or multi-orchestrator environment, which I'll describe in appendix.
+Then you finally have kubernetes environment with TungstenFabric CNI fully up!
+
+```
+[root@ip-172-31-13-9 ~]# kubectl get node -o wide
+NAME                                               STATUS     ROLES    AGE   VERSION   INTERNAL-IP     EXTERNAL-IP   OS-IMAGE                KERNEL-VERSION              CONTAINER-RUNTIME
+ip-172-31-13-9.ap-northeast-1.compute.internal     NotReady   master   34m   v1.14.1   172.31.13.9     <none>        CentOS Linux 7 (Core)   3.10.0-862.2.3.el7.x86_64   docker://1.13.1
+ip-172-31-17-120.ap-northeast-1.compute.internal   Ready      <none>   30m   v1.14.1   172.31.17.120   <none>        CentOS Linux 7 (Core)   3.10.0-862.2.3.el7.x86_64   docker://1.13.1
+ip-172-31-32-58.ap-northeast-1.compute.internal    NotReady   master   32m   v1.14.1   172.31.32.58    <none>        CentOS Linux 7 (Core)   3.10.0-862.2.3.el7.x86_64   docker://1.13.1
+ip-172-31-5-235.ap-northeast-1.compute.internal    Ready      <none>   30m   v1.14.1   172.31.5.235    <none>        CentOS Linux 7 (Core)   3.10.0-862.2.3.el7.x86_64   docker://1.13.1
+ip-172-31-8-73.ap-northeast-1.compute.internal     NotReady   master   31m   v1.14.1   172.31.8.73     <none>        CentOS Linux 7 (Core)   3.10.0-862.2.3.el7.x86_64   docker://1.13.1
+[root@ip-172-31-13-9 ~]# kubectl get pod --all-namespaces -o wide
+NAMESPACE     NAME                                                                      READY   STATUS    RESTARTS   AGE     IP              NODE                                               NOMINATED NODE   READINESS GATES
+kube-system   config-zookeeper-d897f                                                    1/1     Running   0          7m14s   172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   config-zookeeper-fvnbq                                                    1/1     Running   0          7m14s   172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   config-zookeeper-t5vjc                                                    1/1     Running   0          7m14s   172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-agent-cqpxc                                                      2/2     Running   0          7m12s   172.31.17.120   ip-172-31-17-120.ap-northeast-1.compute.internal   <none>           <none>
+kube-system   contrail-agent-pv7c8                                                      2/2     Running   0          7m12s   172.17.0.1      ip-172-31-5-235.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   contrail-analytics-cfcx8                                                  3/3     Running   0          7m14s   172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-analytics-h5jbr                                                  3/3     Running   0          7m14s   172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-analytics-wvc5n                                                  3/3     Running   0          7m14s   172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   contrail-config-database-nodemgr-7f5h5                                    1/1     Running   0          7m14s   172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-config-database-nodemgr-bkmpz                                    1/1     Running   0          7m14s   172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-config-database-nodemgr-z6qx9                                    1/1     Running   0          7m14s   172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   contrail-configdb-5vd8t                                                   1/1     Running   0          7m14s   172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   contrail-configdb-kw6v7                                                   1/1     Running   0          7m14s   172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-configdb-vjv2b                                                   1/1     Running   0          7m14s   172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-controller-config-dk78j                                          5/5     Running   0          7m13s   172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-controller-config-jrh27                                          5/5     Running   0          7m14s   172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   contrail-controller-config-snxnn                                          5/5     Running   0          7m13s   172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-controller-control-446v8                                         4/4     Running   0          7m14s   172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-controller-control-fzpwz                                         4/4     Running   0          7m14s   172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   contrail-controller-control-tk52v                                         4/4     Running   1          7m14s   172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-controller-webui-94s26                                           2/2     Running   0          7m13s   172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   contrail-controller-webui-bdzbj                                           2/2     Running   0          7m13s   172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-controller-webui-qk4ww                                           2/2     Running   0          7m13s   172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-kube-manager-g6vsg                                               1/1     Running   0          7m12s   172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-kube-manager-ppjkf                                               1/1     Running   0          7m12s   172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   contrail-kube-manager-rjpmw                                               1/1     Running   0          7m12s   172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   coredns-fb8b8dccf-wmdw2                                                   0/1     Running   2          34m     10.47.255.252   ip-172-31-17-120.ap-northeast-1.compute.internal   <none>           <none>
+kube-system   coredns-fb8b8dccf-wsrtl                                                   0/1     Running   2          34m     10.47.255.251   ip-172-31-17-120.ap-northeast-1.compute.internal   <none>           <none>
+kube-system   etcd-ip-172-31-13-9.ap-northeast-1.compute.internal                       1/1     Running   0          33m     172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   etcd-ip-172-31-32-58.ap-northeast-1.compute.internal                      1/1     Running   0          32m     172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   etcd-ip-172-31-8-73.ap-northeast-1.compute.internal                       1/1     Running   0          30m     172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   kube-apiserver-ip-172-31-13-9.ap-northeast-1.compute.internal             1/1     Running   0          33m     172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   kube-apiserver-ip-172-31-32-58.ap-northeast-1.compute.internal            1/1     Running   1          32m     172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   kube-apiserver-ip-172-31-8-73.ap-northeast-1.compute.internal             1/1     Running   1          30m     172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   kube-controller-manager-ip-172-31-13-9.ap-northeast-1.compute.internal    1/1     Running   1          33m     172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   kube-controller-manager-ip-172-31-32-58.ap-northeast-1.compute.internal   1/1     Running   0          31m     172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   kube-controller-manager-ip-172-31-8-73.ap-northeast-1.compute.internal    1/1     Running   0          31m     172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   kube-proxy-6ls9w                                                          1/1     Running   0          32m     172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   kube-proxy-82jl8                                                          1/1     Running   0          30m     172.31.5.235    ip-172-31-5-235.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   kube-proxy-bjdj9                                                          1/1     Running   0          31m     172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   kube-proxy-nd7hq                                                          1/1     Running   0          31m     172.31.17.120   ip-172-31-17-120.ap-northeast-1.compute.internal   <none>           <none>
+kube-system   kube-proxy-rb7nk                                                          1/1     Running   0          34m     172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   kube-scheduler-ip-172-31-13-9.ap-northeast-1.compute.internal             1/1     Running   1          33m     172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   kube-scheduler-ip-172-31-32-58.ap-northeast-1.compute.internal            1/1     Running   0          31m     172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   kube-scheduler-ip-172-31-8-73.ap-northeast-1.compute.internal             1/1     Running   0          31m     172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   rabbitmq-9lp4n                                                            1/1     Running   0          7m12s   172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   rabbitmq-lxkgz                                                            1/1     Running   0          7m12s   172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   rabbitmq-wfk2f                                                            1/1     Running   0          7m12s   172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+kube-system   redis-h2x2b                                                               1/1     Running   0          7m13s   172.31.13.9     ip-172-31-13-9.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   redis-pkmng                                                               1/1     Running   0          7m13s   172.31.8.73     ip-172-31-8-73.ap-northeast-1.compute.internal     <none>           <none>
+kube-system   redis-r68ks                                                               1/1     Running   0          7m13s   172.31.32.58    ip-172-31-32-58.ap-northeast-1.compute.internal    <none>           <none>
+[root@ip-172-31-13-9 ~]# 
+
+
+[root@ip-172-31-13-9 ~]# contrail-status 
+Pod              Service         Original Name                          State    Id            Status             
+                 redis           contrail-external-redis                running  8f38c94fc370  Up About a minute  
+analytics        api             contrail-analytics-api                 running  2edde00b4525  Up About a minute  
+analytics        collector       contrail-analytics-collector           running  c1d0c24775a6  Up About a minute  
+analytics        nodemgr         contrail-nodemgr                       running  4a4c455cc0df  Up About a minute  
+config           api             contrail-controller-config-api         running  b855ad79ace4  Up About a minute  
+config           device-manager  contrail-controller-config-devicemgr   running  50d590e6f6cf  Up About a minute  
+config           nodemgr         contrail-nodemgr                       running  6f0f64f958d9  Up About a minute  
+config           schema          contrail-controller-config-schema      running  2057b21f50b7  Up About a minute  
+config           svc-monitor     contrail-controller-config-svcmonitor  running  ba48df5cb7f9  Up About a minute  
+config-database  cassandra       contrail-external-cassandra            running  1d38278d304e  Up About a minute  
+config-database  nodemgr         contrail-nodemgr                       running  8e4f9315cc38  Up About a minute  
+config-database  rabbitmq        contrail-external-rabbitmq             running  4a424e2f456c  Up About a minute  
+config-database  zookeeper       contrail-external-zookeeper            running  4b46c83f1376  Up About a minute  
+control          control         contrail-controller-control-control    running  17e4b9b9e3b8  Up About a minute  
+control          dns             contrail-controller-control-dns        running  39fc34e19e13  Up About a minute  
+control          named           contrail-controller-control-named      running  aef0bf56a0e2  Up About a minute  
+control          nodemgr         contrail-nodemgr                       running  21f091df35d5  Up About a minute  
+kubernetes       kube-manager    contrail-kubernetes-kube-manager       running  db661ef685b0  Up About a minute  
+webui            job             contrail-controller-webui-job          running  0bf35b774aac  Up About a minute  
+webui            web             contrail-controller-webui-web          running  9213ce050547  Up About a minute  
+
+== Contrail control ==
+control: active
+nodemgr: active
+named: active
+dns: active
+
+== Contrail config-database ==
+nodemgr: active
+zookeeper: active
+rabbitmq: active
+cassandra: active
+
+== Contrail kubernetes ==
+kube-manager: backup
+
+== Contrail analytics ==
+nodemgr: active
+api: active
+collector: active
+
+== Contrail webui ==
+web: active
+job: active
+
+== Contrail config ==
+svc-monitor: backup
+nodemgr: active
+device-manager: active
+api: active
+schema: backup
+
+[root@ip-172-31-13-9 ~]# 
+
+[root@ip-172-31-8-73 ~]# contrail-status 
+Pod              Service         Original Name                          State    Id            Status             
+                 redis           contrail-external-redis                running  39af38401d31  Up 2 minutes       
+analytics        api             contrail-analytics-api                 running  29fa05f18927  Up 2 minutes       
+analytics        collector       contrail-analytics-collector           running  994bffbe4c1f  Up About a minute  
+analytics        nodemgr         contrail-nodemgr                       running  1eb143c7b864  Up About a minute  
+config           api             contrail-controller-config-api         running  92ee8983bc81  Up About a minute  
+config           device-manager  contrail-controller-config-devicemgr   running  7f9ab5d2a9ca  Up About a minute  
+config           nodemgr         contrail-nodemgr                       running  c6a88b487031  Up About a minute  
+config           schema          contrail-controller-config-schema      running  1fe2e2767dca  Up About a minute  
+config           svc-monitor     contrail-controller-config-svcmonitor  running  ec1d66894036  Up About a minute  
+config-database  cassandra       contrail-external-cassandra            running  80f394c8d1a8  Up 2 minutes       
+config-database  nodemgr         contrail-nodemgr                       running  af9b70285564  Up About a minute  
+config-database  rabbitmq        contrail-external-rabbitmq             running  edae18a7cf9f  Up 2 minutes       
+config-database  zookeeper       contrail-external-zookeeper            running  f00c2e5d94ac  Up 2 minutes       
+control          control         contrail-controller-control-control    running  6e3e22625a50  Up About a minute  
+control          dns             contrail-controller-control-dns        running  b1b6b9649761  Up About a minute  
+control          named           contrail-controller-control-named      running  f8aa237fca10  Up About a minute  
+control          nodemgr         contrail-nodemgr                       running  bb0868390322  Up About a minute  
+kubernetes       kube-manager    contrail-kubernetes-kube-manager       running  02e99f8b9490  Up About a minute  
+webui            job             contrail-controller-webui-job          running  f5ffdfc1076f  Up About a minute  
+webui            web             contrail-controller-webui-web          running  09c3f77223d3  Up About a minute  
+
+== Contrail control ==
+control: active
+nodemgr: active
+named: active
+dns: active
+
+== Contrail config-database ==
+nodemgr: active
+zookeeper: active
+rabbitmq: active
+cassandra: active
+
+== Contrail kubernetes ==
+kube-manager: backup
+
+== Contrail analytics ==
+nodemgr: active
+api: active
+collector: active
+
+== Contrail webui ==
+web: active
+job: active
+
+== Contrail config ==
+svc-monitor: backup
+nodemgr: active
+device-manager: backup
+api: active
+schema: backup
+
+[root@ip-172-31-8-73 ~]# 
+
+[root@ip-172-31-32-58 ~]# contrail-status 
+Pod              Service         Original Name                          State    Id            Status             
+                 redis           contrail-external-redis                running  44363e63f104  Up 2 minutes       
+analytics        api             contrail-analytics-api                 running  aa8c5dc17c57  Up 2 minutes       
+analytics        collector       contrail-analytics-collector           running  6856b8e33f34  Up 2 minutes       
+analytics        nodemgr         contrail-nodemgr                       running  c1ec67695618  Up About a minute  
+config           api             contrail-controller-config-api         running  ff95a8e3e4a9  Up 2 minutes       
+config           device-manager  contrail-controller-config-devicemgr   running  abc0ad6b32c0  Up 2 minutes       
+config           nodemgr         contrail-nodemgr                       running  c883e525205a  Up About a minute  
+config           schema          contrail-controller-config-schema      running  0b18780b02da  Up About a minute  
+config           svc-monitor     contrail-controller-config-svcmonitor  running  42e74aad3d3d  Up About a minute  
+config-database  cassandra       contrail-external-cassandra            running  3994d9f51055  Up 2 minutes       
+config-database  nodemgr         contrail-nodemgr                       running  781c5c93e662  Up 2 minutes       
+config-database  rabbitmq        contrail-external-rabbitmq             running  849427f37237  Up 2 minutes       
+config-database  zookeeper       contrail-external-zookeeper            running  fbb778620915  Up 2 minutes       
+control          control         contrail-controller-control-control    running  85b2e8366a13  Up 2 minutes       
+control          dns             contrail-controller-control-dns        running  b1f05dc6b8ee  Up 2 minutes       
+control          named           contrail-controller-control-named      running  ca68ff0e118b  Up About a minute  
+control          nodemgr         contrail-nodemgr                       running  cf8aaff71343  Up About a minute  
+kubernetes       kube-manager    contrail-kubernetes-kube-manager       running  62022a542509  Up 2 minutes       
+webui            job             contrail-controller-webui-job          running  28413e9f378b  Up 2 minutes       
+webui            web             contrail-controller-webui-web          running  4a6edac6d596  Up 2 minutes       
+
+== Contrail control ==
+control: active
+nodemgr: active
+named: active
+dns: active
+
+== Contrail config-database ==
+nodemgr: active
+zookeeper: active
+rabbitmq: active
+cassandra: active
+
+== Contrail kubernetes ==
+kube-manager: active
+
+== Contrail analytics ==
+nodemgr: active
+api: active
+collector: active
+
+== Contrail webui ==
+web: active
+job: active
+
+== Contrail config ==
+svc-monitor: active
+nodemgr: active
+device-manager: backup
+api: active
+schema: active
+
+[root@ip-172-31-32-58 ~]# 
+
+[root@ip-172-31-5-235 ~]# contrail-status 
+Pod      Service  Original Name           State    Id            Status        
+vrouter  agent    contrail-vrouter-agent  running  48377d29f584  Up 2 minutes  
+vrouter  nodemgr  contrail-nodemgr        running  77d7a409d410  Up 2 minutes  
+
+vrouter kernel module is PRESENT
+== Contrail vrouter ==
+nodemgr: active
+agent: active
+
+[root@ip-172-31-5-235 ~]# 
+
+[root@ip-172-31-17-120 ~]# contrail-status 
+Pod      Service  Original Name           State    Id            Status        
+vrouter  agent    contrail-vrouter-agent  running  f97837959a0b  Up 3 minutes  
+vrouter  nodemgr  contrail-nodemgr        running  4e48673efbcc  Up 3 minutes  
+
+vrouter kernel module is PRESENT
+== Contrail vrouter ==
+nodemgr: active
+agent: active
+
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py ctr nei
++--------------------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------------------------+
+| peer                                 | peer_address  | peer_asn | encoding | peer_type | state       | send_state | flap_count | flap_time                   |
++--------------------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------------------------+
+| ip-172-31-32-58.ap-                  | 172.31.32.58  | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a                         |
+| northeast-1.compute.internal         |               |          |          |           |             |            |            |                             |
+| ip-172-31-8-73.ap-                   | 172.31.8.73   | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a                         |
+| northeast-1.compute.internal         |               |          |          |           |             |            |            |                             |
+| ip-172-31-17-120.ap-                 | 172.31.17.120 | 0        | XMPP     | internal  | Established | in sync    | 5          | 2019-Apr-28 07:35:40.743648 |
+| northeast-1.compute.internal         |               |          |          |           |             |            |            |                             |
+| ip-172-31-5-235.ap-                  | 172.31.5.235  | 0        | XMPP     | internal  | Established | in sync    | 6          | 2019-Apr-28 07:35:40.251476 |
+| northeast-1.compute.internal         |               |          |          |           |             |            |            |                             |
++--------------------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------------------------+
+[root@ip-172-31-13-9 ~]# 
+
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py ctr route summary
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| name                                               | prefixes | paths | primary_paths | secondary_paths | infeasible_paths |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| default-domain:default-                            | 0        | 0     | 0             | 0               | 0                |
+| project:__link_local__:__link_local__.inet.0       |          |       |               |                 |                  |
+| default-domain:default-project:dci-                | 0        | 0     | 0             | 0               | 0                |
+| network:__default__.inet.0                         |          |       |               |                 |                  |
+| default-domain:default-project:dci-network:dci-    | 0        | 0     | 0             | 0               | 0                |
+| network.inet.0                                     |          |       |               |                 |                  |
+| default-domain:default-project:default-virtual-    | 0        | 0     | 0             | 0               | 0                |
+| network:default-virtual-network.inet.0             |          |       |               |                 |                  |
+| inet.0                                             | 0        | 0     | 0             | 0               | 0                |
+| default-domain:default-project:ip-fabric:ip-       | 4        | 8     | 2             | 6               | 0                |
+| fabric.inet.0                                      |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-pod-network | 4        | 8     | 2             | 6               | 0                |
+| :k8s-default-pod-network.inet.0                    |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-service-    | 4        | 8     | 0             | 8               | 0                |
+| network:k8s-default-service-network.inet.0         |          |       |               |                 |                  |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+[root@ip-172-31-13-9 ~]# 
+```
+
+After the cirros deployment is created just like Up and Running section, ping between two vRouter nodes will be available.
+
+```
+[root@ip-172-31-13-9 ~]# kubectl get pod -o wide
+NAME                                 READY   STATUS    RESTARTS   AGE   IP              NODE                                               NOMINATED NODE   READINESS GATES
+cirros-deployment-86885fbf85-pkzqz   1/1     Running   0          16s   10.47.255.249   ip-172-31-17-120.ap-northeast-1.compute.internal   <none>           <none>
+cirros-deployment-86885fbf85-w4w6h   1/1     Running   0          16s   10.47.255.250   ip-172-31-5-235.ap-northeast-1.compute.internal    <none>           <none>
+[root@ip-172-31-13-9 ~]# 
+[root@ip-172-31-13-9 ~]# 
+[root@ip-172-31-13-9 ~]# kubectl exec -it cirros-deployment-86885fbf85-pkzqz sh
+/ # ping 10.47.255.250
+PING 10.47.255.250 (10.47.255.250): 56 data bytes
+64 bytes from 10.47.255.250: seq=0 ttl=63 time=3.376 ms
+64 bytes from 10.47.255.250: seq=1 ttl=63 time=2.587 ms
+64 bytes from 10.47.255.250: seq=2 ttl=63 time=2.549 ms
+^C
+--- 10.47.255.250 ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 2.549/2.837/3.376 ms
+/ # 
+/ # 
+/ # ip -o a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+23: eth0@if24: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue \    link/ether 02:64:0d:41:b0:69 brd ff:ff:ff:ff:ff:ff
+23: eth0    inet 10.47.255.249/12 scope global eth0\       valid_lft forever preferred_lft forever
+23: eth0    inet6 fe80::489a:28ff:fedf:2e7b/64 scope link \       valid_lft forever preferred_lft forever
+/ # 
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py ctr route summary
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| name                                               | prefixes | paths | primary_paths | secondary_paths | infeasible_paths |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| default-domain:default-                            | 0        | 0     | 0             | 0               | 0                |
+| project:__link_local__:__link_local__.inet.0       |          |       |               |                 |                  |
+| default-domain:default-project:dci-                | 0        | 0     | 0             | 0               | 0                |
+| network:__default__.inet.0                         |          |       |               |                 |                  |
+| default-domain:default-project:dci-network:dci-    | 0        | 0     | 0             | 0               | 0                |
+| network.inet.0                                     |          |       |               |                 |                  |
+| default-domain:default-project:default-virtual-    | 0        | 0     | 0             | 0               | 0                |
+| network:default-virtual-network.inet.0             |          |       |               |                 |                  |
+| inet.0                                             | 0        | 0     | 0             | 0               | 0                |
+| default-domain:default-project:ip-fabric:ip-       | 6        | 12    | 2             | 10              | 0                |
+| fabric.inet.0                                      |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-pod-network | 6        | 12    | 4             | 8               | 0                |
+| :k8s-default-pod-network.inet.0                    |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-service-    | 6        | 12    | 0             | 12              | 0                |
+| network:k8s-default-service-network.inet.0         |          |       |               |                 |                  |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+[root@ip-172-31-13-9 ~]# 
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py ctr route show -t default-domain:k8s-default:k8s-default-pod-network:k8s-default-pod-network.inet.0 10.47.255.251
+
+default-domain:k8s-default:k8s-default-pod-network:k8s-default-pod-network.inet.0: 6 destinations, 12 routes (4 primary, 8 secondary, 0 infeasible)
+
+10.47.255.251/32, age: 0:08:37.590508, last_modified: 2019-Apr-28 07:37:16.031523
+    [XMPP (interface)|ip-172-31-17-120.ap-northeast-1.compute.internal] age: 0:08:37.596128, localpref: 200, nh: 172.31.17.120, encap: ['gre', 'udp'], label: 25, AS path: None
+    [BGP|172.31.32.58] age: 0:08:37.594533, localpref: 200, nh: 172.31.17.120, encap: ['gre', 'udp'], label: 25, AS path: None
+
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py ctr route show -t default-domain:k8s-default:k8s-default-pod-network:k8s-default-pod-network.inet.0 10.47.255.250
+
+default-domain:k8s-default:k8s-default-pod-network:k8s-default-pod-network.inet.0: 6 destinations, 12 routes (4 primary, 8 secondary, 0 infeasible)
+
+10.47.255.250/32, age: 0:01:50.135045, last_modified: 2019-Apr-28 07:44:06.371447
+    [XMPP (interface)|ip-172-31-5-235.ap-northeast-1.compute.internal] age: 0:01:50.141480, localpref: 200, nh: 172.31.5.235, encap: ['gre', 'udp'], label: 25, AS path: None
+    [BGP|172.31.32.58] age: 0:01:50.098328, localpref: 200, nh: 172.31.5.235, encap: ['gre', 'udp'], label: 25, AS path: None
+[root@ip-172-31-13-9 ~]# 
+```
+
 
 
 ## Openstack
