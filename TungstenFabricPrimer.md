@@ -980,8 +980,8 @@ EOF
 ```
 
 I'll attach original and modified yaml file for further reference.
- - https://github.com/tnaganawa/tungstenfabric-docs/cni-tungsten-fabric.yaml.orig
- - https://github.com/tnaganawa/tungstenfabric-docs/cni-tungsten-fabric.yaml
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/cni-tungsten-fabric.yaml.orig
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/cni-tungsten-fabric.yaml
 
 Then you finally have kubernetes environment with TungstenFabric CNI fully up!
 
