@@ -634,7 +634,7 @@ Since both control and vRouter use MPLS-VPN internally, I would recommend at lea
  
 Since most of advanced features in control, vRouter is inherent in MPLS, those material will help to undestand what they are trying to do.
 
-Since control and vrouter-agent uses VPNV4 bgp internally, vRouter and it's internal VRFs will install prefix needed based on extended community (a.k.a route-target).
+Since control and vrouter-agent uses VPNV4 bgp internally, vRouter and it's internal VRFs will install prefix needed based on extended community (a.k.a. route-target).
 So when containers or vms are created on vRouter, it can signal VPNV4 route to control, and it reflects all the routes to other vRouters, and dataplane will understand where to send the packets automatically.
 
 One interesting behavior is vRouter's virtual-network could have multiple default gateway, with same ip and same mac! (similar behavior with virtual-gateway-address, in junos's term)
