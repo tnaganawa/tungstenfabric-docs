@@ -27,6 +27,7 @@ Table of Contents
    * [More on Installation](#more-on-installation)
       * [HA behavior of Tungsten Fabric components](#ha-behavior-of-tungsten-fabric-components)
       * [Multi-NIC installation](#multi-nic-installation)
+      * [Sizing the cluster](#sizing-the-cluster)
       * [kubeadm](#kubeadm)
       * [Openstack](#openstack-1)
       * [vCenter](#vcenter-1)
@@ -852,6 +853,24 @@ Because of those behavior, you also need to be a bit careful when you want to se
 In such situation, you might need to use simple-gateway or SR-IOV.
  - https://github.com/Juniper/contrail-controller/wiki/Simple-Gateway
 
+## Sizing the cluster
+
+For general sizing of Tungsten Fabric cluster, you can use this table.
+ - https://github.com/hartmutschroeder/contrailandrhosp10#21sizing-the-controller-nodes-and-vms
+
+If cluster size is large, you need good amount of resources to serve stable control plane.
+
+Please note that from R5.1, analytics database (and some components of analytics) become optional, so I would recommend using R5.1 release, if you want to use control plane only from Tungsten Fabric.
+ - https://github.com/Juniper/contrail-analytics/blob/master/specs/analytics_optional_components.md
+
+How large a cluster can be also is an important subject, although I don't have a handy answer, since it depends a lot of factors.
+ - I once tried nearly 5,000 nodes with one k8s cluster (https://kubernetes.io/docs/setup/cluster-large/). It worked well with one controller node with 64vCPUs, 58GB mem, although at that time, I haven't created much ports, policies, and logical-routers, etc.
+ - This wiki also has some real world experience about gigantic cluster: https://wiki.tungsten.io/display/TUN/KubeCon+NA+in+Seattle+2018
+
+Since you can instantly got a lot of resources from cloud, perhaps the best option is to emulate the cluster with the size and traffic what you need, and see if it works ok and what will be the bottleneck.
+
+Tungsten Fabric has several good features to be gigantic, such as multi-cluster setup based on MP-BGP between clusters, and BUM drop feature based on L3-only virtual-network, which could be a key to have scalable and stable virtual-network.
+ - https://bugs.launchpad.net/juniperopenstack/+bug/1471637
 
 ## kubeadm
 
