@@ -809,7 +809,7 @@ So with Tungsten Fabric, it is much easier to use both VMIs simultaneously, with
 
 # More on Installation
 
-In Up and Running chapter, I descirbed 1 controller and 1 vRouter setting, so no HA case is covered yet (And no overlay traffic case, indeed!)
+In Up and Running section, I descirbed 1 controller and 1 vRouter setting, so no HA case is covered yet (And no overlay traffic case, indeed!)
 Let me describe more realistic case, with 3 controllers and 2 computes (and possibly with multi-NICs) for each orchestrator.
  - In this chapter, I'll use opencontrailnightly:latest repo, since several features are not available in 5.0.1 release, but please notice that this repo could be a bit unstable in some cases.
 
@@ -983,7 +983,9 @@ I'll attach original and modified yaml file for further reference.
  - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/cni-tungsten-fabric.yaml.orig
  - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/cni-tungsten-fabric.yaml
 
-Then you finally have kubernetes environment with TungstenFabric CNI fully up!
+Then you finally have kubernetes HA environment with TungstenFabric CNI, which is (mostly) up.
+
+Note: Coredns is not active in this output, I'll fix this later in this section.
 
 ```
 [root@ip-172-31-13-9 ~]# kubectl get node -o wide
@@ -1280,6 +1282,7 @@ agent: active
 ```
 
 After the cirros deployment is created just like Up and Running section, ping between two vRouter nodes will be available.
+ - Output is the same, but it now uses MPLS encapsulation between two vRouters!
 
 ```
 [root@ip-172-31-13-9 ~]# kubectl get pod -o wide
@@ -1350,6 +1353,109 @@ default-domain:k8s-default:k8s-default-pod-network:k8s-default-pod-network.inet.
 [root@ip-172-31-13-9 ~]# 
 ```
 
+Note: To make coredns active, I need to make two changes
+```
+[root@ip-172-31-8-73 ~]# kubectl edit configmap -n kube-system coredns
+-        forward . /etc/resolv.conf
++        forward . 10.47.255.253
+
+# kubectl edit deployment -n kube-system coredns
+ -> delete livenessProbe, readinessProbe
+```
+
+Then finally, coredns also is active and cluster is fully UP!
+
+```
+[root@ip-172-31-13-9 ~]# kubectl get pod --all-namespaces
+NAMESPACE     NAME                                                                      READY   STATUS    RESTARTS   AGE
+default       cirros-deployment-86885fbf85-pkzqz                                        1/1     Running   0          47m
+default       cirros-deployment-86885fbf85-w4w6h                                        1/1     Running   0          47m
+kube-system   config-zookeeper-l8m9l                                                    1/1     Running   0          24m
+kube-system   config-zookeeper-lvtmq                                                    1/1     Running   0          24m
+kube-system   config-zookeeper-mzlgm                                                    1/1     Running   0          24m
+kube-system   contrail-agent-jc4x2                                                      2/2     Running   0          24m
+kube-system   contrail-agent-psk2v                                                      2/2     Running   0          24m
+kube-system   contrail-analytics-hsm7w                                                  3/3     Running   0          24m
+kube-system   contrail-analytics-vgwcb                                                  3/3     Running   0          24m
+kube-system   contrail-analytics-xbpwf                                                  3/3     Running   0          24m
+kube-system   contrail-config-database-nodemgr-7xvnb                                    1/1     Running   0          24m
+kube-system   contrail-config-database-nodemgr-9bznv                                    1/1     Running   0          24m
+kube-system   contrail-config-database-nodemgr-lqtkq                                    1/1     Running   0          24m
+kube-system   contrail-configdb-4svwg                                                   1/1     Running   0          24m
+kube-system   contrail-configdb-gdvmc                                                   1/1     Running   0          24m
+kube-system   contrail-configdb-sll25                                                   1/1     Running   0          24m
+kube-system   contrail-controller-config-gmkpr                                          5/5     Running   0          24m
+kube-system   contrail-controller-config-q6rvx                                          5/5     Running   0          24m
+kube-system   contrail-controller-config-zbpjm                                          5/5     Running   0          24m
+kube-system   contrail-controller-control-4m9fd                                         4/4     Running   0          24m
+kube-system   contrail-controller-control-9klxh                                         4/4     Running   0          24m
+kube-system   contrail-controller-control-wk6jp                                         4/4     Running   0          24m
+kube-system   contrail-controller-webui-268bc                                           2/2     Running   0          24m
+kube-system   contrail-controller-webui-57dbf                                           2/2     Running   0          24m
+kube-system   contrail-controller-webui-z6c68                                           2/2     Running   0          24m
+kube-system   contrail-kube-manager-6nh9d                                               1/1     Running   0          24m
+kube-system   contrail-kube-manager-stqf5                                               1/1     Running   0          24m
+kube-system   contrail-kube-manager-wqgl4                                               1/1     Running   0          24m
+kube-system   coredns-7f865bd4f9-g8j8f                                                  1/1     Running   0          13s
+kube-system   coredns-7f865bd4f9-zftsc                                                  1/1     Running   0          13s
+kube-system   etcd-ip-172-31-13-9.ap-northeast-1.compute.internal                       1/1     Running   0          82m
+kube-system   etcd-ip-172-31-32-58.ap-northeast-1.compute.internal                      1/1     Running   0          81m
+kube-system   etcd-ip-172-31-8-73.ap-northeast-1.compute.internal                       1/1     Running   0          79m
+kube-system   kube-apiserver-ip-172-31-13-9.ap-northeast-1.compute.internal             1/1     Running   0          82m
+kube-system   kube-apiserver-ip-172-31-32-58.ap-northeast-1.compute.internal            1/1     Running   1          81m
+kube-system   kube-apiserver-ip-172-31-8-73.ap-northeast-1.compute.internal             1/1     Running   1          80m
+kube-system   kube-controller-manager-ip-172-31-13-9.ap-northeast-1.compute.internal    1/1     Running   1          83m
+kube-system   kube-controller-manager-ip-172-31-32-58.ap-northeast-1.compute.internal   1/1     Running   0          80m
+kube-system   kube-controller-manager-ip-172-31-8-73.ap-northeast-1.compute.internal    1/1     Running   0          80m
+kube-system   kube-proxy-6ls9w                                                          1/1     Running   0          81m
+kube-system   kube-proxy-82jl8                                                          1/1     Running   0          80m
+kube-system   kube-proxy-bjdj9                                                          1/1     Running   0          81m
+kube-system   kube-proxy-nd7hq                                                          1/1     Running   0          80m
+kube-system   kube-proxy-rb7nk                                                          1/1     Running   0          83m
+kube-system   kube-scheduler-ip-172-31-13-9.ap-northeast-1.compute.internal             1/1     Running   1          83m
+kube-system   kube-scheduler-ip-172-31-32-58.ap-northeast-1.compute.internal            1/1     Running   0          80m
+kube-system   kube-scheduler-ip-172-31-8-73.ap-northeast-1.compute.internal             1/1     Running   0          80m
+kube-system   rabbitmq-b6rpx                                                            1/1     Running   0          24m
+kube-system   rabbitmq-gn67t                                                            1/1     Running   0          24m
+kube-system   rabbitmq-r8dvb                                                            1/1     Running   0          24m
+kube-system   redis-5qvbv                                                               1/1     Running   0          24m
+kube-system   redis-8mck5                                                               1/1     Running   0          24m
+kube-system   redis-9d9dv                                                               1/1     Running   0          24m
+[root@ip-172-31-13-9 ~]# 
+
+[root@ip-172-31-13-9 ~]# kubectl get deployment -n kube-system
+NAME      READY   UP-TO-DATE   AVAILABLE   AGE
+coredns   2/2     2            2           98m
+[root@ip-172-31-13-9 ~]# 
+
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py ctr route summary
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| name                                               | prefixes | paths | primary_paths | secondary_paths | infeasible_paths |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| default-domain:default-                            | 0        | 0     | 0             | 0               | 0                |
+| project:__link_local__:__link_local__.inet.0       |          |       |               |                 |                  |
+| default-domain:default-project:dci-                | 0        | 0     | 0             | 0               | 0                |
+| network:__default__.inet.0                         |          |       |               |                 |                  |
+| default-domain:default-project:dci-network:dci-    | 3        | 8     | 0             | 8               | 0                |
+| network.inet.0                                     |          |       |               |                 |                  |
+| default-domain:default-project:default-virtual-    | 0        | 0     | 0             | 0               | 0                |
+| network:default-virtual-network.inet.0             |          |       |               |                 |                  |
+| inet.0                                             | 0        | 0     | 0             | 0               | 0                |
+| default-domain:default-project:ip-fabric:ip-       | 5        | 12    | 2             | 10              | 0                |
+| fabric.inet.0                                      |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-pod-network | 5        | 14    | 4             | 10              | 0                |
+| :k8s-default-pod-network.inet.0                    |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-service-    | 5        | 12    | 2             | 10              | 0                |
+| network:k8s-default-service-network.inet.0         |          |       |               |                 |                  |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+[root@ip-172-31-13-9 ~]#
+```
+
+Since MP-BGP supports stitching between two clusters, those clusters are easily extended to multi-cluster environment.
+ - Prefixes from each cluster will be leaked to other cluster
+
+I'll describe the detail of this setup in Appendex section.
 
 
 ## Openstack
