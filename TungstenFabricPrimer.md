@@ -39,6 +39,7 @@ Table of Contents
       * [contrail-api-cli](#contrail-api-cli)
       * [webui](#webui)
    * [Appendix](#appendix)
+      * [Cluster update](#cluster-update)
       * [L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration](#l3vpn--evpn-t2t5-vxlanmpls-integration)
       * [Service-Chain (L2, L3, NAT), BGPaaS](#service-chain-l2-l3-nat-bgpaas)
       * [Multicluster](#multicluster)
@@ -2027,6 +2028,23 @@ Those values also can be used to send alerts from prometheus, rather than from a
  configuration command
 
 # Appendix
+
+## Cluster update
+
+Cluster-wide update is an important subject, to keep SLA of the production cluster, with the newest features still avaiable in that cluster.
+
+Since Tungsten Fabric uses similar protocol with MPLS-VPN, even if the module version of control and vRouter is different, basic interoperability is available, as far as I tried.
+
+So the general idea is, firstly update controllers one by one, and update vRouters, one by one, with vMotion or maintence mode if needed.
+
+Let me describe this procedure firstly.
+
+Additionally, Tungsten Fabric controller supports curious feature named ISSU, although I think this name is a bit confusing, since Tungsten Fabric controller is much more similar to route reflector, rather rhan routing-engine.
+ - https://github.com/Juniper/contrail-specs/blob/master/contrail-issu.md
+
+So basic idea is, firstly replicate all the configs to the newly created controllers (or route reflectors), and after that, update vRouter settings (and vRouter modules if servers can be rebooted) to use those new controllers. With this procedure, rollback operation of vRouter module update also will be much easier.
+
+Let me descirbe this procedure later in this chapter.
 
 ## L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration
 
