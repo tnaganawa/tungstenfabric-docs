@@ -31,6 +31,7 @@ Table of Contents
       * [kubeadm](#kubeadm)
       * [Openstack](#openstack-1)
       * [vCenter](#vcenter-1)
+      * [Container tag to be used](#container-tag-to-be-used)
    * [Monitoring integration](#monitoring-integration)
       * [Prometheus](#prometheus)
       * [EFK](#efk)
@@ -1995,6 +1996,40 @@ For orchestrator side HA, vCenter HA is available.
  - I haven't yet tried this combination, but since vCenter HA will use the same IP for vCenter service, I think there is high possibility that vcenter-plugin can work with vCenter HA.
 
 Multi-vCenter or cross-vCenter (when link-mode is used) will be a bit interesting subject. I will discuss them further in Appendix.
+
+## Container tag to be used
+
+Container registry docker.io/opencontrailnightly has various tags.
+ - https://hub.docker.com/r/opencontrailnightly/contrail-nodemgr/tags/
+
+Let me describe some thought about what tag to be chosen in new installation.
+
+There are three tags which I will often use, latest, 5.1.0-latest, 5.0-latest.
+They are at the head of each Tungsten Fabric branch, master / R5.1 / R5.0 and various bug fix is included in each branch.
+So you can choose one of those tags, for your usecase. If you need new features in R5.1, such as optional analytics components, you could choose 5.1.0-latest tag.
+
+Since latest is the truly development branch, I don't recommend them for general use, since in some case, this build is broken to add the new features.
+
+Other release branches are much more stable, since in most cases, they are bugfix only, although some specific period after new branch is created, release branches also seem to receive new feature.
+
+To specifiy tags, you can use this parameter, and when git clone is typed against ansible-deployer, and contrail-container-builder, the same branch also need to be specified
+```
+(ansible-deployer)
+git clone -b R5.1 http://github.com/Juniper/contrail-ansible-deployer
+
+contrail_configuration:
+ CONTRAIL_CONTAINER_TAG: 5.1.0-latest
+
+(kubeadm)
+git clone -b R5.1 https://github.com/Juniper/contrail-container-builder.git
+
+common.env in contrail-container-builder repo
+ CONTRAIL_CONTAINER_TAG: 5.1.0-latest
+```
+
+One point to be careful about is, since containers used with openstack (such as nova-init, neutron-init, heat-init, ...) have version dependency with openstack release, so tags might need to be changed to 5.1.0-latest-queens, 5.1.0-latest-rocky etc.
+
+They have some openstack modules with specific version installed, so if the tags are different, openstack containers won't work well.
 
 # Monitoring integration
 
