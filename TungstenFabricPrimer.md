@@ -2054,6 +2054,43 @@ Those values also can be used to send alerts from prometheus, rather than from a
 
 ## EFK
 
+Since Tungsten Fabric have several system logs (file or docker stdout), it can easily be collected by fluentd.
+ - https://www.fluentd.org/guides/recipes/docker-logging
+
+It can be useful for administration purpose, if number of nodes are fairly large.
+
+One more interesting subject is vRouter also supports flow exports, in a sense similar to ipfix or stateful firewall's allow / deny log .
+ - https://github.com/Juniper/contrail-controller/wiki/Flow-Sampling
+ - https://github.com/Juniper/contrail-specs/blob/master/security_logging_object.md
+
+To enable this, you can set flow-export-rate > 0 (say 100), at Configure > Global Config > edit > Flow Export Rate in the Tungsten Fabric webui.
+
+By default, it will be sent to analytics to be queried from Tungsten Fabric webui or commands like contrail-flows, contrail-sessions, but it also can be directly exported to local file to be sent to other log collectors, such as EFK, for later use.
+
+To enable local flow logging, these parameters can be used.
+```
+(ansible-deployer)
+contrail_configuration:
+  SLO_DESTINATION: file
+  SAMPLE_DESTINATION: file
+(kubeadm)
+env:
+  SLO_DESTINATION: file
+  SAMPLE_DESTINATION: file
+```
+
+If this parameters are set, log_file of vrouter-agent (such as /var/log/contrail/contrail-vrouter-agent.log) will have log output like this.
+
+```
+INFO -  [SYS_INFO]: SessionData: [ vmi = default-domain:k8s-kube-system:coredns-7f865bd4f9-6gq52__8d7eb81a-6b16-11e9-b466-0e4d26f73e5e vn = default-domain:k8s-default:k8s-default-pod-network application = application=k8s ] security_policy_rule = 00000000-0000-0000-0000-000000000004 remote_vn = default-domain:default-project:ip-fabric is_client_session = 1 is_si = 0 vrouter_ip = 172.31.6.218 local_ip = 10.47.255.250 service_port = 443 protocol = 6 sampled_forward_bytes = 132 sampled_forward_pkts = 2 sampled_reverse_bytes = 1140 sampled_reverse_pkts = 2 ip = 10.96.0.1 port = 35420 forward_flow_info= [ sampled_bytes = 132 sampled_pkts = 2 flow_uuid = 130bbb8d-9be7-46bc-8b3a-938a5c2c36bb tcp_flags = 120 setup_time = 1556609440638565 action = pass sg_rule_uuid = 00000000-0000-0000-0000-000000000004 nw_ace_uuid = 00000000-0000-0000-0000-000000000004 underlay_source_port = 55670 ] reverse_flow_info= [  sampled_bytes = 1140 sampled_pkts = 2 flow_uuid = e09e2579-7764-472b-8a35-b300c5ec34e7 tcp_flags = 120 setup_time = 1556609440638565 action = pass sg_rule_uuid = 00000000-0000-0000-0000-000000000004 nw_ace_uuid = 00000000-0000-0000-0000-000000000004 underlay_source_port = 49942 ] vm = coredns-7f865bd4f9-6gq52__8d536915-6b16-11e9-9f48-0e4d26f73e5e other_vrouter_ip = 172.31.6.218 underlay_proto = 0  ]
+```
+
+With these parameters jsonized by fluentd, and queried by kibana through ES, it is much easier to see what kind of packets went through between vRouters, or physical switches in turn.
+
+## ElastiFlow
+
+to be investigated
+
 # Day 2 operation
 ## ist.py
  operational command
