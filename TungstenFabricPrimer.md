@@ -39,6 +39,7 @@ Table of Contents
       * [ist.py](#istpy)
       * [contrail-api-cli](#contrail-api-cli)
       * [webui](#webui)
+      * [Changing container parameters](#changing-container-parameters)
    * [Appendix](#appendix)
       * [Cluster update](#cluster-update)
       * [L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration](#l3vpn--evpn-t2t5-vxlanmpls-integration)
@@ -2092,12 +2093,72 @@ With these parameters jsonized by fluentd, and queried by kibana through ES, it 
 to be investigated
 
 # Day 2 operation
+
 ## ist.py
  operational command
 ## contrail-api-cli
  show configuration
 ## webui
  configuration command
+
+## Changing container parameters
+
+After R5.0 and later, Tungsten Fabric components are distributed through docker containers.
+Since those containers have various environment variables to change the behavior, it is sometimes necessary to update containers' environment varialbles after the installation. Let me describe how to change them.
+
+### list of container parameters
+
+Container parameters are used mostly in /entrypoint.sh to create conf file, which change the behavior of each microservices. To see the container environments and related parameters, it is most straightforward to see this repo.
+ - https://github.com/Juniper/contrail-container-builder/tree/master/containers
+
+This repo contains Dockerfiles and entrypoint.sh of various containers, so looking through this, you can check how to modify the parameter you need.
+
+As an example, if you want to change the gateway parameter of vrouter-agent, you can check this file, and VROUTER_GATEWAY is directly used to replace that parameter.
+ - https://github.com/Juniper/contrail-container-builder/blob/master/containers/vrouter/agent/entrypoint.sh
+
+```
+[VIRTUAL-HOST-INTERFACE]
+name=vhost0
+ip=$vrouter_cidr
+physical_interface=$phys_int
+gateway=$VROUTER_GATEWAY   ### this is the container environment variable which needs to be changed
+compute_node_address=$vrouter_ip
+```
+
+So if you know the parameter of microservice you need, you can check the corresponding container environment variable.
+
+Note that in some cases, there is no container environment variable which directly modify the microservices parameters.
+
+In that case, you can use add_ini_params_from_env function, which is at the last part of each entrypoint.sh.
+```
+add_ini_params_from_env VROUTER_AGENT /etc/contrail/contrail-vrouter-agent.conf
+```
+
+In that case, if you give this environment variable,
+```
+VROUTER_AGENT__FLOWS__thread_count=8
+```
+it can be translated to [FLOWS], thread_count=8, so with that method, you can directly modify microservices' conf file, even if no handy parameters are supplied to modify this.
+
+### ansible-deployer
+
+If ansible-deployer is used, it uses docker-compose to create docker containers, and environment variables are defined in /etc/contrail/common_xxx.env. (xxx is the rolename)
+
+So if you want to update such as vrouter parameters, you can edit /etc/contrail/common_vrouter.env, and type these commands.
+```
+docker-compose -f /etc/contrail/vrouter/docker-compose.yaml down
+docker-compose -f /etc/contrail/vrouter/docker-compose.yaml up -d
+```
+
+Then vrouter containers are recreated and the new parameters are applied.
+
+### kubeadm
+
+If kubeadm and kubernetes yaml is used to install Tungsten Fabric containers, each container uses configmap named 'env' as the source of environment variables.
+So you can type this command to edit environment variables, and can delete some Tungsten Fabric pods to recreate the containers. (Since containers are defined as DaemonMap, it will be recreated automatically)
+```
+kubectl edit configmap -n kube-system env
+```
 
 # Appendix
 
