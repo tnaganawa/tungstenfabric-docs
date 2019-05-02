@@ -45,7 +45,6 @@ Table of Contents
       * [L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration](#l3vpn--evpn-t2t5-vxlanmpls-integration)
       * [Service-Chain (L2, L3, NAT), BGPaaS](#service-chain-l2-l3-nat-bgpaas)
       * [Multicluster](#multicluster)
-         * [routing / bridging, DNS, security-policy](#routing--bridging-dns-security-policy)
          * [Inter AS option B/C](#inter-as-option-bc)
       * [Multi orchestrator](#multi-orchestrator)
          * [k8s openstack](#k8sopenstack)
@@ -2183,11 +2182,105 @@ Let me descirbe this procedure later in this chapter.
 
 ## Service-Chain (L2, L3, NAT), BGPaaS
 
-## Multicluster 
-### routing / bridging, DNS, security-policy
+## Multicluster
+
+Since it uses MPLS-VPN internally, virtual-networks in Tunsten Fabric can be extended to other Tungsten Fabric clusters.
+ - it might be a bit surprising, since neutron ML2 plugin or some other CNI won't support this setup, AFAIK
+
+That said, since they have different DBs, shared resources need to be marked between them.
+
+I'll describe the usage of several bgp parameters for this purpose.
+
+#### Routing
+
+Since Tungsten Fabric uses L3VPN for inter-VRF routing, if route-target is correctly set between VRFs, it can route packets.
+ - Since network-policy / logical-router can not be used between several clusters, route-targets need to be directly configured on each virtual-network.
+
+Note: if l3-only forwarding is specified, even in intra-VRF forwarding, L3VPN is used, so bridging won't be used in that setup.
+
+### Bridging
+
+### security-group
+
+Tungsten Fabric also have some extended community to convey security-group id.
+ - https://github.com/Juniper/contrail-controller/wiki/BGP-Extended-Communities
+
+Since this id also can be manually configured, you can set the same id to each cluster's security-group, and to allow traffic from that prefix.
+
+Note: As far as I tried, tags' id can't be manually configured from Tungsten Fabric webui in R5.1 branch, so fw-policy can't be used between clusters. This behavior might be changed in future.
+
+### DNS
+
+DNS is an important subject when dealing with several clusters.
+
+Since Tungsten Fabric have vDNS implementation similar to openstack's default setup, you can resolve vmname in a cluster, and make those names available externally.
+ - https://github.com/Juniper/contrail-controller/wiki/DNS-and-IPAM
+ - Controller nodes has a process contrail-named, to respond to the external DNS query
+ - To enabled this, from Tungsten Fabric webui, Configure > DNS > DNS Server > (create) > External Access need to be checked
+
+So at least when openstack (or vCenter) is used as an orchestrator, and if different clusters have different domain names, it can directly resove the names of other clusters.
+ - Upstream DNS forwarder need to be able to resolve all the name
+
+When kubernetes is used, Tungsten Fabric use coredns as the source of name resolusion, rather than on its own vDNS. Those IPs and domain names can be changed in kubeadm setting.
+```
+cluster0:
+kubeadm init --pod-network-cidr=10.32.0.0/24 --service-cidr=10.96.0.0/24
+cluster1:
+kubeadm init --pod-network-cidr=10.32.1.0/24 --service-cidr=10.96.1.0/24 --service-dns-domain=cluster1.local
+
+cluster1:
+# cat /etc/sysconfig/kubelet 
+-KUBELET_EXTRA_ARGS=
++KUBELET_EXTRA_ARGS="--cluster-dns=10.96.1.10"
+# systemctl restart kubelet
+```
+
+Note: When it is configured, Tungsten Fabric setting also need to be changed (set in configmap env)
+```
+cluster0:
+  KUBERNETES_POD_SUBNETS: 10.32.0.0/24
+  KUBERNETES_IP_FABRIC_SUBNETS: 10.64.0.0/24
+  KUBERNETES_SERVICE_SUBNETS: 10.96.0.0/24
+
+cluster1:
+  KUBERNETES_POD_SUBNETS: 10.32.1.0/24
+  KUBERNETES_IP_FABRIC_SUBNETS: 10.64.1.0/24
+  KUBERNETES_SERVICE_SUBNETS: 10.96.1.0/24
+```
+
+After setting coredns, it can resolve the name of other clusters (coredns IPs need to be leaked to each other's VRF, since those IPs need to be reachable)
+```
+kubectl edit -n kube-system configmap coredns
+
+cluster0:
+### add these lines to resolve cluster1 names
+    cluster1.local:53 {
+        errors
+        cache 30
+        forward . 10.96.1.10
+    }
+    
+cluster1:
+### add these lines to resolve cluster0 names
+    cluster.local:53 {
+        errors
+        cache 30
+        forward . 10.96.0.10
+    }
+    
+```
+
+So even if you have several separate Tungsten Fabric clusters, it is not too difficult to stitch virtual-networks between them.
+
+To have larger number of nodes than orchestrator currently supports, could be one reason to do so, even though orchestrators like kubernetes, openstack, vCenter support fairly large number of hypervisors.
+
 ### Inter AS option B/C
 
 ## Multi orchestrator
+
+Sharing controll plane between several orchestrators do a lot of good thing, including routing/bridging, DNS, security, ..
+
+Let me describe the usage and configuration about each scenario.
 
 ### k8s+openstack
 works well
