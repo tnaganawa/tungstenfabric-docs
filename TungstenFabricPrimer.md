@@ -2284,27 +2284,55 @@ Sharing controll plane between several orchestrators do a lot of good thing, inc
 Let me describe the usage and configuration about each scenario.
 
 ### k8s+openstack
-works well
+
+kubernetes + openstack combination is already covered and works well.
  - https://github.com/Juniper/contrail-ansible-deployer/wiki/Deployment-Example:-Contrail-and-Kubernetes-and-Openstack
 
+One additional comment is Tungsten Fabric supports both of nested installation and non-nested installation, so you can choose either option.
+ - https://github.com/Juniper/contrail-kubernetes-docs
+ 
 ### k8s+k8s
-cluster_names can be changed, but currently doesn't seem to work well ..
+To add multiple kubernetes cluster to one Tungsten Fabric could be one installation option.
+
+Since kube-manager supports one parameter cluster_name, which modifies the tenant name which will be created (default is 'k8s'), it is likely that can be OK, although when I tried that last time it doesn't work well, since some objects was deleted by other kube-manager as the stale objects.
  - https://github.com/Juniper/contrail-container-builder/blob/master/containers/kubernetes/kube-manager/entrypoint.sh#L28
 
+This behavior might be changed in future release.
+
 ### openstack+openstack
-to be investigated
+
+I haven't yet tried to add two openstack clusters to one Tungsten Fabric controller, but it might be possible if they don't use same tenant name.
 
 ### k8s+vCenter
-should work well, not tried yet
+Kubernetes and vCenter combination could be used simultaneously. Usecase is similar to kubernetes+openstack.
 
 ### openstack+vCenter
-curios, since vCenter could have tenancy / fwaas v2 / lbaas integrated
+
+Openstack and vCenter combination is a bit curious, since openstack dashboard might be used as the management UI for vCenter network.
+
+As far as I tried, vcenter-plugin checks all the virtual-networks under all avaiable tenants, rather than virtual-networks under 'vCenter' tenant, so if virtual-network or other neutron components are created, that also can be available at vRouterVM on ESXi. With this setup, vCenter users can implement network function by themselves, just like their using EC2 / VPC.
+ - They can also use permission feature of vCenter, to implement pseudo multi-tenancy of VMI and NF.
+ - https://docs.vmware.com/en/VMware-vSphere/6.5/com.vmware.vsphere.security.doc/GUID-4B47F690-72E7-4861-A299-9195B9C52E71.html
+
 
 ### vCenter+vCenter
-multi-vcenter, to be investigated
- - might be achieved, since multiple vcenter-plugins might consume events from vcenter in parallel
+
+Multi vCenter is an important subject, since vCenter has well defined configuration maximums and multi vCenter installation is a common way to work around them.
+
+Simplest setting in this case is to configure multi Tungsten Fabric cluters per vCenter, but in that case it will be diffcult to do vMotion between two clusters, since Tungsten Fabric create a new port after vMotion finished, and might assign different fixed ip.
+
+So I think assigning several vCenters to one Tungsten Fabric cluster would have legitimate usecase.
+
+As far as I tried, in current implementation, since vcenter-plugin uses only 'vCenter' tenant for some objects, it is not possible to use two vcenter-plugin simultaneously, without some code modification.
+
+If tenants can be modified per vcenter-plugin and vcenter-manager, it might be possible to assign each vCenter a separate tenant, and use them simultaneously, just like use kubernetes and openstack simultaneously.
+
+If this were available, it also will be possible to use service-insertion and physical switch extenstion with multi-vCenter environment.
+ - Even SRM integration also might be on that way, since place holder VM will assign a new port, which can be editted to assign correct fixed ip
 
 ### k8s+openstack+vCenter
+
+I don't know if this configuration will be ever used, since kubernetes / openstack / vCenter have some feature overlap, although it would work well if set up.
 
 ## Multi-DC
 
