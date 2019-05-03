@@ -54,6 +54,7 @@ Table of Contents
          * [openstack vCenter](#openstackvcenter)
          * [vCenter vCenter](#vcentervcenter)
          * [k8s openstack vCenter](#k8sopenstackvcenter)
+      * [Multi DC](#multi-dc)
       * [Service Mesh](#service-mesh)
 
 
@@ -2304,6 +2305,37 @@ multi-vcenter, to be investigated
  - might be achieved, since multiple vcenter-plugins might consume events from vcenter in parallel
 
 ### k8s+openstack+vCenter
+
+## Multi-DC
+
+If traffic is around multi DCs, you need to be a bit careful when planning Tungsten Fabric installation.
+
+There are two options: 1. single cluster, 2. multi clusters.
+
+Single cluster option is simpler and easier to manage, although RTT between DCs could be an issue, since several traffic such as XMPP, rabbitmq, cassandra will go through controllers (Currently, locality support is not available around them)
+
+Multi cluster approach will give a bit more operational complexity, since both clusters have different DBs, you need to manually set some parameters, such as route-targets or security-group ids.
+
+Additionally, vMotion between them also will be much more difficult.
+ - Even if cross vCenter vMotion is used, since the new vCenter and new Tungsten Fabric cluster will create a new port, it would have different fixed ip with the original one.
+ - Nova won't support cross openstck live migration currently, so if openstack is used, it is not possible to do live migration between them
+
+Since vCenter requires 150ms RTT between DCs (I couldn't find similar value for KVM), single cluster < 150 msec RTT < multi clusters might be one rule of thumb, although it has to be planned carefully for each specific case.
+ - https://kb.vmware.com/s/article/2106949
+
+When single cluster installation is planned, and the number of DCs are two, one thing additionally need to be cared.
+
+Since zookeeper / cassandra in Tungsten Fabric currently use Quorum consistency level, when primary site is down, second site can't keep working. (Both of Read and Write access will be unavaiable)
+ - https://github.com/Juniper/contrail-controller/blob/master/src/config/common/vnc_cassandra.py#L659 (used by config-api, schema-transformer, svc-monitor, device-manager)
+ - https://github.com/Juniper/contrail-common/blob/master/config-client-mgr/config_cassandra_client.cc#L458 (used by control, dns)
+
+One possible option to workaround this is to change consistency level to ONE / TWO / THREE or LOCAL_ONE / LOCAL_QUORUM, although it needs rebuild of source code.
+
+Since zookeeper has no such knob, the only way I'm aware of is to update weight, after the primary site is down.
+ - https://stackoverflow.com/questions/32189618/hierarchical-quorums-in-zookeeper
+ - Most of the components continue working even if zookeeper is temporary unavaialble, although components it uses that for HA stop working (schema-transformer, svc-monitor, kube-manager, vcenter-plugin, ...)
+
+When number of DCs are over two, this won't be an issue.
 
 ## Service Mesh
 istio is working well, multicluster could be interesting subject
