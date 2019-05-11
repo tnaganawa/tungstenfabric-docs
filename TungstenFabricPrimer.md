@@ -2180,6 +2180,52 @@ So basic idea is, firstly replicate all the configs to the newly created control
 Let me descirbe this procedure later in this chapter.
 
 ## L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration
+Before delving into this important subject, I'll firstly describe the encapsulation and control plane protocol I prefer, in two cases, which are DataCenter and NFVI.
+
+1. DataCenter: EVPN / VXLAN
+ - If you need MPLS over MPLS between DCs, you need router configuration to stitch them
+
+2. NFVI: L3VPN / MPLS over UDP
+
+Let me describe the reason of those choices.
+
+### VXLAN or MPLS
+
+To choose encapsulation, two sides, NICs and routers / switches, need to be taken care of.
+
+For NIC side, vxlan is much more prevalent, and it is not so easy to find a hardware which can offload MPLS encap / decap, even though linux itself supports MPLS encap / decap from 4.1.
+ - https://kernelnewbies.org/Linux_4.1#Multiprotocol_Label_Switching
+ - If no hw offload is used, kernel vRouter will have up to 1.0 Mpps performance limit based on linux network stack, AFAIK
+ - That said, let me note that vRouter currently does not support linux api to offload encap / decap of vxlan, although some configuration knob is already available: https://github.com/Juniper/contrail-specs/blob/master/smart-nic-generic-offload.md
+
+For Router/Swtich side, it is also true that it is a bit more costly to find a hardware which can work with MPLS packets, since most of DataCenter switches currently use specific Broadcom chips, which can use vxlan, but cannot use MPLS.
+
+So in DataCenter, to use vxlan encapsulation will be feasible.
+
+To use VXLAN, EVPN will be the one control plane that works well.
+
+Tungsten Fabric controller currently supports EVPN Type 2 and Type 5, and 1, 3, 4 also are used internally.
+ - https://github.com/Juniper/contrail-specs/blob/master/EVPN-type-5-support-in-Contrail.md
+ - https://github.com/Juniper/contrail-controller/blob/master/src/bgp/evpn/evpn_route.h#L47
+ - Type 6 implementation also seems to be on the way: https://github.com/Juniper/contrail-specs/blob/master/5.1/evpn_multicast_smet.md
+
+So it is basically OK for vRouter to join EVPN/VXLAN network, although it is not always easy to reach full interoperability.
+
+One thing to be careful about is vRouter is capable of vxlan routing, although some switches won't have this feature.
+
+In this setup, you might need to be a bit careful about how inter-vxlan traffic will be sent between physical switches and vRouters.
+ - This document describes that behavior well: https://www.juniper.net/documentation/en_US/release-independent/solutions/information-products/pathway-pages/solutions/l3gw-vmto-evpn-vxlan-mpls.pdf
+
+One corner case is MPLS-over-MPLS need to be used between DCs, because of advanced MPLS features like traffic engineering and link protection.
+
+In this case, routers have to stitch EVPN/VXLAN and EVPN/MPLS, which will be achieved with those configurations.
+ - https://www.juniper.net/documentation/en_US/junos/topics/concept/data-center-interconnect-evpn-vxlan-evpn-mpls-wan-overview.html
+
+If it is used as NFVI, since Tungsten Fabric currently doesn't support service-chain with EVPN type-5, L3VPN / MPLS over UDP will be the only possible choice.
+ - https://github.com/Juniper/contrail-specs/blob/master/EVPN-type-5-support-in-Contrail.md#control-node
+ - MPLS over GRE is also ok, although it has less entropy to be used for such as LAG load-balance
+
+Since it is prefered option to use DPDK in this case, linux stack's throughput limitation won't be an issue.
 
 ## Service-Chain (L2, L3, NAT), BGPaaS
 
