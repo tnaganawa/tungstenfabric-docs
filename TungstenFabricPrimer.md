@@ -588,6 +588,7 @@ I think there are some misunderstandng that Tungsten Fabric always needs good ro
 It is actually not true, since from v4.1, it supports a feature called gatewayless, which allow containers directly communicate with outside world (it is also useful for similar usecase with calico)
 
 To enable this feature, you can login Tungsten Fabric webui (https://(k8s masters's ip):8143, admin:contrail123) and reach Configure > Networks > k8s-default-pod-network, to toggle Advanced Options > IP Fabric Forwarding.
+ - You also need to set a network policy between that VN and default-domain:default-project:ip-fabric, since without that, RPF check will drop that packet
 
 If ping from a container to k8s master ip is typed, you will notice k8s master receive a packet from container, and adding static route to k8s master, ping works well.
  - please note that you need to configure k8s node's interface setting (EC2 > Network Interfaces > Change Source/Dest Check > Disabled) if you're using AWS.
