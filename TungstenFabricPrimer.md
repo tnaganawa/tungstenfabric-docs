@@ -2094,12 +2094,164 @@ to be investigated
 
 # Day 2 operation
 
+After installation of Tungsten Fabric is completed, users need to see the operational state such as route table and vif status, and configure various objects in Tungsten Fabric DB, such as virtual-network, logical-router, bgp-router, ...
+
+Although Tungsten Fabric has integration with openstack neutron and kubernetes YAML to configure some parameters,
+there are many situations those DBs need to be directly edited by Tungsten Fabric API or Tungsten Fabric webui.
+
+Let me describe various options to achieve this.
+
 ## ist.py
- operational command
+
+Since ist.py is already used a lot of times in this document, there won't be much more to comment about this.
+ - https://github.com/vcheny/contrail-introspect-cli
+
+It can dump similar information with router's operational commands, based on introspect API of various Tungsten Fabric components, including route table, bgp status, components status, ...
+
+One thing to be added is on vRouter, there are several other commands which will show similar information, such as vif, flow, vxlan, nh, rt, ...
+ - https://github.com/Juniper/contrail-vrouter/tree/master/utils
+
+Since ist.py will pick the info from vrouter-agent, and those tool pick the info from netlink, those info (mostly) always synced.
+ - Still, realtime info such as vif --list --rate, flow -s will be a good addition when vRouter throughput is the key
+
 ## contrail-api-cli
- show configuration
+
+When configuration update of Tungsten Fabric from CLI is needed, perhaps to use this tool will be one of the best approach.
+ - https://github.com/eonpatapon/contrail-api-cli
+
+It also can dump and traverse the contents of Tungsten Fabric DB in an intuitive way, just like Unix shell, and do ls, cat, edit and check refs and back_refs if needed.
+
+Let me describe some commands I think it is useful.
+
+### Installation procedure
+
+Please type these commands to install this tool on Centos7.
+```
+yum -y gcc python-devel gcc
+pip install contrail-api-cli
+```
+
+If some dependency error is shown, virtualenv might help.
+```
+yum -y gcc python-devel gcc
+pip install virutalenv
+virtualenv venv
+source venv/bin/activate
+  pip install contrail-api-cli
+```
+
+After the installation, try these commands to test TungstenFabric access. (kubernetes installation is used in this example)
+```
+contrail-api-cli --host xx.xx.xx.xx ls  ## xx.xx.xx.xx indicates config-api's ip
+```
+
+### ls
+
+If you installed this tool, I firstly recommend to type this command.
+```
+contrail-api-cli --host xx.xx.xx.xx ls -l \*
+```
+
+Then it will just dump all the uuids inside Tungsten Fabric DB with their names!
+
+Combining this with the cat command, a command which dumps all the configuration inside that DB can be written in a few lines, and it is highly useful to investigate what's configured.
+```
+for i in $(contrail-api-cli --host xx.xx.xx.xx ls \*)
+do
+ echo $i
+ contrail-api-cli --host xx.xx.xx.xx cat $i
+done
+```
+
+### cat
+
+This command is similar to Unix cat. It dumps the json file inside Tungsten Fabric DB. To see what's configured in each element, this command can be used.
+```
+contrail-api-cli --host xx.xx.xx.xx ls -l virtual-network
+contrail-api-cli --host xx.xx.xx.xx cat virtual-network/xxxx-xxxx-xxxx-xxxx
+```
+
+### tree
+
+This command has two options and I think both options are useful.
+
+This command basically dumps the refs and back_refs which one element has.
+
+So, for example, If you want to see all the ports inside a virtual-network, this is the command you need.
+```
+(forward_refs)
+contrail-api-cli --host xx.xx.xx.xx tree virtual-network/xxxx-xxxx-xxxx-xxxx
+(back_refs)
+contrail-api-cli -r --host xx.xx.xx.xx tree virtual-network/xxxx-xxxx-xxxx-xxxx
+```
+
+One additional option is -P, which dumps parent of one element. This option also would be useful in some situation.
+```
+contrail-api-cli -P --host xx.xx.xx.xx tree virtual-network/xxxx-xxxx-xxxx-xxxx
+```
+
+
+### edit
+
+Basic idea of this command is firstly to GET a json file with a specific uuid, and save that in a temporary file, and edit this file, and POST that with the same uuid to update the contents.
+ - Similar behavior with visudo, for example
+
+Additionally, this command could be a bit more powerful, since it supports EDITOR enviroment variable.
+
+By default, EDITOR is defined as 'vim', but since it can be any commands or scripts, such as python files, it can be a good base of Tungsten Fabric automaion based on its REST API.
+ - Since, unfortuately, no major automation tool, such as ansible, manageiq, terraform, currently supports Tungsten Fabric API directly, this might be the only way to configure Tungsten Fabric specific options, such as route-target for virtual-networks or packet-mode for ports.
+ - If neutron-plugin is installed, you can also use tools like ansible, manageiq, terraform through neutron API
+
+Basic usage of this command will be like this, to update some elements specified by a uuid.
+```
+contrail-api-cli edit --host xx.xx.xx.xx cat virtual-network/xxxx-xxxx-xxxx-xxxx
+EDITOR=/bin/vi contrail-api-cli edit --host xx.xx.xx.xx cat virtual-network/xxxx-xxxx-xxxx-xxxx
+```
+
+If automation is an intended use case, commands similar to this could be used.
+```
+EDITOR=(path-of-a-script) contrail-api-cli edit --host xx.xx.xx.xx cat virtual-network/xxxx-xxxx-xxxx-xxxx
+
+
+(venv) [root@ip-172-31-11-240 ~]# EDITOR=/tmp/configure-vn.py contrail-api-cli --host 172.31.11.240 edit virtual-network/035a1e3d-966b-45fd-941c-b845fd48d0c5
+ -> json in Tungsten Fabric DB is updated
+
+(venv) [root@ip-172-31-11-240 ~]# cat /tmp/configure-vn.py 
+#!/usr/bin/python
+import sys
+import json
+filename=sys.argv[1]
+
+with open (filename) as f:
+ js=json.load(f)
+
+##print (js)
+js["flood_unknown_unicast"]=True ### edit json data here
+
+with open (filename, 'w') as f:
+ json.dump(js, f)
+(venv) [root@ip-172-31-11-240 ~]#
+```
+
+So with this command, you can edit Tungsten Fabric json programmatically, without deep knowledge on Tungsten Fabric API.
+Since many objects are created by such as neutron API, it might be the way to use them firstly, and update them with Tungsten Fabric specific parameters (route-target is one example) by this tool.
+
 ## webui
- configuration command
+
+Although there are several good CLI tools available today, historically, most of all the operation is done through Tungsten Fabric webui.
+
+It is served at https://(controller-ip):8143, and admin / contrail123 will be the default user / pass.
+ - user / pass can be changed by webui config parameter: https://github.com/Juniper/contrail-container-builder/blob/master/containers/controller/webui/base/entrypoint.sh#L248
+
+At the top left, there are four icons, which indicates 'Monitor', 'Configure', 'Inspect', 'Query'.
+
+Each module has those features.
+ 1. Monitor: This module primarily shows the status of each components, based on information from introspects, analytics UVEs, and configuration DB in some cases. (There might be some feature which won't work well if analyticsdb is not installed)
+ 2. Configure: Most of the configuration tasks will be done in this module.
+ 3. Inspect: This module has three tabs: list-of-uuid, introspect, config editor. Introspect shows the same information with ist.py. List-of-uuid, config editor will show the similar information with contrail-api-cli ls and contrail-api-cli cat / edit.
+ 4. Query: This module will query analyticsdb's contents. It shows the same information with the commands such as contrail-logs, contrail-flows, contrail-sessions, ... (https://github.com/Juniper/contrail-controller/wiki/Contrail-utility-scripts-for-getting-logs,-stats-and-flows-from-analytics) If analyticsdb is not installed, this module will be greyed out.
+
+Although this webui is highly useful to grasp the current state of Tungsten Fabric, its response could be a bit slow if number of nodes are large (such as over 2,000). In that case, CLI based approach will be a bit more relevant.
 
 ## Changing container parameters
 
