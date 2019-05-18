@@ -2128,13 +2128,13 @@ Let me describe some commands I think it is useful.
 
 Please type these commands to install this tool on Centos7.
 ```
-yum -y gcc python-devel gcc
+yum -y install gcc python-devel
 pip install contrail-api-cli
 ```
 
 If some dependency error is shown, virtualenv might help.
 ```
-yum -y gcc python-devel gcc
+yum -y install gcc python-devel
 pip install virutalenv
 virtualenv venv
 source venv/bin/activate
