@@ -2194,7 +2194,7 @@ contrail-api-cli -P --host xx.xx.xx.xx tree virtual-network/xxxx-xxxx-xxxx-xxxx
 
 ### edit
 
-Basic idea of this command is firstly to GET a json file with a specific uuid, and save that in a temporary file, and edit this file, and POST that with the same uuid to update the contents.
+Basic idea of this command is firstly to GET a json file with a specific uuid, and save that in a temporary file, and edit this file, and PUT that with the same uuid to update the contents.
  - Similar behavior with visudo, for example
 
 Additionally, this command could be a bit more powerful, since it supports EDITOR enviroment variable.
