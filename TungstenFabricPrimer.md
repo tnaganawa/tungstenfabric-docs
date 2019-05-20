@@ -2135,7 +2135,7 @@ pip install contrail-api-cli
 If some dependency error is shown, virtualenv might help.
 ```
 yum -y install gcc python-devel
-pip install virutalenv
+pip install virtualenv
 virtualenv venv
 source venv/bin/activate
   pip install contrail-api-cli
