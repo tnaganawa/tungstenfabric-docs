@@ -1478,7 +1478,7 @@ coredns   2/2     2            2           98m
 Since MP-BGP supports stitching between two clusters, those clusters are easily extended to multi-cluster environment.
  - Prefixes from each cluster will be leaked to other cluster
 
-I'll describe the detail of this setup in Appendex section.
+I'll describe the detail of this setup in Appendix section.
 
 
 ## Openstack
@@ -1564,6 +1564,7 @@ global_configuration:
 
 ## if previously described AMI is used, it uses cloud-init packages whose rpm dependency is not compatible with ansible-deployer in R5.1 and later. To workaroud this, I used these commands.
 yum -y remove PyYAML python-requests
+easy_install pip
 pip install PyYAML requests
 pip install ansible
 
