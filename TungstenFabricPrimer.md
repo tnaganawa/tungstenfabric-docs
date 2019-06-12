@@ -2383,6 +2383,91 @@ Since it is prefered option to use DPDK in this case, linux stack's throughput l
 
 ## Service-Chain (L2, L3, NAT), BGPaaS
 
+### service-chain
+
+Although it has a lot of usecases, NFVI will be one of Tungsten Fabric's most prominent usecase, because of a lot of unique features which makes NFVI implementation software based.
+
+Most well-known feature of this line is service-chain, which is a feature to manage traffic without changing VNF's ip's, which makes realtime insertion and remove of VNF possible.
+
+Since vRouter can have VRFs inside, it can have VRFs at the every interface of VNF, and can make the traffic handled by the fabricated next-hops, to send such as next VNF.
+
+Tungsten Fabric's service-chain is implemented that way, so you will see several VRFs are created once service-chain is created, and next-hop will be inserted to send traffic to the next VNF of the chain.
+ - VRFs (routing-instance in control's term) are named as domain-name:project-name:virtual-network-name:routing-instance-name. In most cases, virtual-network-name and routing-instance-name is the same, but the service-chain is one exception of this rule
+
+To set up sample service-chain, the procedure in this movie can be followed
+ - https://www.youtube.com/watch?v=h5qOqsPtQ7M
+
+After that, you can see left virtual-network has right virtual-network's prefixes with updated next-hop, which is oriented to left interface of VNF, and vice versa for right virtual-network.
+
+Note: When service-chain v2 is used, only 'left' and 'right' interfaces are used for service-chain calculation, and 'management' and 'other' interfaces are omitted, AFAIK
+
+
+### l2, l3, nat
+
+There are a lot of VNFs with different set of traffic type, so NFVI's SDN also needs to support several type of traffic.
+
+For this purpose, Tungsten Fabric service-chain supports three traffic type, namely l2, l3, nat.
+
+l2 service-chain (also known as transparent service-chain) can be used with transparent VNF, which has similar feature with bridge, with sending packets based on the arp response. 
+
+Although vRouter always use the same mac address (00:01:00:5e:00:00),
+ - https://github.com/Juniper/contrail-controller/wiki/Contrail-VRouter-ARP-Processing#vrouter-mac-address
+
+this case is an exception of this rule, and the vRouter at the left of VNF sends traffic with dest mac: 2:0:0:0:0:2, and the vRouter at the right of VNF sends traffic with dest mac 1:0:0:0:0:1.
+So bridge-type VNF will send traffic to the opposite side of its interfaces.
+
+Let me note that even if l2 vnf is used, the left virtual-network and right virtual-network need to have different subnet.
+This might be a bit counter intuitive, but since vRouter can do l3 routing, vRouter - L2VNF - vRouter is possible, just like router - L2VNF - router is acceptable.
+
+
+l3 service-chain (also known as in-network service-chain), on the other hand, will send traffic to the VNF without changing mac address, since in this case, VNF will route packets based on its destination ip (similar behavior with router).
+Except for the mac address, the behavior is mostly the same with l2 case.
+
+
+Nat service-chain is similar to l3 service-chain, since it expects VNF to route packets based on destination ip.
+One big difference is it replicates right virtual-network's prefixes to left virtual-network, but it won't replicate left virtual-network's prefixes to right virtual-network!
+ - so left / right interfaces need to be chosen carefully, since it's asymmetric in this case
+
+Typical usecase of this flavor of service-chain is VNF's left interface has private ip, and the right interface has global ip, in a case such as SNAT for internet access is performed.
+Since private ip can't be exported to the internet, in this case, left virtual-network's prefix can't be replicated to right virtual-network.
+
+### ECMP, multi VNF
+
+Service-chain feature also supports ECMP setup for scale out deployment.
+ - Configuration is mostly the same, but several port-tuple need to be assigned to one service-instance.
+
+After that, you will notice that traffic will be load-balanced based on 5-tuple of the packets.
+
+Multi VNF also can be set, if several service-instances are assigned to one network-policy.
+
+When l3 service-chain is used, although it might be counter intuitive, two VNFs need to be assigned to the same virtual-network.
+ - Since all the packets from VNFs will be in the separate VRFs for service-chain, they can have the same subnets.
+
+The simultaneous use of l2 and l3 is also supported, although in that case, l2 vnf needs to be assigned to the different virtual-networks, with the one network-policy is attached
+ - setup example is described in this blog post: http://www.opencontrail.org/building-and-testing-layer2-service-images-for-opencontrail/
+
+
+### BGPaaS
+
+BGPaaS is also a bit unique feature of Tungsten Fabric, which is used to insert VRFs' routes in VNFs.
+ - in a sense, it is a bit similar to AWS's VPN gateway, since it automatically got the routes from VPC's route table
+
+From operational perspective, VNFs in vRouter will have IPV4 bgp peer with vRouter's gateway ip and service ip.
+
+One notable usecase will be to set up ipsec VNFs, which might have a connection to public cloud with VPN gateway.
+In this case, VPC's route table will be copied to VNFs, and it will be replicated to vRouter's VRF through BGPaaS, so all the prefixes are distributed correctly when subnets are newly added modified in public cloud's VPC.
+
+### subinterface
+
+This is also a feature used in NFVI, so let me mention this here also.
+
+VNF sends tagged packets for various reason. In this case, vRouter can use different VRFs if vlan tags are different.
+ - similar to subinterfaces in 'set routing-instances routing-interface-name interface xxx' in junos's term
+
+Operation is described there
+https://www.youtube.com/watch?v=ANhBQe_DS2E
+
+
 ## Multicluster
 
 Since it uses MPLS-VPN internally, virtual-networks in Tunsten Fabric can be extended to other Tungsten Fabric clusters.
