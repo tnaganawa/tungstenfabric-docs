@@ -2333,6 +2333,141 @@ So basic idea is, firstly replicate all the configs to the newly created control
 
 Let me descirbe this procedure later in this chapter.
 
+### in-place update
+
+Since ansible-deployer follows idempotent behavior, update is not much different from install.
+These command will update all the modules.
+```
+cd contrail-ansible-deployer
+git pull
+vi config/instances.yaml
+(update CONTRAIL_CONTAINER_TAG)
+ansible-playbook -e orchestrator=xxx -i inventory/ playbooks/install_contrail.yml
+```
+
+One caveat is, since this command restarts all the nodes mostly simultaneously, it is not easy to restart controllers and vRouters one-by-one.
+Additionally, removing other nodes from instances.yaml won't work, since one node's update require some parameters of other nodes.
+ - For example, vRouter update needs controls' ip, that is deduced from control role nodes in instances.yaml
+
+To overcome this, since ansible-deployer chooses hosts to be modified based on 
+```
+provider: bms
+```
+parameter, changing them to such as
+```
+provider: bms-maint
+```
+except the one which will be updated, will be one possible workaround.
+ - As far as I tried, this procedure makes it possible to update nodes one-by-one, although I don't know it will always work well ..
+
+### ISSU
+
+ISSU can be used even if container formats are largely different, like 4.x to 5.x case, since it creates a new cluster of controllers, and copy the data inside.
+
+Firstly, I'll describe the simplest case, 1 old controller and 1 new controller to see the overall procedure. All the commands are typed at the new controller.
+
+```
+old-controller:
+ ip: 172.31.2.209
+ hostname: ip-172-31-2-209
+new-controller:
+ ip: 172.31.1.154
+ hostname: ip-172-31-1-154
+
+(both controllers are installed with this instances.yaml)
+provider_config:
+  bms:
+   ssh_user: root
+   ssh_public_key: /root/.ssh/id_rsa.pub
+   ssh_private_key: /root/.ssh/id_rsa
+   domainsuffix: local
+   ntpserver: 0.centos.pool.ntp.org
+instances:
+  bms1:
+   provider: bms
+   roles:
+      config_database:
+      config:
+      control:
+      analytics:
+      analytics_database:
+      webui:
+   ip: x.x.x.x ## controller's ip
+contrail_configuration:
+  CONTRAIL_CONTAINER_TAG: r5.1
+  KUBERNETES_CLUSTER_PROJECT: {}
+  JVM_EXTRA_OPTS: "-Xms128m -Xmx1g"
+global_configuration:
+  CONTAINER_REGISTRY: tungstenfabric
+
+[commands]
+1. stop batch jobs
+docker stop config_devicemgr_1
+docker stop config_schema_1
+docker stop config_svcmonitor_1
+
+2. register new control in cassandra and set up bgp between them
+docker exec -it config_api_1 bash
+python /opt/contrail/utils/provision_control.py --host_name ip-172-31-1-154 --host_ip 172.31.1.154 --api_server_ip 172.31.2.209 --api_server_port 8082 --oper add--router_asn 64512 --ibgp_auto_mesh
+
+3. sync the data between controllers
+vi contrail-issu.conf
+(write down this)
+[DEFAULTS]
+old_rabbit_address_list = 172.31.2.209
+old_rabbit_port = 5673
+new_rabbit_address_list = 172.31.1.154
+new_rabbit_port = 5673
+old_cassandra_address_list = 172.31.2.209:9161
+old_zookeeper_address_list = 172.31.2.209:2181
+new_cassandra_address_list = 172.31.1.154:9161
+new_zookeeper_address_list = 172.31.1.154:2181
+new_api_info={"172.31.1.154": [("root"), ("password")]} ## ssh public-key can be used
+
+image_id=`docker images | awk '/config-api/{print $3}' | head -1`
+
+docker run --rm -it --network host -v $(pwd)/contrail-issu.conf:/etc/contrail/contrail-issu.conf --entrypoint /bin/bash -v /root/.ssh:/root/.ssh $image_id -c "/usr/bin/contrail-issu-pre-sync -c /etc/contrail/contrail-issu.conf"
+
+4. start the process to do real-time data sync
+docker run --rm --detach -it --network host -v $(pwd)/contrail-issu.conf:/etc/contrail/contrail-issu.conf --entrypoint /bin/bash -v /root/.ssh:/root/.ssh --name issu-run-sync $image_id -c "/usr/bin/contrail-issu-run-sync -c /etc/contrail/contrail-issu.conf"
+
+(check the log if needed)
+docker exec -t issu-run-sync tail -f /var/log/contrail/issu_contrail_run_sync.log
+
+5. (update vrouters)
+
+6. stop the job and sync all the data when finished
+docker rm -f issu-run-sync
+
+image_id=`docker images | awk '/config-api/{print $3}' | head -1`
+docker run --rm -it --network host -v $(pwd)/contrail-issu.conf:/etc/contrail/contrail-issu.conf --entrypoint /bin/bash -v /root/.ssh:/root/.ssh --name issu-run-sync $image_id -c "/usr/bin/contrail-issu-post-sync -c /etc/contrail/contrail-issu.conf"
+docker run --rm -it --network host -v $(pwd)/contrail-issu.conf:/etc/contrail/contrail-issu.conf --entrypoint /bin/bash -v /root/.ssh:/root/.ssh --name issu-run-sync $image_id -c "/usr/bin/contrail-issu-zk-sync -c /etc/contrail/contrail-issu.conf"
+
+7. remove old nodes from cassandra and add new nodes
+vi issu.conf
+(write down this)
+[DEFAULTS]
+db_host_info={"172.31.1.154": "ip-172-31-1-154"}
+config_host_info={"172.31.1.154": "ip-172-31-1-154"}
+analytics_host_info={"172.31.1.154": "ip-172-31-1-154"}
+control_host_info={"172.31.1.154": "ip-172-31-1-154"}
+api_server_ip=172.31.1.154
+
+docker cp issu.conf config_api_1:issu.conf
+docker exec -it config_api_1 python /opt/contrail/utils/provision_issu.py -c issu.conf
+
+8. start batch jobs
+docker start config_devicemgr_1
+docker start config_schema_1
+docker start config_svcmonitor_1
+```
+
+These will be possible checkpoints.
+1. After 3, you can try contrail-api-cli ls -l \\* to see all the data are copied successfully, and ist.py ctr nei to see ibgp is up between controllers.
+2. After 4, old db can be modified, to see the changes are successfully propagated to new db.
+
+After this, I will cover more realistic case with HA controllers and two vRouters.
+
 ## L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration
 Before delving into this important subject, I'll firstly describe the encapsulation and control plane protocol I prefer, in two cases, which are DataCenter and NFVI.
 
