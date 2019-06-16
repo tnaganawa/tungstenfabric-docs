@@ -39,6 +39,7 @@ Table of Contents
       * [ist.py](#istpy)
       * [contrail-api-cli](#contrail-api-cli)
       * [webui](#webui)
+      * [backup and restore](#backup-and-restore)
       * [Changing container parameters](#changing-container-parameters)
    * [Appendix](#appendix)
       * [Cluster update](#cluster-update)
@@ -2254,6 +2255,16 @@ Each module has those features.
  4. Query: This module will query analyticsdb's contents. It shows the same information with the commands such as contrail-logs, contrail-flows, contrail-sessions, ... (https://github.com/Juniper/contrail-controller/wiki/Contrail-utility-scripts-for-getting-logs,-stats-and-flows-from-analytics) If analyticsdb is not installed, this module will be greyed out.
 
 Although this webui is highly useful to grasp the current state of Tungsten Fabric, its response could be a bit slow if number of nodes are large (such as over 2,000). In that case, CLI based approach will be a bit more relevant.
+
+## backup and restore
+
+Backup / restore is the vital feature for important data, like SDN configuration.
+
+Tungsten Fabric supports backup and restore through db_json_exim.py script. The procedure is described there.
+ - https://www.juniper.net/documentation/en_US/contrail5.1/topics/concept/backup-using-json-50.html
+
+Note: This repo also might be useful (restore is tested)
+ - https://github.com/konono/contrail_backup
 
 ## Changing container parameters
 
