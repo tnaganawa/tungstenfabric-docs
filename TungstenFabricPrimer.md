@@ -2419,7 +2419,7 @@ docker stop config_svcmonitor_1
 
 2. register new control in cassandra and set up bgp between them
 docker exec -it config_api_1 bash
-python /opt/contrail/utils/provision_control.py --host_name ip-172-31-1-154 --host_ip 172.31.1.154 --api_server_ip 172.31.2.209 --api_server_port 8082 --oper add --router_asn 64512 --ibgp_auto_mesh
+python /opt/contrail/utils/provision_control.py --host_name ip-172-31-1-154.local --host_ip 172.31.1.154 --api_server_ip 172.31.2.209 --api_server_port 8082 --oper add --router_asn 64512 --ibgp_auto_mesh
 
 3. sync the data between controllers
 vi contrail-issu.conf
@@ -2458,10 +2458,10 @@ docker run --rm -it --network host -v $(pwd)/contrail-issu.conf:/etc/contrail/co
 vi issu.conf
 (write down this)
 [DEFAULTS]
-db_host_info={"172.31.1.154": "ip-172-31-1-154"}
-config_host_info={"172.31.1.154": "ip-172-31-1-154"}
-analytics_host_info={"172.31.1.154": "ip-172-31-1-154"}
-control_host_info={"172.31.1.154": "ip-172-31-1-154"}
+db_host_info={"172.31.1.154": "ip-172-31-1-154.local"}
+config_host_info={"172.31.1.154": "ip-172-31-1-154.local"}
+analytics_host_info={"172.31.1.154": "ip-172-31-1-154.local"}
+control_host_info={"172.31.1.154": "ip-172-31-1-154.local"}
 api_server_ip=172.31.1.154
 
 docker cp issu.conf config_api_1:issu.conf
