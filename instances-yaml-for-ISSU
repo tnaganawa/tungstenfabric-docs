@@ -1,0 +1,124 @@
+old-controller: 172.31.19.25
+new-controller: 172.31.13.9
+two-vRouters: 172.31.25.102, 172.31.33.175
+
+1. installation of new controller
+
+provider_config:
+  bms:
+   ssh_user: root
+   ssh_public_key: /root/.ssh/id_rsa.pub
+   ssh_private_key: /root/.ssh/id_rsa
+   domainsuffix: local
+   ntpserver: 0.centos.pool.ntp.org
+instances:
+  bms1:
+   provider: bms
+   roles:
+      config_database:
+      config:
+      control:
+      analytics:
+      analytics_database:
+      webui:
+      kubemanager:
+   ip: 172.31.13.9
+  bms2:
+   provider: bms
+   roles:
+      k8s_master:
+   ip: 172.31.19.25
+contrail_configuration:
+  CONTRAIL_CONTAINER_TAG: r5.1
+  KUBERNETES_CLUSTER_PROJECT: {}
+  JVM_EXTRA_OPTS: "-Xms128m -Xmx1g"
+global_configuration:
+  CONTAINER_REGISTRY: tungstenfabric
+
+2. update of the first vRouter (bms-maint is set to avoid disturbing control plane)
+provider_config:
+  bms:
+   ssh_user: root
+   ssh_public_key: /root/.ssh/id_rsa.pub
+   ssh_private_key: /root/.ssh/id_rsa
+   domainsuffix: local
+   ntpserver: 0.centos.pool.ntp.org
+instances:
+  bms1:
+   provider: bms-maint
+   roles:
+      config_database:
+      config:
+      control:
+      analytics:
+      analytics_database:
+      webui:
+      kubemanager:
+   ip: 172.31.13.9
+  bms2:
+   provider: bms-maint
+   roles:
+      k8s_master:
+   ip: 172.31.19.25
+  bms11:
+   provider: bms
+   roles:
+     vrouter:
+     k8s_node:
+   ip: 172.31.25.102
+#  bms12:
+#   provider: bms
+#   roles:
+#     vrouter:
+#     k8s_node:
+#   ip: 172.31.33.175
+contrail_configuration:
+  CONTRAIL_CONTAINER_TAG: r5.1
+  KUBERNETES_CLUSTER_PROJECT: {}
+  JVM_EXTRA_OPTS: "-Xms128m -Xmx1g"
+global_configuration:
+  CONTAINER_REGISTRY: tungstenfabric
+
+3. update of the second vRouter
+provider_config:
+  bms:
+   ssh_user: root
+   ssh_public_key: /root/.ssh/id_rsa.pub
+   ssh_private_key: /root/.ssh/id_rsa
+   domainsuffix: local
+   ntpserver: 0.centos.pool.ntp.org
+instances:
+  bms1:
+   provider: bms-maint
+   roles:
+      config_database:
+      config:
+      control:
+      analytics:
+      analytics_database:
+      webui:
+      kubemanager:
+   ip: 172.31.13.9
+  bms2:
+   provider: bms-maint
+   roles:
+      k8s_master:
+   ip: 172.31.19.25
+  bms11:
+   provider: bms-maint
+   roles:
+     vrouter:
+     k8s_node:
+   ip: 172.31.25.102
+  bms12:
+   provider: bms
+   roles:
+     vrouter:
+     k8s_node:
+   ip: 172.31.33.175
+contrail_configuration:
+  CONTRAIL_CONTAINER_TAG: r5.1
+  KUBERNETES_CLUSTER_PROJECT: {}
+  JVM_EXTRA_OPTS: "-Xms128m -Xmx1g"
+global_configuration:
+  CONTAINER_REGISTRY: tungstenfabric
