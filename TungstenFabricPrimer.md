@@ -2477,7 +2477,440 @@ These will be possible checkpoints.
 1. After 3, you can try contrail-api-cli ls -l \\* to see all the data are copied successfully, and ist.py ctr nei to see ibgp is up between controllers.
 2. After 4, old db can be modified, to see the changes are successfully propagated to new db.
 
-After this, I will cover more realistic case with HA controllers and two vRouters.
+After this, I will cover more realistic case with orchestrators and two vRouters.
+
+### Orchestrator integration
+
+To illustrate the case combined with orchestrators, I tried two vRouters and kubernetes setup with ansible-deployer.
+
+Even when combined with orchestrators, overall procedure won't be much different.
+
+One thing which need to be careful about is, when kube-manager needs to be changed to the new one.
+
+Since kube-manager dynamically subscribe events from kube-apiserver and update Tungsten Fabric config-database, in a sense, it is similar to batch jobs, such as schema-transformer, svc-monitor and device-manager.
+So I stopped and started old or new kube-manager (and actually webui also) at the same time with such batch jobs, but it might need to be changed based on each setup.
+
+So overall procedure in this case will be the following.
+```
+1. setup one controller (with one kube-manager and kubernetes-master) and two vRouters
+2. setup one new controller (with one kube-manager, but kubernetes-master is the same one with the old controller) 
+3. stop batch jobs and kube-manager, webui for new controller
+4. start issu procedure and continue that until starting run-sync
+ -> iBGP will be established between controllers
+5. update vRouters one-by-one based on new controller's ansible-deployer
+  -> When one vRouter is moved to the new one, new controller also will got the route-target of k8s-default-pod-network,
+   and ping between containers remain working well (ist.py ctr route summary and the ping result will be attached later)
+6. When all the vRouters are moved to the new controller, stop batch jobs and kube-manager, webui on the old controller
+   After that, continue issu procedure, and start batch jobs and kube-manager and webui, on the new controller
+  -> From the beginning and till the end of this phase, you can't change config-database manually, so some maintenance time might be needed
+  (it could last up to 5-15 min, ping is ok, but new container creation won't work well, until new kube-manager is started)
+7. finally, stop control, config and config-database on the old node
+```
+
+When updating vRouters, I used provider: bms-maint for controller, k8s_master, and vRouters which are already changed to new one, to avoid disturbing based on container restart.
+I'll attach original instances.yaml and instances.yaml to update vRouters, for further detail.
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/instances-yaml-for-ISSU
+
+I'll also attach the result of ist.py ctr nei and ist.py ctr route summary on each phase, to illustrate the detail of what's going on.
+ - Let me note that I actually don't update the module in this example, since this setup is primarily to highlight the ISSU procedure (since ansible-deployer re-create vrouter-agent containers even when module version is the same, number of packet loss won't be much different even if the actual module update is done)
+
+```
+old-controller: 172.31.19.25
+new-controller: 172.31.13.9
+two-vRouters: 172.31.25.102, 172.31.33.175
+
+Before stating issu:
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.19.25 ctr nei
+Introspect Host: 172.31.19.25
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| peer                   | peer_address  | peer_asn | encoding | peer_type | state       | send_state | flap_count | flap_time |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| ip-172-31-25-102.local | 172.31.25.102 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-33-175.local | 172.31.33.175 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+[root@ip-172-31-13-9 ~]# 
+[root@ip-172-31-13-9 ~]# 
+[root@ip-172-31-13-9 ~]# 
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.13.9 ctr nei
+Introspect Host: 172.31.13.9
+[root@ip-172-31-13-9 ~]# 
+ -> iBGP is not configured yet
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.19.25 ctr route summary
+Introspect Host: 172.31.19.25
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| name                                               | prefixes | paths | primary_paths | secondary_paths | infeasible_paths |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| default-domain:default-                            | 0        | 0     | 0             | 0               | 0                |
+| project:__link_local__:__link_local__.inet.0       |          |       |               |                 |                  |
+| default-domain:default-project:dci-                | 0        | 0     | 0             | 0               | 0                |
+| network:__default__.inet.0                         |          |       |               |                 |                  |
+| default-domain:default-project:dci-network:dci-    | 0        | 0     | 0             | 0               | 0                |
+| network.inet.0                                     |          |       |               |                 |                  |
+| default-domain:default-project:default-virtual-    | 0        | 0     | 0             | 0               | 0                |
+| network:default-virtual-network.inet.0             |          |       |               |                 |                  |
+| inet.0                                             | 0        | 0     | 0             | 0               | 0                |
+| default-domain:default-project:ip-fabric:ip-       | 7        | 7     | 2             | 5               | 0                |
+| fabric.inet.0                                      |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-pod-network | 7        | 7     | 4             | 3               | 0                |
+| :k8s-default-pod-network.inet.0                    |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-service-    | 7        | 7     | 1             | 6               | 0                |
+| network:k8s-default-service-network.inet.0         |          |       |               |                 |                  |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+[root@ip-172-31-13-9 ~]# 
+[root@ip-172-31-13-9 ~]# 
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.13.9 ctr route summary
+Introspect Host: 172.31.13.9
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| name                                               | prefixes | paths | primary_paths | secondary_paths | infeasible_paths |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| default-domain:default-                            | 0        | 0     | 0             | 0               | 0                |
+| project:__link_local__:__link_local__.inet.0       |          |       |               |                 |                  |
+| default-domain:default-project:dci-                | 0        | 0     | 0             | 0               | 0                |
+| network:__default__.inet.0                         |          |       |               |                 |                  |
+| default-domain:default-project:dci-network:dci-    | 0        | 0     | 0             | 0               | 0                |
+| network.inet.0                                     |          |       |               |                 |                  |
+| default-domain:default-project:default-virtual-    | 0        | 0     | 0             | 0               | 0                |
+| network:default-virtual-network.inet.0             |          |       |               |                 |                  |
+| inet.0                                             | 0        | 0     | 0             | 0               | 0                |
+| default-domain:default-project:ip-fabric:ip-       | 0        | 0     | 0             | 0               | 0                |
+| fabric.inet.0                                      |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-pod-network | 0        | 0     | 0             | 0               | 0                |
+| :k8s-default-pod-network.inet.0                    |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-service-    | 0        | 0     | 0             | 0               | 0                |
+| network:k8s-default-service-network.inet.0         |          |       |               |                 |                  |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+[root@ip-172-31-13-9 ~]# 
+ -> No route is imported in the new controller
+
+
+[root@ip-172-31-19-25 contrail-ansible-deployer]# kubectl get pod -o wide
+NAME                                 READY   STATUS    RESTARTS   AGE     IP              NODE                                               NOMINATED NODE
+cirros-deployment-75c98888b9-6qmcm   1/1     Running   0          4m58s   10.47.255.249   ip-172-31-25-102.ap-northeast-1.compute.internal   <none>
+cirros-deployment-75c98888b9-lxq4k   1/1     Running   0          4m58s   10.47.255.250   ip-172-31-33-175.ap-northeast-1.compute.internal   <none>
+[root@ip-172-31-19-25 contrail-ansible-deployer]# 
+
+/ # ip -o a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+13: eth0@if14: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue \    link/ether 02:6b:dc:98:ac:95 brd ff:ff:ff:ff:ff:ff
+13: eth0    inet 10.47.255.249/12 scope global eth0\       valid_lft forever preferred_lft forever
+/ # ping 10.47.255.250
+PING 10.47.255.250 (10.47.255.250): 56 data bytes
+64 bytes from 10.47.255.250: seq=0 ttl=63 time=2.155 ms
+64 bytes from 10.47.255.250: seq=1 ttl=63 time=0.904 ms
+^C
+--- 10.47.255.250 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.904/1.529/2.155 ms
+/ # 
+ -> two vRouters have one container on each node, and ping between two containers are working well
+
+
+After provision_control:
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.19.25 ctr nei
+Introspect Host: 172.31.19.25
++------------------------+---------------+----------+----------+-----------+-------------+-----------------+------------+-----------+
+| peer                   | peer_address  | peer_asn | encoding | peer_type | state       | send_state      | flap_count | flap_time |
++------------------------+---------------+----------+----------+-----------+-------------+-----------------+------------+-----------+
+| ip-172-31-13-9.local   | 172.31.13.9   | 64512    | BGP      | internal  | Idle        | not advertising | 0          | n/a       |
+| ip-172-31-25-102.local | 172.31.25.102 | 0        | XMPP     | internal  | Established | in sync         | 0          | n/a       |
+| ip-172-31-33-175.local | 172.31.33.175 | 0        | XMPP     | internal  | Established | in sync         | 0          | n/a       |
++------------------------+---------------+----------+----------+-----------+-------------+-----------------+------------+-----------+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.13.9 ctr nei
+Introspect Host: 172.31.13.9
+[root@ip-172-31-13-9 ~]#
+ -> iBGP is configured at the old controller, but new controller doesn't have that configuration yet (that will be replicated to the new controller, when pre-sync is performed)
+
+
+After run-sync:
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.19.25 ctr nei
+Introspect Host: 172.31.19.25
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| peer                   | peer_address  | peer_asn | encoding | peer_type | state       | send_state | flap_count | flap_time |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| ip-172-31-13-9.local   | 172.31.13.9   | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-25-102.local | 172.31.25.102 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-33-175.local | 172.31.33.175 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.13.9 ctr nei
+Introspect Host: 172.31.13.9
++-----------------------+--------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| peer                  | peer_address | peer_asn | encoding | peer_type | state       | send_state | flap_count | flap_time |
++-----------------------+--------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| ip-172-31-19-25.local | 172.31.19.25 | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a       |
++-----------------------+--------------+----------+----------+-----------+-------------+------------+------------+-----------+
+[root@ip-172-31-13-9 ~]#
+ -> iBGP is established, ctr route summary haven't yet changed, since new controller don't have k8s-default-pod-network's route-target and route target filtering prohibits importing those prefixes
+
+
+After moving one node to the new controller:
+
+/ # ping 10.47.255.250
+PING 10.47.255.250 (10.47.255.250): 56 data bytes
+64 bytes from 10.47.255.250: seq=0 ttl=63 time=1.684 ms
+64 bytes from 10.47.255.250: seq=1 ttl=63 time=0.835 ms
+64 bytes from 10.47.255.250: seq=2 ttl=63 time=0.836 ms
+(snip)
+64 bytes from 10.47.255.250: seq=37 ttl=63 time=0.878 ms
+64 bytes from 10.47.255.250: seq=38 ttl=63 time=0.823 ms
+64 bytes from 10.47.255.250: seq=39 ttl=63 time=0.820 ms
+64 bytes from 10.47.255.250: seq=40 ttl=63 time=1.364 ms
+64 bytes from 10.47.255.250: seq=44 ttl=63 time=2.209 ms
+64 bytes from 10.47.255.250: seq=45 ttl=63 time=0.869 ms
+64 bytes from 10.47.255.250: seq=46 ttl=63 time=0.857 ms
+64 bytes from 10.47.255.250: seq=47 ttl=63 time=0.855 ms
+64 bytes from 10.47.255.250: seq=48 ttl=63 time=0.845 ms
+64 bytes from 10.47.255.250: seq=49 ttl=63 time=0.842 ms
+64 bytes from 10.47.255.250: seq=50 ttl=63 time=0.885 ms
+64 bytes from 10.47.255.250: seq=51 ttl=63 time=0.891 ms
+64 bytes from 10.47.255.250: seq=52 ttl=63 time=0.909 ms
+64 bytes from 10.47.255.250: seq=53 ttl=63 time=0.867 ms
+64 bytes from 10.47.255.250: seq=54 ttl=63 time=0.884 ms
+64 bytes from 10.47.255.250: seq=55 ttl=63 time=0.865 ms
+64 bytes from 10.47.255.250: seq=56 ttl=63 time=0.840 ms
+64 bytes from 10.47.255.250: seq=57 ttl=63 time=0.877 ms
+^C
+--- 10.47.255.250 ping statistics ---
+58 packets transmitted, 55 packets received, 5% packet loss
+round-trip min/avg/max = 0.810/0.930/2.209 ms
+/ # 
+ -> When vrouter-agent is restarted, 3 packet loss is seen (seq 40-44). After moving one vRouter to the new one, ping remain working well.
+
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.19.25 ctr nei
+Introspect Host: 172.31.19.25
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| peer                   | peer_address  | peer_asn | encoding | peer_type | state       | send_state | flap_count | flap_time |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| ip-172-31-13-9.local   | 172.31.13.9   | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-33-175.local | 172.31.33.175 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.13.9 ctr nei
+Introspect Host: 172.31.13.9
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| peer                   | peer_address  | peer_asn | encoding | peer_type | state       | send_state | flap_count | flap_time |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| ip-172-31-19-25.local  | 172.31.19.25  | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-25-102.local | 172.31.25.102 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+[root@ip-172-31-13-9 ~]# 
+ -> Both controllers have one XMPP connection and Established iBGP
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.19.25 ctr route summary
+Introspect Host: 172.31.19.25
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| name                                               | prefixes | paths | primary_paths | secondary_paths | infeasible_paths |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| default-domain:default-                            | 0        | 0     | 0             | 0               | 0                |
+| project:__link_local__:__link_local__.inet.0       |          |       |               |                 |                  |
+| default-domain:default-project:dci-                | 0        | 0     | 0             | 0               | 0                |
+| network:__default__.inet.0                         |          |       |               |                 |                  |
+| default-domain:default-project:dci-network:dci-    | 0        | 0     | 0             | 0               | 0                |
+| network.inet.0                                     |          |       |               |                 |                  |
+| default-domain:default-project:default-virtual-    | 0        | 0     | 0             | 0               | 0                |
+| network:default-virtual-network.inet.0             |          |       |               |                 |                  |
+| inet.0                                             | 0        | 0     | 0             | 0               | 0                |
+| default-domain:default-project:ip-fabric:ip-       | 7        | 7     | 1             | 6               | 0                |
+| fabric.inet.0                                      |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-pod-network | 7        | 7     | 1             | 6               | 0                |
+| :k8s-default-pod-network.inet.0                    |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-service-    | 7        | 7     | 0             | 7               | 0                |
+| network:k8s-default-service-network.inet.0         |          |       |               |                 |                  |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.13.9 ctr route summary
+Introspect Host: 172.31.13.9
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| name                                               | prefixes | paths | primary_paths | secondary_paths | infeasible_paths |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| default-domain:default-                            | 0        | 0     | 0             | 0               | 0                |
+| project:__link_local__:__link_local__.inet.0       |          |       |               |                 |                  |
+| default-domain:default-project:dci-                | 0        | 0     | 0             | 0               | 0                |
+| network:__default__.inet.0                         |          |       |               |                 |                  |
+| default-domain:default-project:dci-network:dci-    | 0        | 0     | 0             | 0               | 0                |
+| network.inet.0                                     |          |       |               |                 |                  |
+| default-domain:default-project:default-virtual-    | 0        | 0     | 0             | 0               | 0                |
+| network:default-virtual-network.inet.0             |          |       |               |                 |                  |
+| inet.0                                             | 0        | 0     | 0             | 0               | 0                |
+| default-domain:default-project:ip-fabric:ip-       | 7        | 7     | 1             | 6               | 0                |
+| fabric.inet.0                                      |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-pod-network | 7        | 7     | 3             | 4               | 0                |
+| :k8s-default-pod-network.inet.0                    |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-service-    | 7        | 7     | 1             | 6               | 0                |
+| network:k8s-default-service-network.inet.0         |          |       |               |                 |                  |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+[root@ip-172-31-13-9 ~]# 
+ -> Since both controllers have at least one container from k8s-default-pod-network, they used iBGP to exchange the prefixes between them, and they have the same prefixes
+
+
+After moving the second vrouter to the new controller:
+/ # ping 10.47.255.250
+PING 10.47.255.250 (10.47.255.250): 56 data bytes
+64 bytes from 10.47.255.250: seq=0 ttl=63 time=1.750 ms
+64 bytes from 10.47.255.250: seq=1 ttl=63 time=0.815 ms
+64 bytes from 10.47.255.250: seq=2 ttl=63 time=0.851 ms
+64 bytes from 10.47.255.250: seq=3 ttl=63 time=0.809 ms
+(snip)
+64 bytes from 10.47.255.250: seq=34 ttl=63 time=0.853 ms
+64 bytes from 10.47.255.250: seq=35 ttl=63 time=0.848 ms
+64 bytes from 10.47.255.250: seq=36 ttl=63 time=0.833 ms
+64 bytes from 10.47.255.250: seq=37 ttl=63 time=0.832 ms
+64 bytes from 10.47.255.250: seq=38 ttl=63 time=0.910 ms
+64 bytes from 10.47.255.250: seq=42 ttl=63 time=2.071 ms
+64 bytes from 10.47.255.250: seq=43 ttl=63 time=0.826 ms
+64 bytes from 10.47.255.250: seq=44 ttl=63 time=0.853 ms
+64 bytes from 10.47.255.250: seq=45 ttl=63 time=0.851 ms
+64 bytes from 10.47.255.250: seq=46 ttl=63 time=0.853 ms
+64 bytes from 10.47.255.250: seq=47 ttl=63 time=0.851 ms
+64 bytes from 10.47.255.250: seq=48 ttl=63 time=0.855 ms
+64 bytes from 10.47.255.250: seq=49 ttl=63 time=0.869 ms
+64 bytes from 10.47.255.250: seq=50 ttl=63 time=0.833 ms
+64 bytes from 10.47.255.250: seq=51 ttl=63 time=0.859 ms
+64 bytes from 10.47.255.250: seq=52 ttl=63 time=0.866 ms
+64 bytes from 10.47.255.250: seq=53 ttl=63 time=0.840 ms
+64 bytes from 10.47.255.250: seq=54 ttl=63 time=0.841 ms
+64 bytes from 10.47.255.250: seq=55 ttl=63 time=0.854 ms
+^C
+--- 10.47.255.250 ping statistics ---
+56 packets transmitted, 53 packets received, 5% packet loss
+round-trip min/avg/max = 0.799/0.888/2.071 ms
+/ #
+ -> 3 packet loss is seen (seq 38-42)
+
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.19.25 ctr nei
+Introspect Host: 172.31.19.25
++----------------------+--------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| peer                 | peer_address | peer_asn | encoding | peer_type | state       | send_state | flap_count | flap_time |
++----------------------+--------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| ip-172-31-13-9.local | 172.31.13.9  | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a       |
++----------------------+--------------+----------+----------+-----------+-------------+------------+------------+-----------+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.13.9 ctr nei
+Introspect Host: 172.31.13.9
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| peer                   | peer_address  | peer_asn | encoding | peer_type | state       | send_state | flap_count | flap_time |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| ip-172-31-19-25.local  | 172.31.19.25  | 64512    | BGP      | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-25-102.local | 172.31.25.102 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-33-175.local | 172.31.33.175 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+[root@ip-172-31-13-9 ~]# 
+ -> New controller has two XMPP connections.
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.19.25 ctr route summary
+Introspect Host: 172.31.19.25
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| name                                               | prefixes | paths | primary_paths | secondary_paths | infeasible_paths |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| default-domain:default-                            | 0        | 0     | 0             | 0               | 0                |
+| project:__link_local__:__link_local__.inet.0       |          |       |               |                 |                  |
+| default-domain:default-project:dci-                | 0        | 0     | 0             | 0               | 0                |
+| network:__default__.inet.0                         |          |       |               |                 |                  |
+| default-domain:default-project:dci-network:dci-    | 0        | 0     | 0             | 0               | 0                |
+| network.inet.0                                     |          |       |               |                 |                  |
+| default-domain:default-project:default-virtual-    | 0        | 0     | 0             | 0               | 0                |
+| network:default-virtual-network.inet.0             |          |       |               |                 |                  |
+| inet.0                                             | 0        | 0     | 0             | 0               | 0                |
+| default-domain:default-project:ip-fabric:ip-       | 0        | 0     | 0             | 0               | 0                |
+| fabric.inet.0                                      |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-pod-network | 0        | 0     | 0             | 0               | 0                |
+| :k8s-default-pod-network.inet.0                    |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-service-    | 0        | 0     | 0             | 0               | 0                |
+| network:k8s-default-service-network.inet.0         |          |       |               |                 |                  |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.13.9 ctr route summary
+Introspect Host: 172.31.13.9
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| name                                               | prefixes | paths | primary_paths | secondary_paths | infeasible_paths |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+| default-domain:default-                            | 0        | 0     | 0             | 0               | 0                |
+| project:__link_local__:__link_local__.inet.0       |          |       |               |                 |                  |
+| default-domain:default-project:dci-                | 0        | 0     | 0             | 0               | 0                |
+| network:__default__.inet.0                         |          |       |               |                 |                  |
+| default-domain:default-project:dci-network:dci-    | 0        | 0     | 0             | 0               | 0                |
+| network.inet.0                                     |          |       |               |                 |                  |
+| default-domain:default-project:default-virtual-    | 0        | 0     | 0             | 0               | 0                |
+| network:default-virtual-network.inet.0             |          |       |               |                 |                  |
+| inet.0                                             | 0        | 0     | 0             | 0               | 0                |
+| default-domain:default-project:ip-fabric:ip-       | 7        | 7     | 2             | 5               | 0                |
+| fabric.inet.0                                      |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-pod-network | 7        | 7     | 4             | 3               | 0                |
+| :k8s-default-pod-network.inet.0                    |          |       |               |                 |                  |
+| default-domain:k8s-default:k8s-default-service-    | 7        | 7     | 1             | 6               | 0                |
+| network:k8s-default-service-network.inet.0         |          |       |               |                 |                  |
++----------------------------------------------------+----------+-------+---------------+-----------------+------------------+
+[root@ip-172-31-13-9 ~]#
+ -> Old controller doesn't have prefixes anymore
+
+
+After ISSU procedure finished and new kube-manager started:
+[root@ip-172-31-19-25 ~]# kubectl get pod -o wide
+NAME                                  READY   STATUS    RESTARTS   AGE   IP              NODE                                               NOMINATED NODE
+cirros-deployment-75c98888b9-6qmcm    1/1     Running   0          34m   10.47.255.249   ip-172-31-25-102.ap-northeast-1.compute.internal   <none>
+cirros-deployment-75c98888b9-lxq4k    1/1     Running   0          34m   10.47.255.250   ip-172-31-33-175.ap-northeast-1.compute.internal   <none>
+cirros-deployment2-648b98685f-b8pxw   1/1     Running   0          15s   10.47.255.247   ip-172-31-25-102.ap-northeast-1.compute.internal   <none>
+cirros-deployment2-648b98685f-nv7z9   1/1     Running   0          15s   10.47.255.248   ip-172-31-33-175.ap-northeast-1.compute.internal   <none>
+[root@ip-172-31-19-25 ~]# 
+ -> containers can be created with new ip (10.47.255.247, 10.47.255.248 are the new ip from new controller)
+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.19.25 ctr nei
+Introspect Host: 172.31.19.25
++----------------------+--------------+----------+----------+-----------+--------+-----------------+------------+-----------------------------+
+| peer                 | peer_address | peer_asn | encoding | peer_type | state  | send_state      | flap_count | flap_time                   |
++----------------------+--------------+----------+----------+-----------+--------+-----------------+------------+-----------------------------+
+| ip-172-31-13-9.local | 172.31.13.9  | 64512    | BGP      | internal  | Active | not advertising | 1          | 2019-Jun-23 05:37:02.614003 |
++----------------------+--------------+----------+----------+-----------+--------+-----------------+------------+-----------------------------+
+[root@ip-172-31-13-9 ~]# ./contrail-introspect-cli/ist.py --host 172.31.13.9 ctr nei
+Introspect Host: 172.31.13.9
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| peer                   | peer_address  | peer_asn | encoding | peer_type | state       | send_state | flap_count | flap_time |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+| ip-172-31-25-102.local | 172.31.25.102 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
+| ip-172-31-33-175.local | 172.31.33.175 | 0        | XMPP     | internal  | Established | in sync    | 0          | n/a       |
++------------------------+---------------+----------+----------+-----------+-------------+------------+------------+-----------+
+[root@ip-172-31-13-9 ~]#
+ -> New controller doesn't have an iBGP to the old controller anymore. Old controller still has an iBGP entry, although this process will be stopped soon :)
+
+
+After stopping old control, config:
+[root@ip-172-31-19-25 ~]# kubectl get pod -o wide
+NAME                                  READY   STATUS    RESTARTS   AGE   IP              NODE                                               NOMINATED NODE
+cirros-deployment-75c98888b9-6qmcm    1/1     Running   0          48m   10.47.255.249   ip-172-31-25-102.ap-northeast-1.compute.internal   <none>
+cirros-deployment-75c98888b9-lxq4k    1/1     Running   0          48m   10.47.255.250   ip-172-31-33-175.ap-northeast-1.compute.internal   <none>
+cirros-deployment2-648b98685f-b8pxw   1/1     Running   0          13m   10.47.255.247   ip-172-31-25-102.ap-northeast-1.compute.internal   <none>
+cirros-deployment2-648b98685f-nv7z9   1/1     Running   0          13m   10.47.255.248   ip-172-31-33-175.ap-northeast-1.compute.internal   <none>
+cirros-deployment3-68fb484676-ct9q9   1/1     Running   0          18s   10.47.255.245   ip-172-31-25-102.ap-northeast-1.compute.internal   <none>
+cirros-deployment3-68fb484676-mxbzq   1/1     Running   0          18s   10.47.255.246   ip-172-31-33-175.ap-northeast-1.compute.internal   <none>
+[root@ip-172-31-19-25 ~]# 
+ -> New containers still can be created
+
+[root@ip-172-31-25-102 ~]# contrail-status 
+Pod      Service  Original Name           State    Id            Status         
+vrouter  agent    contrail-vrouter-agent  running  9a46a1a721a7  Up 33 minutes  
+vrouter  nodemgr  contrail-nodemgr        running  11fb0a7bc86d  Up 33 minutes  
+
+vrouter kernel module is PRESENT
+== Contrail vrouter ==
+nodemgr: active
+agent: active
+
+[root@ip-172-31-25-102 ~]# 
+ -> vRouter is working well with the new control
+
+/ # ping 10.47.255.250
+PING 10.47.255.250 (10.47.255.250): 56 data bytes
+64 bytes from 10.47.255.250: seq=0 ttl=63 time=1.781 ms
+64 bytes from 10.47.255.250: seq=1 ttl=63 time=0.857 ms
+^C
+--- 10.47.255.250 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.857/1.319/1.781 ms
+/ #
+ -> ping between vRouters is ok
+```
+
 
 ## L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration
 Before delving into this important subject, I'll firstly describe the encapsulation and control plane protocol I prefer, in two cases, which are DataCenter and NFVI.
