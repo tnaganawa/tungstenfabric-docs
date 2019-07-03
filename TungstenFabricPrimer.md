@@ -877,6 +877,163 @@ Since you can instantly got a lot of resources from cloud, perhaps the best opti
 Tungsten Fabric has several good features to be gigantic, such as multi-cluster setup based on MP-BGP between clusters, and BUM drop feature based on L3-only virtual-network, which could be a key to have scalable and stable virtual-network.
  - https://bugs.launchpad.net/juniperopenstack/+bug/1471637
 
+To illustrate control's scale-out behavior, I created a cluster with 980 vRouters and 15 controls in AWS.
+ - All the control nodes have 4vCPUs and 16GB mem
+
+```
+Following instances.yaml is used to provision controller nodes,
+and non-nested.yaml for kubeadm (https://github.com/Juniper/contrail-container-builder/blob/master/kubernetes/manifests/contrail-non-nested-kubernetes.yaml) is used to provision vRouters
+
+(venv) [root@ip-172-31-21-119 ~]# cat contrail-ansible-deployer/config/instances.yaml
+provider_config:
+  bms:
+   ssh_user: centos
+   ssh_public_key: /root/.ssh/id_rsa.pub
+   ssh_private_key: /tmp/aaa.pem
+   domainsuffix: local
+   ntpserver: 0.centos.pool.ntp.org
+instances:
+  bms1:
+   provider: bms
+   roles:
+      config_database:
+      config:
+      control:
+      analytics:
+      webui:
+   ip: 172.31.21.119
+  bms2:
+   provider: bms
+   roles:
+     control:
+     analytics:
+   ip: 172.31.21.78
+  bms3:
+   provider: bms
+
+ ...
+
+  bms13:
+   provider: bms
+   roles:
+     control:
+     analytics:
+   ip: 172.31.14.189
+  bms14:
+   provider: bms
+   roles:
+     control:
+     analytics:
+   ip: 172.31.2.159
+  bms15:
+   provider: bms
+   roles:
+     control:
+     analytics:
+   ip: 172.31.7.239
+contrail_configuration:
+  CONTRAIL_CONTAINER_TAG: r5.1
+  KUBERNETES_CLUSTER_PROJECT: {}
+  JVM_EXTRA_OPTS: "-Xms128m -Xmx1g"
+global_configuration:
+  CONTAINER_REGISTRY: tungstenfabric
+(venv) [root@ip-172-31-21-119 ~]#
+
+[root@ip-172-31-4-80 ~]# kubectl get node | head
+NAME                                               STATUS     ROLES    AGE     VERSION
+ip-172-31-0-112.ap-northeast-1.compute.internal    Ready      <none>   9m24s   v1.15.0
+ip-172-31-0-116.ap-northeast-1.compute.internal    Ready      <none>   9m37s   v1.15.0
+ip-172-31-0-133.ap-northeast-1.compute.internal    Ready      <none>   9m37s   v1.15.0
+ip-172-31-0-137.ap-northeast-1.compute.internal    Ready      <none>   9m24s   v1.15.0
+ip-172-31-0-141.ap-northeast-1.compute.internal    Ready      <none>   9m24s   v1.15.0
+ip-172-31-0-142.ap-northeast-1.compute.internal    Ready      <none>   9m24s   v1.15.0
+ip-172-31-0-151.ap-northeast-1.compute.internal    Ready      <none>   9m37s   v1.15.0
+ip-172-31-0-163.ap-northeast-1.compute.internal    Ready      <none>   9m37s   v1.15.0
+ip-172-31-0-168.ap-northeast-1.compute.internal    Ready      <none>   9m16s   v1.15.0
+[root@ip-172-31-4-80 ~]# 
+[root@ip-172-31-4-80 ~]# kubectl get node | grep -w Ready | wc -l
+980
+[root@ip-172-31-4-80 ~]# 
+
+
+(venv) [root@ip-172-31-21-119 ~]# contrail-api-cli --host 172.31.21.119 ls virtual-router | wc -l
+980
+(venv) [root@ip-172-31-21-119 ~]#
+```
+
+When number of control nodes are 15, number of XMPP connections are up 113, so CPU usage is not so high (up to 5.4%).
+
+```
+[root@ip-172-31-21-119 ~]# ./contrail-introspect-cli/ist.py ctr nei | grep -w XMPP | wc -l
+113
+[root@ip-172-31-21-119 ~]#
+
+top - 05:52:14 up 42 min,  1 user,  load average: 1.73, 5.50, 3.57
+Tasks: 154 total,   1 running, 153 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  2.4 us,  2.9 sy,  0.0 ni, 94.6 id,  0.0 wa,  0.0 hi,  0.1 si,  0.0 st
+KiB Mem : 15233672 total,  8965420 free,  2264516 used,  4003736 buff/cache
+KiB Swap:        0 total,        0 free,        0 used. 12407304 avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                                                                                                
+32368 root      20   0  839848  55240  11008 S   7.6  0.4   0:21.40 contrail-collec                                                                                        
+28773 root      20   0 1311252 132552  14540 S   5.3  0.9   1:40.72 contrail-contro                                                                                        
+17129 polkitd   20   0   56076  22496   1624 S   3.7  0.1   0:11.42 redis-server                                                                                           
+32438 root      20   0  248496  40336   5328 S   2.0  0.3   0:15.80 python                                                                                                 
+18346 polkitd   20   0 2991576 534452  22992 S   1.7  3.5   4:56.90 java                                                                                                   
+15344 root      20   0  972324  97248  35360 S   1.3  0.6   2:25.84 dockerd                                                                                                
+15351 root      20   0 1477100  32988  12532 S   0.7  0.2   0:08.72 docker-containe                                                                                        
+18365 centos    20   0 5353996 131388   9288 S   0.7  0.9   0:09.49 java                                                                                                   
+19994 polkitd   20   0 3892836 127772   3644 S   0.7  0.8   1:34.55 beam.smp                                                                                               
+17112 root      20   0    7640   3288   2456 S   0.3  0.0   0:00.24 docker-containe                                                                                        
+24723 root      20   0  716512  68920   6288 S   0.3  0.5   0:01.75 node     
+```
+
+However, when 12 control nodes are stoppped, number of XMPP connections per one control will be as high as 708, so CPU usage become pretty high (21.6%).
+
+So if you need to provision fairly large number of nodes, number of control nodes might need to be planned carefully.
+
+```
+[root@ip-172-31-21-119 ~]# ./contrail-introspect-cli/ist.py ctr nei | grep -w BGP
+| ip-172-31-13-119.local               | 172.31.13.119 | 64512    | BGP      | internal  | Active      | not advertising | 1          | 2019-Jun-29 06:10:47.527354 |
+| ip-172-31-13-87.local                | 172.31.13.87  | 64512    | BGP      | internal  | Active      | not advertising | 1          | 2019-Jun-29 06:10:08.610734 |
+| ip-172-31-14-189.local               | 172.31.14.189 | 64512    | BGP      | internal  | Active      | not advertising | 1          | 2019-Jun-29 06:16:34.953311 |
+| ip-172-31-14-243.local               | 172.31.14.243 | 64512    | BGP      | internal  | Active      | not advertising | 1          | 2019-Jun-29 06:06:12.379006 |
+| ip-172-31-17-212.local               | 172.31.17.212 | 64512    | BGP      | internal  | Active      | not advertising | 1          | 2019-Jun-29 06:03:15.650529 |
+| ip-172-31-2-159.local                | 172.31.2.159  | 64512    | BGP      | internal  | Established | in sync         | 0          | n/a                         |
+| ip-172-31-21-78.local                | 172.31.21.78  | 64512    | BGP      | internal  | Active      | not advertising | 1          | 2019-Jun-29 05:58:15.068791 |
+| ip-172-31-22-95.local                | 172.31.22.95  | 64512    | BGP      | internal  | Active      | not advertising | 1          | 2019-Jun-29 05:59:43.238465 |
+| ip-172-31-23-207.local               | 172.31.23.207 | 64512    | BGP      | internal  | Active      | not advertising | 1          | 2019-Jun-29 06:02:24.922901 |
+| ip-172-31-25-214.local               | 172.31.25.214 | 64512    | BGP      | internal  | Active      | not advertising | 1          | 2019-Jun-29 06:04:52.624323 |
+| ip-172-31-30-137.local               | 172.31.30.137 | 64512    | BGP      | internal  | Active      | not advertising | 1          | 2019-Jun-29 06:05:33.020029 |
+| ip-172-31-4-76.local                 | 172.31.4.76   | 64512    | BGP      | internal  | Active      | not advertising | 1          | 2019-Jun-29 06:12:04.853319 |
+| ip-172-31-7-239.local                | 172.31.7.239  | 64512    | BGP      | internal  | Established | in sync         | 0          | n/a                         |
+| ip-172-31-9-245.local                | 172.31.9.245  | 64512    | BGP      | internal  | Active      | not advertising | 1          | 2019-Jun-29 06:07:01.750834 |
+[root@ip-172-31-21-119 ~]# ./contrail-introspect-cli/ist.py ctr nei | grep -w XMPP | wc -l
+708
+[root@ip-172-31-21-119 ~]# 
+
+top - 06:19:56 up  1:10,  1 user,  load average: 2.04, 2.47, 2.27
+Tasks: 156 total,   2 running, 154 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 11.5 us,  9.7 sy,  0.0 ni, 78.4 id,  0.0 wa,  0.0 hi,  0.3 si,  0.2 st
+KiB Mem : 15233672 total,  7878520 free,  3006892 used,  4348260 buff/cache
+KiB Swap:        0 total,        0 free,        0 used. 11648264 avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                                                                                                
+32368 root      20   0  890920 145632  11008 S  15.6  1.0   3:25.34 contrail-collec                                                                                        
+28773 root      20   0 1357728 594448  14592 S  13.0  3.9   9:00.69 contrail-contro                                                                                        
+18686 root      20   0  249228  41000   5328 R  10.3  0.3   1:00.89 python                                                                                                 
+15344 root      20   0  972324  97248  35360 S   9.0  0.6   3:26.60 dockerd                                                                                                
+17129 polkitd   20   0  107624  73908   1644 S   8.3  0.5   1:50.81 redis-server                                                                                           
+21458 root      20   0  248352  40084   5328 S   2.7  0.3   0:41.11 python                                                                                                 
+18302 root      20   0    9048   3476   2852 S   2.0  0.0   0:05.32 docker-containe                                                                                        
+28757 root      20   0  248476  40196   5328 S   1.7  0.3   0:37.21 python                                                                                                 
+32438 root      20   0  248496  40348   5328 S   1.7  0.3   0:34.26 python                                                                                                 
+15351 root      20   0 1477100  33204  12532 S   1.3  0.2   0:16.82 docker-containe                                                                                        
+18346 polkitd   20   0 2991576 563864  25552 S   1.0  3.7   5:45.65 java                                                                                                   
+19994 polkitd   20   0 3880472 129392   3644 S   0.7  0.8   1:51.54 beam.smp                                                                                               
+28744 root      20   0 1373980 136520  12180 S   0.7  0.9   3:13.94 contrail-dns
+```
+
 ## kubeadm
 
 When I'm writing this document, ansible-deployer haven't yet supported k8s master HA.
