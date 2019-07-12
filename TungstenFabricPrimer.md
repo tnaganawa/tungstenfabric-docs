@@ -722,10 +722,10 @@ Additionaly, it also does the first provision of each nodes, which means to noti
 
 Tungsten Fabric analytics has a lot of features, but most of the feature is currently optional, so let me skip most of the components.
 If interested, please check those links for snmp, lldp, alarms etc.
- - http://www.opencontrail.org/sandesh-a-sdn-analytics-interface/
- - http://www.opencontrail.org/operational-state-in-the-opencontrail-system-uve-user-visible-entities-through-analytics-api/
- - http://www.opencontrail.org/contrail-alerts/
- - http://www.opencontrail.org/overlay-to-physical-network-correlation/
+ - https://tungsten.io/sandesh-a-sdn-analytics-interface/
+ - https://tungsten.io/operational-state-in-the-opencontrail-system-uve-user-visible-entities-through-analytics-api/
+ - https://tungsten.io/contrail-alerts/
+ - https://tungsten.io/overlay-to-physical-network-correlation/
 
 Analytics itself has curious architecture, which covers both of logs/flows, and stats. 
  - AFAIK, those are frequently covered by different set of systems, such as EFK for logs/flows and prometheus for stats
