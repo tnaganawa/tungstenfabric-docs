@@ -3117,6 +3117,237 @@ If it is used as NFVI, since Tungsten Fabric currently doesn't support service-c
 
 Since it is prefered option to use DPDK in this case, linux stack's throughput limitation won't be an issue.
 
+### EVPN / VXLAN interop
+
+To illustrate the evpn / vxlan integration, let me describe L2VNI and L3VNI setup with CumulusVX (it uses FRRouting and vanilla linux's vrf / virtual-switch)
+ - other sample about L3VPN / MPLS over (GRE|UDP) could be found there (TODO: config sample for EVPN / MPLS over (GRE/UDP))
+ - https://marcelwiget.blog/2015/07/30/run-juniper-vmx-as-contrail-gateway-for-ipv6-overlay/
+
+```
+[1. sample setup]
+
+Tungsten Fabric controller: 192.168.122.141/24
+Tungsten Fabric vRouter: 192.168.122.142/24
+ vn1 (vxlan id: 7), 10.0.1.0/24, route-target: 64512:7 is set
+  10.0.1.3 is a cirros container inside vn1
+  vn1 is connected to lr1 (logical-router, vxlan id: 8, route-target 64512:8 is set)
+   Tungsten Fabric's project setting, 'vxlan routing: enabled' is also set (this settimg might be changed in the future)
+    https://review.opencontrail.org/c/Juniper/contrail-controller/+/51833
+CumulusVX: 192.168.122.151/24
+ swp1: centos152 (10.0.1.152/24) is connected
+  -> same l2 subnet with the container inside vRouter
+ swp2: centos153 (192.168.130.153/24) is connected
+  -> L3VRF will route the traffic from this to the container
+
+[2. bgp setting]
+
+net add bgp autonomous-system 64513
+net add bgp router-id 192.168.122.151
+net add bgp neighbor 192.168.122.141 remote-as 64512
+net add bgp neighbor 192.168.122.141 capability extended-nexthop
+net add bgp l2vpn evpn  neighbor 192.168.122.141 activate
+net add bgp l2vpn evpn  advertise-all-vni
+net add bgp l2vpn evpn vni 7 rd 192.168.122.151:7
+net add bgp l2vpn evpn vni 7 route-target import 64512:7
+net add bgp l2vpn evpn vni 7 route-target export 64512:7
+
+
+cumulus@cumulus:~$ net show bgp summary
+show bgp ipv4 unicast summary
+=============================
+BGP router identifier 192.168.122.151, local AS number 64513 vrf-id 0
+BGP table version 0
+RIB entries 0, using 0 bytes of memory
+Peers 1, using 19 KiB of memory
+
+Neighbor        V         AS MsgRcvd MsgSent   TblVer  InQ OutQ  Up/Down State/PfxRcd
+192.168.122.141 4      64512      55      43        0    0    0 00:01:15 NoNeg
+
+Total number of neighbors 1
+
+
+show bgp ipv6 unicast summary
+=============================
+% No BGP neighbors found
+
+
+show bgp l2vpn evpn summary
+===========================
+BGP router identifier 192.168.122.151, local AS number 64513 vrf-id 0
+BGP table version 0
+RIB entries 3, using 456 bytes of memory
+Peers 1, using 19 KiB of memory
+
+Neighbor        V         AS MsgRcvd MsgSent   TblVer  InQ OutQ  Up/Down State/PfxRcd
+192.168.122.141 4      64512      55      43        0    0    0 00:01:15            6
+
+Total number of neighbors 1
+cumulus@cumulus:~$
+
+
+[3. l2vni setting]
+
+net add bridge bridge ports vni7
+net add bridge bridge vids 7
+net add interface swp1 bridge pvid 7
+net add vxlan vni7 vxlan id 7
+net add vxlan vni7 bridge learning off
+net add vxlan vni7 bridge access 7
+net add vxlan vni7 bridge arp-nd-suppress on
+net add vxlan vni7 vxlan local-tunnelip 192.168.122.151
+net add vlan 7 ip forward off
+net add vlan 7 ipv6 forward off
+
+
+cumulus@cumulus:~$ net show bgp l2vpn evpn route
+BGP table version is 18, local router ID is 192.168.122.151
+Status codes: s suppressed, d damped, h history, * valid, > best, i - internal
+Origin codes: i - IGP, e - EGP, ? - incomplete
+EVPN type-2 prefix: [2]:[ESI]:[EthTag]:[MAClen]:[MAC]:[IPlen]:[IP]
+EVPN type-3 prefix: [3]:[EthTag]:[IPlen]:[OrigIP]
+EVPN type-5 prefix: [5]:[ESI]:[EthTag]:[IPlen]:[IP]
+
+   Network          Next Hop            Metric LocPrf Weight Path
+Route Distinguisher: 192.168.122.142:1
+*> [2]:[0]:[0]:[48]:[52:54:00:d9:db:32]
+                    192.168.122.142        100             0 64512 ?
+*> [2]:[0]:[0]:[48]:[52:54:00:d9:db:32]:[32]:[192.168.122.142]
+                    192.168.122.142        100             0 64512 ?
+*> [3]:[0]:[32]:[192.168.122.142]
+                    192.168.122.142        200             0 64512 ?
+Route Distinguisher: 192.168.122.142:3
+*> [2]:[0]:[0]:[48]:[02:98:81:86:80:8a]
+                    192.168.122.142        100             0 64512 ?
+*> [2]:[0]:[0]:[48]:[02:98:81:86:80:8a]:[32]:[10.0.1.3]
+                    192.168.122.142        100             0 64512 ?
+*> [3]:[0]:[32]:[192.168.122.142]
+                    192.168.122.142        200             0 64512 ?
+Route Distinguisher: 192.168.122.142:4
+*> [5]:[0]:[0]:[32]:[10.0.1.3]
+                    192.168.122.142        100             0 64512 ?
+ (snip)
+Route Distinguisher: 192.168.122.151:7
+*> [3]:[0]:[32]:[192.168.122.151]
+                    192.168.122.151                    32768 i
+Route Distinguisher: 192.168.122.151:8
+*> [5]:[0]:[0]:[24]:[192.168.131.0]
+                    192.168.122.151          0         32768 ?
+
+Displayed 12 prefixes (12 paths)
+cumulus@cumulus:~$
+
+
+[root@centos152 ~]# ping 10.0.1.3
+PING 10.0.1.3 (10.0.1.3) 56(84) bytes of data.
+64 bytes from 10.0.1.3: icmp_seq=1 ttl=64 time=1.37 ms
+64 bytes from 10.0.1.3: icmp_seq=2 ttl=64 time=0.836 ms
+64 bytes from 10.0.1.3: icmp_seq=3 ttl=64 time=0.778 ms
+64 bytes from 10.0.1.3: icmp_seq=4 ttl=64 time=0.753 ms
+64 bytes from 10.0.1.3: icmp_seq=5 ttl=64 time=0.801 ms
+
+--- 10.0.1.3 ping statistics ---
+5 packets transmitted, 5 received, 0% packet loss, time 4006ms
+rtt min/avg/max/mdev = 0.753/0.908/1.374/0.235 ms
+[root@centos152 ~]#
+
+
+cumulus@cumulus:~$ net show evpn arp-cache vni all
+VNI 7 #ARP (IPv4 and IPv6, local and remote) 3
+
+IP                        Type   State    MAC               Remote VTEP
+10.0.1.152                local  active   52:54:00:20:e5:9a
+fe80::28a0:caff:fe62:d16c local  active   2a:a0:ca:62:d1:6c
+10.0.1.3                  remote active   02:98:81:86:80:8a 192.168.122.142
+cumulus@cumulus:~$
+ -> mac address of 10.0.1.3 container is learnt from Tungsten Fabric controller
+
+
+
+[4. l3vni setting]
+
+net add vrf vrf8 vni 8
+net add bgp router-id 192.168.122.151
+net add bgp vrf vrf8 autonomous-system 64513
+net add bgp vrf vrf8 ipv4 unicast redistribute connected
+net add bgp vrf vrf8 l2vpn evpn  advertise ipv4 unicast
+net add bgp vrf vrf8 l2vpn evpn  rd 192.168.122.151:8
+net add bgp vrf vrf8 l2vpn evpn  route-target import 64512:8
+net add bgp vrf vrf8 l2vpn evpn  route-target export 64512:8
+net add vxlan vni8 vxlan id 8
+net add interface swp2 bridge pvid 8
+net add vlan 8 ip address 192.168.131.254/24
+net add vlan 8 vlan-id 8
+net add vlan 8 vrf vrf8
+net add vxlan vni8 vxlan local-tunnelip 192.168.122.151
+net add vxlan vni8 bridge access 8
+net add bgp vrf vrf8 autonomous-system 64513
+net add bgp vrf vrf8 ipv4 unicast redistribute connected
+net add bgp vrf vrf8 l2vpn evpn  advertise ipv4 unicast
+net add bgp vrf vrf8 l2vpn evpn  rd 192.168.122.151:8
+net add bgp vrf vrf8 l2vpn evpn  route-target import 64512:8
+net add bgp vrf vrf8 l2vpn evpn  route-target export 64512:8
+
+
+cumulus@cumulus:~$ net show bgp l2vpn evpn route type prefix
+BGP table version is 4, local router ID is 192.168.122.151
+Status codes: s suppressed, d damped, h history, * valid, > best, i - internal
+Origin codes: i - IGP, e - EGP, ? - incomplete
+EVPN type-2 prefix: [2]:[ESI]:[EthTag]:[MAClen]:[MAC]:[IPlen]:[IP]
+EVPN type-3 prefix: [3]:[EthTag]:[IPlen]:[OrigIP]
+EVPN type-5 prefix: [5]:[ESI]:[EthTag]:[IPlen]:[IP]
+
+   Network          Next Hop            Metric LocPrf Weight Path
+Route Distinguisher: 192.168.122.142:4
+*> [5]:[0]:[0]:[32]:[10.0.1.3]
+                    192.168.122.142        100             0 64512 ?
+Route Distinguisher: 192.168.122.151:8
+*> [5]:[0]:[0]:[24]:[192.168.131.0]
+                    192.168.122.151          0         32768 ?
+
+Displayed 2 prefixes (2 paths) (of requested type)
+cumulus@cumulus:~$
+
+
+cumulus@cumulus:~$ net show route vrf vrf8
+show ip route vrf vrf8
+=======================
+Codes: K - kernel route, C - connected, S - static, R - RIP,
+       O - OSPF, I - IS-IS, B - BGP, E - EIGRP, N - NHRP,
+       T - Table, v - VNC, V - VNC-Direct, A - Babel, D - SHARP,
+       F - PBR,
+       > - selected route, * - FIB route
+
+
+VRF vrf8:
+K * 0.0.0.0/0 [255/8192] unreachable (ICMP unreachable), 00:31:09
+B>* 10.0.1.3/32 [20/100] via 192.168.122.142, vlan8 onlink, 00:31:09
+C>* 192.168.131.0/24 is directly connected, vlan8, 00:29:05
+
+
+[root@centos153 ~]# ping 10.0.1.3
+PING 10.0.1.3 (10.0.1.3) 56(84) bytes of data.
+64 bytes from 10.0.1.3: icmp_seq=1 ttl=62 time=1.27 ms
+64 bytes from 10.0.1.3: icmp_seq=2 ttl=62 time=0.892 ms
+64 bytes from 10.0.1.3: icmp_seq=3 ttl=62 time=0.912 ms
+64 bytes from 10.0.1.3: icmp_seq=4 ttl=62 time=0.851 ms
+
+--- 10.0.1.3 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3004ms
+rtt min/avg/max/mdev = 0.851/0.981/1.272/0.173 ms
+[root@centos153 ~]#
+[root@centos153 ~]#
+[root@centos153 ~]# ip -o a
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+2: eth0    inet 192.168.131.153/24 brd 192.168.131.255 scope global noprefixroute eth0\       valid_lft forever preferred_lft forever
+2: eth0    inet6 fe80::24a9:6145:e488:5f15/64 scope link noprefixroute \       valid_lft forever preferred_lft forever
+[root@centos153 ~]#
+[root@centos153 ~]# ip route
+default via 192.168.131.254 dev eth0 proto static metric 100
+192.168.131.0/24 dev eth0 proto kernel scope link src 192.168.131.153 metric 100
+[root@centos153 ~]#
+```
+
 ## Service-Chain (L2, L3, NAT), BGPaaS
 
 ### service-chain
