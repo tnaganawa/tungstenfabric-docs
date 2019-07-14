@@ -3411,7 +3411,7 @@ When l3 service-chain is used, although it might be counter intuitive, two VNFs 
  - Since all the packets from VNFs will be in the separate VRFs for service-chain, they can have the same subnets.
 
 The simultaneous use of l2 and l3 is also supported, although in that case, l2 vnf needs to be assigned to the different virtual-networks, with the one network-policy is attached
- - setup example is described in this blog post: http://www.opencontrail.org/building-and-testing-layer2-service-images-for-opencontrail/
+ - setup example is described in this blog post: https://tungsten.io/building-and-testing-layer2-service-images-for-opencontrail/
 
 
 ### BGPaaS
