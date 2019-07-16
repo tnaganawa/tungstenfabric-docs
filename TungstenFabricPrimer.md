@@ -3280,12 +3280,6 @@ net add vlan 8 vlan-id 8
 net add vlan 8 vrf vrf8
 net add vxlan vni8 vxlan local-tunnelip 192.168.122.151
 net add vxlan vni8 bridge access 8
-net add bgp vrf vrf8 autonomous-system 64513
-net add bgp vrf vrf8 ipv4 unicast redistribute connected
-net add bgp vrf vrf8 l2vpn evpn  advertise ipv4 unicast
-net add bgp vrf vrf8 l2vpn evpn  rd 192.168.122.151:8
-net add bgp vrf vrf8 l2vpn evpn  route-target import 64512:8
-net add bgp vrf vrf8 l2vpn evpn  route-target export 64512:8
 
 
 cumulus@cumulus:~$ net show bgp l2vpn evpn route type prefix
