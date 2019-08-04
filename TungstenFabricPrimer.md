@@ -3577,6 +3577,149 @@ Since kube-manager supports one parameter cluster_name, which modifies the tenan
 
 This behavior might be changed in future release.
 
+- Applying these patch, it seems possible to add multiple kube-master to one Tungsten Fabric cluster.
+
+```
+diff --git a/src/container/kube-manager/kube_manager/kube_manager.py b/src/container/kube-manager/kube_manager/kube_manager.py
+index 0f6f7a0..adb20a6 100644
+--- a/src/container/kube-manager/kube_manager/kube_manager.py
++++ b/src/container/kube-manager/kube_manager/kube_manager.py
+@@ -219,10 +219,10 @@ def main(args_str=None, kube_api_skip=False, event_queue=None,
+ 
+     if args.cluster_id:
+         client_pfx = args.cluster_id + '-'
+-        zk_path_pfx = args.cluster_id + '/'
++        zk_path_pfx = args.cluster_id + '/' + args.cluster_name
+     else:
+         client_pfx = ''
+-        zk_path_pfx = ''
++        zk_path_pfx = '' + args.cluster_name
+ 
+     # randomize collector list
+     args.random_collectors = args.collectors
+diff --git a/src/container/kube-manager/kube_manager/vnc/vnc_namespace.py b/src/container/kube-manager/kube_manager/vnc/vnc_namespace.py
+index 00cce81..f968cae 100644
+--- a/src/container/kube-manager/kube_manager/vnc/vnc_namespace.py
++++ b/src/container/kube-manager/kube_manager/vnc/vnc_namespace.py
+@@ -594,7 +594,8 @@ class VncNamespace(VncCommon):
+                 self._queue.put(event)
+ 
+     def namespace_timer(self):
+-        self._sync_namespace_project()
++        # self._sync_namespace_project() ## temporary disabled
++        pass
+ 
+     def _get_namespace_firewall_ingress_rule_name(self, ns_name):
+         return "-".join([vnc_kube_config.cluster_name(),
+
+```
+
+Since both kube-masters create pod-networks to the same Tungsten Fabric controller, route-leak between them would be possible :)
+ - Since cluster_name will be one of the tags in Tungsten Fabric's fw-policy, it also would be possible to use same tags between multiple kubernetes clusters
+```
+172.31.9.29 Tungsten Fabric controller
+172.31.22.24 kube-master1 (KUBERNETES_CLUSTER_NAME=k8s1 is set)
+172.31.12.82 kube-node1 (it belongs to kube-master1)
+172.31.41.5 kube-master2(KUBERNETES_CLUSTER_NAME=k8s2 is set)
+172.31.4.1 kube-node2 (it belongs to kube-master1)
+
+
+[root@ip-172-31-22-24 ~]# kubectl get node
+NAME                                              STATUS     ROLES    AGE   VERSION
+ip-172-31-12-82.ap-northeast-1.compute.internal   Ready      <none>   57m   v1.12.3
+ip-172-31-22-24.ap-northeast-1.compute.internal   NotReady   master   58m   v1.12.3
+[root@ip-172-31-22-24 ~]# 
+
+[root@ip-172-31-41-5 ~]# kubectl get node
+NAME                                             STATUS     ROLES    AGE   VERSION
+ip-172-31-4-1.ap-northeast-1.compute.internal    Ready      <none>   40m   v1.12.3
+ip-172-31-41-5.ap-northeast-1.compute.internal   NotReady   master   40m   v1.12.3
+[root@ip-172-31-41-5 ~]# 
+
+[root@ip-172-31-22-24 ~]# kubectl get pod -o wide
+NAME                                 READY   STATUS    RESTARTS   AGE     IP              NODE                                              NOMINATED NODE
+cirros-deployment-75c98888b9-7pf82   1/1     Running   0          28m     10.47.255.249   ip-172-31-12-82.ap-northeast-1.compute.internal   <none>
+cirros-deployment-75c98888b9-sgrc6   1/1     Running   0          28m     10.47.255.250   ip-172-31-12-82.ap-northeast-1.compute.internal   <none>
+cirros-vn1                           1/1     Running   0          7m56s   10.0.1.3        ip-172-31-12-82.ap-northeast-1.compute.internal   <none>
+[root@ip-172-31-22-24 ~]# 
+
+
+[root@ip-172-31-41-5 ~]# kubectl get pod -o wide
+NAME                                 READY   STATUS    RESTARTS   AGE     IP              NODE                                            NOMINATED NODE
+cirros-deployment-75c98888b9-5lqzc   1/1     Running   0          27m     10.47.255.250   ip-172-31-4-1.ap-northeast-1.compute.internal   <none>
+cirros-deployment-75c98888b9-dg8bf   1/1     Running   0          27m     10.47.255.249   ip-172-31-4-1.ap-northeast-1.compute.internal   <none>
+cirros-vn2                           1/1     Running   0          5m36s   10.0.2.3        ip-172-31-4-1.ap-northeast-1.compute.internal   <none>
+[root@ip-172-31-41-5 ~]# 
+
+
+/ # ping 10.0.2.3
+PING 10.0.2.3 (10.0.2.3): 56 data bytes
+64 bytes from 10.0.2.3: seq=83 ttl=63 time=1.333 ms
+64 bytes from 10.0.2.3: seq=84 ttl=63 time=0.327 ms
+64 bytes from 10.0.2.3: seq=85 ttl=63 time=0.319 ms
+64 bytes from 10.0.2.3: seq=86 ttl=63 time=0.325 ms
+^C
+--- 10.0.2.3 ping statistics ---
+87 packets transmitted, 4 packets received, 95% packet loss
+round-trip min/avg/max = 0.319/0.576/1.333 ms
+/ # 
+/ # ip -o a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+18: eth0@if19: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue \    link/ether 02:b9:11:c9:4c:b1 brd ff:ff:ff:ff:ff:ff
+18: eth0    inet 10.0.1.3/24 scope global eth0\       valid_lft forever preferred_lft forever
+/ #
+ -> ping between pods, which belong to different kubernetes clusters, worked well
+
+
+[root@ip-172-31-9-29 ~]# ./contrail-introspect-cli/ist.py ctr route show -t default-domain:k8s1-default:vn1:vn1.inet.0 
+
+default-domain:k8s1-default:vn1:vn1.inet.0: 2 destinations, 2 routes (1 primary, 1 secondary, 0 infeasible)
+
+10.0.1.3/32, age: 0:06:50.001343, last_modified: 2019-Jul-28 18:23:08.243656
+    [XMPP (interface)|ip-172-31-12-82.local] age: 0:06:50.005553, localpref: 200, nh: 172.31.12.82, encap: ['gre', 'udp'], label: 50, AS path: None
+
+10.0.2.3/32, age: 0:02:25.188713, last_modified: 2019-Jul-28 18:27:33.056286
+    [XMPP (interface)|ip-172-31-4-1.local] age: 0:02:25.193517, localpref: 200, nh: 172.31.4.1, encap: ['gre', 'udp'], label: 50, AS path: None
+[root@ip-172-31-9-29 ~]# 
+[root@ip-172-31-9-29 ~]# ./contrail-introspect-cli/ist.py ctr route show -t default-domain:k8s2-default:vn2:vn2.inet.0 
+
+default-domain:k8s2-default:vn2:vn2.inet.0: 2 destinations, 2 routes (1 primary, 1 secondary, 0 infeasible)
+
+10.0.1.3/32, age: 0:02:36.482764, last_modified: 2019-Jul-28 18:27:33.055702
+    [XMPP (interface)|ip-172-31-12-82.local] age: 0:02:36.489419, localpref: 200, nh: 172.31.12.82, encap: ['gre', 'udp'], label: 50, AS path: None
+
+10.0.2.3/32, age: 0:04:37.126317, last_modified: 2019-Jul-28 18:25:32.412149
+    [XMPP (interface)|ip-172-31-4-1.local] age: 0:04:37.133912, localpref: 200, nh: 172.31.4.1, encap: ['gre', 'udp'], label: 50, AS path: None
+[root@ip-172-31-9-29 ~]#
+ -> each virtual-network in each kube-master has a route to other kube-master's pod, based on network-policy below
+
+
+
+(venv) [root@ip-172-31-9-29 ~]# contrail-api-cli --host 172.31.9.29 ls -l virtual-network
+virtual-network/f9d06d27-8fc1-413d-a6d6-c51c42191ac0  default-domain:k8s2-default:vn2
+virtual-network/384fb3ef-247b-42e6-a628-7111fe343f90  default-domain:k8s2-default:k8s2-default-service-network
+virtual-network/c3098210-983b-46bc-b750-d06acfc66414  default-domain:k8s1-default:k8s1-default-pod-network
+virtual-network/1ff6fdbd-ac2e-4601-b08c-5f7255466312  default-domain:default-project:ip-fabric
+virtual-network/d8d95738-0a00-457f-b21e-60304859d1f9  default-domain:k8s2-default:k8s2-default-pod-network
+virtual-network/0c075b76-4219-4f79-a4f5-1b4e6729f16e  default-domain:k8s1-default:k8s1-default-service-network
+virtual-network/985b3b5f-84b7-4810-a54d-abd09a37f525  default-domain:k8s1-default:vn1
+virtual-network/23782ea7-4000-491f-b20d-01c6ab9e2ba8  default-domain:default-project:default-virtual-network
+virtual-network/90cce352-ef9b-4358-81b3-ef87a9cb63e8  default-domain:default-project:__link_local__
+virtual-network/0292810c-c511-4147-89c0-9fdd571ccce8  default-domain:default-project:dci-network
+(venv) [root@ip-172-31-9-29 ~]# 
+
+(venv) [root@ip-172-31-9-29 ~]# contrail-api-cli --host 172.31.9.29 ls -l network-policy
+network-policy/134d38b2-79e2-4a3e-a2f7-a3d61ceaf5e2  default-domain:k8s1-default:vn1-to-vn2  <-- route-leak between to kubernetes cluster
+network-policy/8e5c5c4a-14eb-4fc4-9b46-81a5b923bbe0  default-domain:k8s1-default:k8s1-default-ip-fabric-np
+network-policy/544d5076-3dff-45a1-bb47-8aec5e1e5a37  default-domain:k8s1-default:k8s1-default-pod-service-np
+network-policy/33884d88-6492-4e0f-934c-080a794ce132  default-domain:k8s2-default:k8s2-default-ip-fabric-np
+network-policy/232beb43-2008-4df3-969f-a4eee653ff46  default-domain:k8s2-default:k8s2-default-pod-service-np
+network-policy/a6ee02bd-ad0d-4393-be60-66da8032237a  default-domain:k8s2-default:k8s2-default-service-np
+network-policy/a9cedd67-127a-40fd-9f44-78890dc3cfe4  default-domain:k8s1-default:k8s1-default-service-np
+(venv) [root@ip-172-31-9-29 ~]#
+```
+
 ### openstack+openstack
 
 I haven't yet tried to add two openstack clusters to one Tungsten Fabric controller, but it might be possible if they don't use same tenant name.
