@@ -3577,7 +3577,8 @@ Since kube-manager supports one parameter cluster_name, which modifies the tenan
 
 This behavior might be changed in future release.
 
-- Applying these patch, it seems possible to add multiple kube-master to one Tungsten Fabric cluster.
+Note:
+Applying these patch, it seems possible to add multiple kube-master to one Tungsten Fabric cluster.
 
 ```
 diff --git a/src/container/kube-manager/kube_manager/kube_manager.py b/src/container/kube-manager/kube_manager/kube_manager.py
@@ -3621,7 +3622,7 @@ Since both kube-masters create pod-networks to the same Tungsten Fabric controll
 172.31.22.24 kube-master1 (KUBERNETES_CLUSTER_NAME=k8s1 is set)
 172.31.12.82 kube-node1 (it belongs to kube-master1)
 172.31.41.5 kube-master2(KUBERNETES_CLUSTER_NAME=k8s2 is set)
-172.31.4.1 kube-node2 (it belongs to kube-master1)
+172.31.4.1 kube-node2 (it belongs to kube-master2)
 
 
 [root@ip-172-31-22-24 ~]# kubectl get node
