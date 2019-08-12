@@ -112,20 +112,75 @@ As a hypervisor, I currently use Centos7, which can run well with vQFX 18.4R1, w
 https://www.juniper.net/us/en/dm/free-vqfx-trial/
 
 With that, those virt-install command could create vQFX-re and vQFX-pfe.
+```
+name=vqfx183-re
+virt-install \
+  --name ${name} \
+  --ram 1024 \
+  --vcpus 1 \
+  --import \
+  --disk /root/vqfx/${name}.img,bus=ide,format=raw \
+  --network network=default,model=e1000 \ ## em0
+  --network network=br_int_183,model=e1000 \ ## internal (connected to pfe)
+  --network network=br_int_183,model=e1000 \ ## internal
+  --network network=181_183,model=e1000 \ ## xe-0/0/0
+  --network network=182_183,model=e1000 \ ## xe-0/0/1
+  --network network=183_bms1,model=e1000 \ ## xe-0/0/2
+  --graphics none
+
+name=vqfx183-pfe
+virt-install \
+  --name ${name} \
+  --ram 2048 \
+  --vcpus 1 \
+  --import \
+  --disk /root/vqfx/${name}.img \
+  --network network=default,model=e1000 \ ## em0
+  --network network=br_int_183,model=e1000 \ ## internal (connected to re)
+  --graphics none
+```
 
 To connect each vQFX, linux bridge based on libvirt net is used (that can be configured from virt-manager)
 
-virsh net-list
-EDITOR=/bin/cat virsh net-edit 181_183
+```
+# virsh net-list
+ Name                 State      Autostart     Persistent
+----------------------------------------------------------
+ 181_183              active     yes           yes
+ 181_184              active     yes           yes
+ 182_183              active     yes           yes
+ 182_184              active     yes           yes
+ 183_bms1             active     yes           yes
+ 184_bms2             active     yes           yes
+ br_int_181           active     yes           yes
+ br_int_182           active     yes           yes
+ br_int_183           active     yes           yes
+ br_int_184           active     yes           yes
+
+
+# EDITOR=/bin/cat virsh net-edit 181_183
+<network>
+  <name>181_183</name>
+  <uuid>b87b51ca-f9c7-4f67-8963-cc267551a5bb</uuid>
+  <bridge name='virbr5' stp='on' delay='0'/>
+  <mac address='52:54:00:22:d4:d6'/>
+  <domain name='181_183'/>
+</network>
+Network 181_183 XML configuration not changed.
+```
 
 
 I currently use 4 vQFXes, with 2 leaf, 2 spine configuration
  - typically, spine will get crb gateway, route reflector and leaf will get crb access when crb is used, and spine will get route reflector, and leaf will get erb-ucast-access when erb is used
 
 Since lldp is needed for topology discovery to work well, those command also will be needed to update linux bridge setting.
+ - https://interestingtraffic.nl/2017/11/21/an-oddly-specific-post-about-group_fwd_mask/
+```
+for i in $(ls /sys/class/net/virbr*/bridge/group_fwd_mask); do echo 16384 > $i; done
+```
 
 Then, 4 vQFXes with lldp neighbor configured is available, to test most of functionalites of fabric automation
- - Note: having said that, since linux bridge won't allow LACP to pass through, EVPN multihoming can't be tried with this setup
+ - Note: having said that, since linux bridge won't allow LACP to pass through, EVPN multihoming can't be tried with this setup ..
 
 ### Integration with fabric automation and vRouters
 
@@ -141,8 +196,7 @@ After that, you can configure 'underlay' vn in contrail command, with subnets wh
  - Note: to make that work, please don't connect logical-router to underaly vn
  - this procedure need to be verified if it works well with latest module
 
-After that, each tungsten fabric nodes can ping with vQFX loopback ips, which is set by contrail fabric autmation, and contrail fabric are fully UP!
-
+After that, each tungsten fabric nodes can ping with vQFX loopback ips, which is set by contrail fabric autmation, and contrail fabric are fully UP.
 
 ### PNF integration
 
