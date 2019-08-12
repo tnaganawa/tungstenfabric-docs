@@ -9,15 +9,83 @@ Let me describe each feature of contrail networking.
 ## Contrail Command
 
 To manage all of them, contrail package has a separate webui named contrail-command.
+![ClusterView](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/CommandClusterView.png)
+![MenuView](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/CommandMenuView.png)
 
 It covers several topics including all the features of Tungsten Fabric webui, and fabric automation feature and multicloud extenstion feature.
 
 To install that, you can firstly set up Tungsten Fabric controller, in some way described in this doc. (tungstenfabirc, r5.1 might work well, although latest module of monthly relase (R1907-latest, R1908-latest, ..) might be recommended)
 https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#2-tungstenfabric-up-and-running
 
+ - Note: to make fabric automation without openstack, you might need this knob: https://review.opencontrail.org/c/Juniper/contrail-controller/+/51846
+ ```
+   DEVICE_MANAGER__KEYSTONE__admin_password: contrail123
+   API__KEYSTONE__admin_password: contrail123
+ ```
+
 After that, you can import those controllers based on these two files (all of kubernetes, openstack, vCenter will work well with contrail-command)
- - Note: for kubernetes or vCenter, you need this knob
- - Note: to make fabric automation without openstack, you might need this knob
+ - Note: for kubernetes or vCenter, you need this knob: auth_type: basic-auth (for openstack this knob is not needed)
+```
+export docker_registry=hub.juniper.net/contrail
+export container_tag=1907.55
+export node_ip=192.168.122.21
+ - id, pass for hub.juniper.net is needed
+
+cat > command_servers.yml << EOF
+---
+command_servers:
+    server1:
+        ip: ${node_ip}
+        connection: ssh
+        ssh_user: root
+        ssh_pass: root
+        sudo_pass: root
+        ntpserver: 0.centos.pool.ntp.org
+
+        registry_insecure: false
+        container_registry: ${docker_registry}
+        container_tag: ${container_tag}
+        config_dir: /etc/contrail
+
+        contrail_config:
+            database:
+                type: postgres
+                dialect: postgres
+                password: contrail123
+            keystone:
+                assignment:
+                    data:
+                      users:
+                        admin:
+                          password: contrail123
+            insecure: true
+            client:
+              password: contrail123
+            auth_type: basic-auth
+EOF
+
+
+cat > install-cc.sh << EOF
+docker login hub.juniper.net
+docker pull ${docker_registry}/contrail-command-deployer:${container_tag}
+docker run -td --net host -e orchestrator=none -e action=import_cluster -v /root/command_servers.yml:/command_servers.yml -v /root/contrail-ansible-deployer/config/instances.yaml:/instances.yml --privileged --name contrail_command_deployer ${docker_registry}/contrail-command-deployer:${container_tag}
+EOF
+
+bash install-cc.sh
+```
+
+After few minutes, https://(ip):9091 will be used to access Command webui.
+
+If something won't work, this command will show installation log.
+```
+# docker logs -f contrail_command_deployer
+
+To retry, type
+# docker stop contrail_command contrail_psql
+# docker rm contrail_command contrail_psql contrail_command_deployer
+and type this again
+# bash install-cc.sh
+```
 
 
 ## Contrail Fabric Automation
