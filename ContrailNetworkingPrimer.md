@@ -102,7 +102,7 @@ Adding to the features in youtube, recent version of Fabric automation also supp
  - Hitless upgrade
  - PNF integration
 
-So if you need some EVPN / VXLAN fabric which can work with Tungsten Fabric, those switches and Command UI will the one choise.
+So if you need some EVPN / VXLAN fabric which can work with Tungsten Fabric, those switches and Command UI will be one choise.
 
 ### vQFX setting
 
@@ -184,23 +184,24 @@ Then, 4 vQFXes with lldp neighbor configured is available, to test most of funct
 
 ### Integration with fabric automation and vRouters
 
-Since vRouter use vxlan internally, ironically, it can't be under QFXes which is configured by fabric automation :(, at least if inter-vni routing is set by logical-routers.
+Since vRouter uses vxlan internally, ironically, it needs some trick to put them under QFXes which is configured by fabric automation, since by default it will configure overlay vni for each virtual-port-group.
 
 To workaround this, esi-lag without overlay can be used for Tungsten Fabric nodes, such as control, vRouter, and contrail-command itself.
 https://www.juniper.net/documentation/en_US/junos/topics/example/example-evpn-vxlan-lacp-configuring-qfx-series.html
 
-To configure this, you can firstly configure management switch, and connect all the Tungsten Fabric nodes, to them and install all the nodes, before data plane access is not availble.
+To try this, you can firstly set up management switch, and connect all the Tungsten Fabric nodes to them and install all the nodes, before data plane access is not availble.
  - Note: when Tripleo is used, you might need to disable ping check to make installation work
+ - When config-database needs HA, some manual config might needed before fabric automation is installed
 
-After that, you can configure 'underlay' vn in contrail command, with subnets which can be assigned tungsten fabric nodes, and do brownfield onboard, and configure virtual-port-group on the QFX ports, which has tungsten fabric nodes connected.
+After that, you can configure 'underlay' vn in contrail command, with subnets which can be assigned to tungsten fabric nodes, and do brownfield onboard, and configure virtual-port-group on the QFX ports, which has tungsten fabric nodes connected.
  - Note: to make that work, please don't connect logical-router to underaly vn
- - this procedure need to be verified if it works well with latest module
 
-After that, each tungsten fabric nodes can ping with vQFX loopback ips, which is set by contrail fabric autmation, and contrail fabric are fully UP.
+After that, each tungsten fabric nodes can ping with vQFX loopback ips, which is set by contrail fabric autmation, and contrail fabric are fully UP!
+ - To reach loopback ip from tungsten fabric nodes, some underlay routing protocol might be needed
 
 ### PNF integration
 
-Let me briefly describe the serveral approach of PNF integration with contrail networking.
+Let me briefly describe the several approach of PNF integration with contrail networking.
 
 Although Contrail Command has its own PNF integration based on service-appliance-set in Tungsten Fabric, it can also be configured based on logical-route and virtual-port-group.
 
