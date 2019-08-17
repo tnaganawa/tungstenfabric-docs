@@ -100,7 +100,7 @@ Combininng them with other features like security-policy, network-policy/logical
 
 ## 2. TungstenFabric, Up and Running
 
-To try TungstenFabric for the first time, I recommend using ansible-deployer (https://github.com/Juniper/contrail-ansible-deployer), even if you're already familiar with other CNI imlementation, since TungstenFabric uses several tools which is not in vanilla linux.
+To try TungstenFabric for the first time, I recommend using ansible-deployer (https://github.com/Juniper/contrail-ansible-deployer), even if you're already familiar with other CNI implementation, since TungstenFabric uses several tools which is not in vanilla linux.
 So I would recommend firstly trying the setting which works well to see what's new, and after that, integrate other systems.
 
 Unfortunately, many repos of Tungsten Fabric are similar to rawhide and in some cases, have broken dependency.
