@@ -27,7 +27,7 @@ After that, you can import those controllers based on these two files (all of ku
  - Note: for kubernetes or vCenter, you need this knob: auth_type: basic-auth (for openstack this knob is not needed)
 ```
 export docker_registry=hub.juniper.net/contrail
-export container_tag=1907.55
+export container_tag=1908.47
 export node_ip=192.168.122.21
  - id, pass for hub.juniper.net is needed
 
@@ -101,6 +101,9 @@ Adding to the features in youtube, recent version of Fabric automation also supp
  - Edge Routing / Bridging: https://www.juniper.net/documentation/en_US/release-independent/solutions/topics/task/configuration/edge-routed-overlay-cloud-dc-configuring.html
  - Hitless upgrade
  - PNF integration
+
+Note: This site has good amount of info about r5.1 fabric feature
+ - https://github.com/tonyliu0592/contrail/wiki/Solution-Guide-Contrail-Fabric-Management
 
 So if you need some EVPN / VXLAN fabric which can work with Tungsten Fabric, those switches and Command UI will be one choise.
 
