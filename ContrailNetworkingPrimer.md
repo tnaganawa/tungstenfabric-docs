@@ -221,4 +221,7 @@ So with contrail command, vRouter's vm can be integrated with PNF, although some
 
 ## Contrail multicloud
 
+### container deployment
+### baremetal instance deployment
+
 ## Contrail SD-WAN
