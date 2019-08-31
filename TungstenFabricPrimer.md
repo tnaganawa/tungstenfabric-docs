@@ -35,6 +35,7 @@ Table of Contents
    * [Monitoring integration](#monitoring-integration)
       * [Prometheus](#prometheus)
       * [EFK](#efk)
+      * [Topology view](#topology-view)
    * [Day 2 operation](#day-2-operation)
       * [ist.py](#istpy)
       * [contrail-api-cli](#contrail-api-cli)
@@ -2252,6 +2253,39 @@ With these parameters jsonized by fluentd, and queried by kibana through ES, it 
 ## ElastiFlow
 
 to be investigated
+
+## Topology view
+
+In my understanding, stats, logs, and topologies are three different components for software monitoring.
+
+Promtheus and EFK part already covered stats and logs management, but since for topology there is no universal tool AFAIK, let me describe topology visualization feature in Tungsten Fabric webui.
+
+There are a lot of topology between IT systems, but for Tungsten Fabric, those two, overlay topology and underlay topology, are most important.
+ 1. overlay:
+  - which VNF is connected to which VN through service-chain
+  - which physical device has which VN extended
+ 2. underlay:
+  - which VM is on which vRouter
+  - vRouter to leaf switch connection
+  - leaf switch to spine switch connection
+
+For overlay visualization, Monitor > Networking > Networks have some detailed view about which VNF is connected to VN through service-chain.
+ - AFAIK, there is no way to see which physical device has some VN extended
+
+For underlay visualization, Tungsten Fabric has a feature to collect lldp info through SNMP, and depict a view between leafs, spines, and vRouters and VMs.
+ - http://www.opencontrail.org/wp-content/uploads/2014/11/overlay_to_physical_blogpost_image2.png
+ - http://www.opencontrail.org/wp-content/uploads/2014/11/overlay_to_physical_blogpost_image3.png
+ - vRouter to leaf switch connection also seems to be visualised based on arp table in leaf switch
+
+To enable this feature in ansible-deployer installation, this role need to be added.
+```
+roles:
+  analytics_snmp
+```
+
+Adding this, two containers, snmp-collector and topology are added to analytics nodes, and http://(analytics-ip):8081/analytics/uves/prouter/\* will be filled by PRouterLinkEntry parameter, to describe interface_name detected by lldp.
+ - http://www.opencontrail.org/wp-content/uploads/2014/11/overlay_to_physical_blogpost_image1.png
+ - To enable this feature, Configure > Physical Device > (edit) > 'SNMP Enabled' needs to be checked
 
 # Day 2 operation
 
