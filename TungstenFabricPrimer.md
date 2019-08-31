@@ -3756,6 +3756,54 @@ If this were available, it also will be possible to use service-insertion and ph
 
 I don't know if this configuration will be ever used, since kubernetes / openstack / vCenter have some feature overlap, although it would work well if set up.
 
+## DPDK
+
+vRouter has a feature to use DPDK to interact with physical NIC.
+
+It will be frequently used for NFV type deployment, since it is still not easy to have forwarding performance comparable to typical VNF (which itself might use DPDK or similar technology), based pure linux kernel networking stack.
+ - https://blog.cloudflare.com/how-to-receive-a-million-packets/
+
+To enable this feature with ansible-deployer, those parameters need to be set.
+```
+bms1:
+  roles:
+    vrouter:
+      AGENT_MODE: dpdk
+      CPU_CORE_MASK: “0xf” ## coremask for forwarding core (Note: this means 0-3, but please don't include first core in numa to reach optimal performance :( )
+      DPDK_UIO_DRIVER: uio_pci_generic ## uio driver name
+      HUGE_PAGES: 16000 ## number of 2MB hugepages, it can be smaller
+```
+
+When AGENT_MODE: dpdk is set, ansible-deployer will install some containers such as vrouter-dpdk, which is a process to run PMD against physical NIC, so in that case, forwarding from vRouter to physical NIC will be based on DPDK.
+
+Note:
+ 1. Since vRouter is linked to limited number of PMDs, to use some specific NIC, vRouter rebuild might be needed
+  - https://github.com/Juniper/contrail-vrouter/blob/master/SConscript#L321
+ 2. For some NIC such as XL710, uio_pci_generic can't be used. In that case, vfio-pci need to be used instead
+  - https://doc.dpdk.org/guides-18.05/rel_notes/known_issues.html#uio-pci-generic-module-bind-failed-in-x710-xl710-xxv710
+
+Since in that case, vRouter's forwarding plane is not in kernel space, tap device can't be used to get the packets from VMs.
+For this purpose, QEMU has a feature 'vhostuser', to send packets to dpdk process in user space.
+When vRouter is configured with AGENT_MODE: dpdk, nova-vif-driver automatically create vhostuser vif, rather than tap vif, which is used for kernel vRouter
+ - From VM side, it still looks like virtio, so usual virtio driver can be used to communicate with DPDK vRouter.
+
+One caveat is that when QEMU will be connected to vhostuser interface, qemu also need to have hugepage for that.
+When openstack is used, this knob will assign hugepage to each VM.
+```
+openstack flavor set flavorname --property hw:mem_page_size=large 
+ - hw:mem_page_size=2MB, hw:mem_page_size=1GB also can be used
+```
+
+To reach optimal performance, there are a lot of tuning parameters, both in kernel and dpdk process itself.
+From kernel side, for me, these two articles are most helpful.
+ - https://www.redhat.com/en/blog/tuning-zero-packet-loss-red-hat-openstack-platform-part-1
+ - https://www.redhat.com/en/blog/going-full-deterministic-using-real-time-openstack
+ - cat /proc/sched_debug also can be used to see if core isolation is working well
+
+From vRouter side, this point might need to be taken care of.
+ 1. vRouter will use core load-balance based on 5-tuple, so for optimal performance, number of flows might need to be increased
+  - https://www.openvswitch.org/support/ovscon2018/6/0940-yang.pptx
+
 ## Service Mesh
 istio is working well, multicluster could be interesting subject
  - https://www.youtube.com/watch?v=VSNc9qd2poA
