@@ -181,8 +181,73 @@ Since lldp is needed for topology discovery to work well, those command also wil
 for i in $(ls /sys/class/net/virbr*/bridge/group_fwd_mask); do echo 16384 > $i; done
 ```
 
-Then, 4 vQFXes with lldp neighbor configured is available, to test most of functionalites of fabric automation
- - Note: having said that, since linux bridge won't allow LACP to pass through, EVPN multihoming can't be tried with this setup ..
+Then, 4 vQFXes with lldp neighbor configured is available, to test most of functionalites of fabric automation.
+
+
+### LACP against linux bridge
+
+Fabric Automation has a feature to implement ESI-LAG, which supplies l2 high availability between nodes without the need for MC-LAG.
+
+To use this feature, virtual-port-group can be created with two interfaces assigned.
+ - it will create aggregated-ethernet among two (or more than three) vQFXes: https://github.com/Juniper/contrail-controller/blob/master/src/config/fabric-ansible/ansible-playbooks/roles/cfg_overlay_multi_homing/templates/juniper_junos-qfx_overlay_multi_homing.j2
+
+Having said that, since linux bridge won't allow LACP packet to go through, it is not possible to try this feature based on kvm environment.
+
+To overcome this, one possible configuration is to modify 'bridge' module to allow LACP packets to go through them.
+ - https://lists.linuxfoundation.org/pipermail/bridge/2010-January/006944.html
+ - https://wiki.centos.org/HowTos/BuildingKernelModules
+
+```
+For centos7, this patch can be used:
+
+--- linux-3.10.0-1062.el7/net/bridge/br_input.c.20191009	2019-07-19 04:58:03.000000000 +0900
++++ linux-3.10.0-1062.el7/net/bridge/br_input.c	2019-10-09 21:06:34.310945313 +0900
+@@ -302,6 +302,9 @@
+ 		case 0x01:	/* IEEE MAC (Pause) */
+ 			goto drop;
+ 
++		case 0x02:	/* LACP */
++			goto forward;
++
+ 		case 0x0E:	/* 802.1AB LLDP */
+ 			fwd_mask |= p->br->group_fwd_mask;
+ 			if (fwd_mask & (1u << dest[5]))
+
+
+or this if it needs to be enabled / disabled per bridge (echo 16388 > /sys/class/net/virbr0/bridge/group_fwd_mask, although I haven't yet tried this patch):
+
+--- ./linux-3.10.0-1062.el7/net/bridge/br_sysfs_br.c.20191009	2019-07-19 04:58:03.000000000 +0900
++++ ./linux-3.10.0-1062.el7/net/bridge/br_sysfs_br.c	2019-10-09 01:24:27.183776062 +0900
+@@ -297,7 +297,7 @@
+ 		return -EINVAL;
+ 
+ 	if (new_addr[5] == 1 ||		/* 802.3x Pause address */
+-	    new_addr[5] == 2 ||		/* 802.3ad Slow protocols */
++	    /* new_addr[5] == 2 ||*/		/* 802.3ad Slow protocols */
+ 	    new_addr[5] == 3)		/* 802.1X PAE address */
+ 		return -EINVAL; 
+```
+
+Building bridge.ko and replacing bridge.ko file under /lib/modules (OS reboot is required), LACP packet should be transparently go through linux bridge.
+
+After that, ESI-LAG can be tried with two leaf vQFXes and two linux bridges for each vQFX port, and one linux VM.
+
+```
+When VyOS is used as the linux VM, this configuration can be used:
+# set interfaces bonding bond0
+# set interfaces ethernet eth0 bond-group bond0
+# set interfaces ethernet eth1 bond-group bond0
+
+Note: by default, only lacp slow could be configured. When bond0 is in 'disabled' state, it can be updated by /sys.
+# set interfaces bonding bond0 disable
+# commit
+
+$ sudo su -
+# echo 1 > /sys/class/net/bond0/bonding/lacp_rate
+```
+
+One additonal note, when linux bonding is used with virtio-net, it can't send LACP. For this purpose, e1000 can be used instead.
+ - https://lists.linuxfoundation.org/pipermail/virtualization/2016-January/031520.html
 
 ### Integration with fabric automation and vRouters
 
