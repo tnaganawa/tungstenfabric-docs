@@ -249,7 +249,7 @@ or this if it needs to be enabled / disabled per bridge (echo 16388 > /sys/class
 Building bridge.ko and replacing bridge.ko file under /lib/modules (OS reboot is required), LACP packet should be transparently go through linux bridge.
 
 After that, ESI-LAG can be tried with two leaf vQFXes and two linux bridges for each vQFX port, and one linux VM.
-
+ - When I tried vQFX port shutdown (set interfaces xe-0/0/2 disable) with LACP fast, failover completes in 3 seconds.
 ```
 When VyOS is used as the linux VM, this configuration can be used:
 # set interfaces bonding bond0
