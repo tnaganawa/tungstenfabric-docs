@@ -27,7 +27,7 @@ After that, you can import those controllers based on these two files (all of ku
  - Note: for kubernetes or vCenter, you need this knob: auth_type: basic-auth (for openstack this knob is not needed)
 ```
 export docker_registry=hub.juniper.net/contrail
-export container_tag=1908.47
+export container_tag=1909.30
 export node_ip=192.168.122.21
  - id, pass for hub.juniper.net is needed
 
@@ -44,7 +44,7 @@ command_servers:
 
         registry_insecure: false
         container_registry: ${docker_registry}
-        container_tag: ${container_tag}
+        container_tag: "${container_tag}"
         config_dir: /etc/contrail
 
         contrail_config:
@@ -81,8 +81,7 @@ If something won't work, this command will show installation log.
 # docker logs -f contrail_command_deployer
 
 To retry, type
-# docker stop contrail_command contrail_psql
-# docker rm contrail_command contrail_psql contrail_command_deployer
+# docker rm -f contrail_command contrail_psql contrail_command_deployer
 and type this again
 # bash install-cc.sh
 ```
