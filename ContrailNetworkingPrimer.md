@@ -6,6 +6,7 @@ Table of Contents
    * [Contrail Fabric Automation](#contrail-fabric-automation)
       * [vQFX setting](#vqfx-setting)
       * [LACP against linux bridge](#lacp-against-linux-bridge)
+      * [vQFX limitation](#vqfx-limitation)
       * [Integration with fabric automation and vRouters](#integration-with-fabric-automation-and-vrouters)
       * [PNF integration](#pnf-integration)
       * [Ironic integration](#ironic-integration)
