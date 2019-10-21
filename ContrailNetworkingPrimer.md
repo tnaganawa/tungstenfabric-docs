@@ -267,6 +267,40 @@ $ sudo su -
 One additonal note, when linux bonding is used with virtio-net, it can't send LACP. For this purpose, e1000 can be used instead.
  - https://lists.linuxfoundation.org/pipermail/virtualization/2016-January/031520.html
 
+### vQFX limitation
+
+With this lab setup, most of the fabric-automation features can be covered with a single lab server.
+
+Having said that, there are currently two known limitations, so let me describe about them.
+
+> 1. BMS to VM l2 vxlan won't work well
+
+Since the latest available vQFX version is 18.4R1, it has known issue with the arp response over vxlan becoming vni 0, in some situation. (This issue is already fixed in 18.4R2 and later) 
+
+```
+# tcpdump -nn -i vnet148 udp and port 4789
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on vnet148, link-type EN10MB (Ethernet), capture size 262144 bytes
+01:25:26.746557 IP 192.168.122.187.59217 > 172.16.15.249.4789: VXLAN, flags [I] (0x08), vni 6
+ARP, Request who-has 10.0.1.202 tell 10.0.1.5, length 28
+01:25:26.848000 IP 172.16.15.249.11020 > 192.168.122.187.4789: VXLAN, flags [I] (0x08), vni *0*
+ARP, Reply 10.0.1.202 is-at 52:54:00:65:94:f4, length 46
+
+(vni 0 from vQFX should be vni 6)
+```
+
+So if this specific feature won't work well, please add temporarily static arp to the VMs on vRouters.
+```
+# arp -s 10.x.x.x xx:xx:xx:xx:xx:xx
+```
+
+
+> 2. LLDP based underlay setting won't work well
+
+Since vQFX's > show chassis mac-addresses and > show lldp local-information show different value, LLDP based underlay setting won't work well when vQFX is used. (When combined with physical QFX, it works well)
+So please set underlay routing manually when vQFX is used.
+
+
 ### Integration with fabric automation and vRouters
 
 Since vRouter uses vxlan internally, ironically, it needs some trick to put them under QFXes which is configured by fabric automation, since by default it will configure overlay vni for each virtual-port-group.
