@@ -10,6 +10,7 @@ Table of Contents
       * [Integration with fabric automation and vRouters](#integration-with-fabric-automation-and-vrouters)
       * [PNF integration](#pnf-integration)
       * [Ironic integration](#ironic-integration)
+      * [Appformix integration](#appformix-integration)
    * [Contrail Healthbot](#contrail-healthbot)
    * [Contrail multicloud](#contrail-multicloud)
       * [container deployment](#container-deployment)
@@ -483,7 +484,7 @@ To see the installation status, those two commands can be used
 ```
 
 After that, contrail-command should show some additional views such as 'Topology View', 'Overlay / Underlay correlation', in a similar sense with contrail-webui.
-
+![TopologyView](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/CommandTopologyView.png)
 
 Note: Since analytics-api introspect port is changed from 8090 to 18090, contrail-status won't work well in this setup.
 To workaround this, please try this procedure.
