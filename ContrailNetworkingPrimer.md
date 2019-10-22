@@ -344,7 +344,7 @@ So with contrail command, vRouter's vm can be integrated with PNF, although some
 
 ### Appformix integration
 
-Since most of the analytics feature of contrail-command is implemented in appformix module, installation of that module is also needed to enable visualization features.
+Since most of the analytics features of contrail-command is implemented in appformix module, installation of that module is also needed to enable visualization features.
 
 To do this, most straightforward way is to use provision_cluster option of contrail-command-deployer.
  - It installs contrail command and contrail cluster with instances.yaml simultaneously
