@@ -125,6 +125,13 @@ Note: This site has good amount of info about r5.1 fabric feature
 
 So if you need some EVPN / VXLAN fabric which can work with Tungsten Fabric, those switches and Command UI will be one choise.
 
+Note: If something won't work well, please check these logs and files
+```
+# docker logs -f --tail=10 config_devicemgr_1 ## ansible logs
+# docker exec -it config_devicemgr_1 bash
+  # cd /opt/contrail/fabric_ansible_playbooks/config ## abstract config for each device, which is used in each jinja template
+```
+
 ### vQFX setting
 
 Let me share vQFX setting which I'm using currently.
@@ -333,6 +340,170 @@ From vRouter side, it just means lr1 is extended to QFX and can send traffic to 
 So with contrail command, vRouter's vm can be integrated with PNF, although some manual config is still needed.
 
 ### Ironic integration
+
+### Appformix integration
+
+Since most of the analytics feature of contrail-command is implemented in appformix module, installation of that module is also needed to enable visualization features.
+
+To do this, most straightforward way is to use provision_cluster option of contrail-command-deployer.
+ - It installs contrail command and contrail cluster with instances.yaml simultaneously
+
+Let me firstly begin with the minimal setup with one node for contrail-command, contrail-controller, appformix.
+
+```
+# At mininum, Mem 16GB, Disk: 50GB is required
+
+export docker_registry=hub.juniper.net/contrail
+export container_tag=1910.23
+export node_ip=192.168.122.96
+export hub_username=xxx
+export hub_password=yyy
+ - id, pass for hub.juniper.net is needed
+
+cat > install-cc.sh << EOF
+systemctl stop firewalld; systemctl disable firewalld
+yum install -y yum-utils device-mapper-persistent-data lvm2
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+yum install -y docker-ce-18.03.1.ce
+systemctl start docker
+docker login ${docker_registry}
+docker pull ${docker_registry}/contrail-command-deployer:${container_tag}
+docker run -td --net host -e orchestrator=openstack -e action=provision_cluster -v /root/command_servers.yml:/command_servers.yml -v /root/instances.yaml:/instances.yml --privileged --name contrail_command_deployer ${docker_registry}/contrail-command-deployer:${container_tag}
+EOF
+
+
+cat > command_servers.yml << EOF
+---
+command_servers:
+    server1:
+        ip: ${node_ip}
+        connection: ssh
+        ssh_user: root
+        ssh_pass: root
+        sudo_pass: root
+        ntpserver: 0.centos.pool.ntp.org
+
+        registry_insecure: false
+        container_registry: ${docker_registry}
+        container_tag: ${container_tag}
+        config_dir: /etc/contrail
+
+        contrail_config:
+            database:
+                type: postgres
+                dialect: postgres
+                password: contrail123
+            keystone:
+                assignment:
+                    data:
+                      users:
+                        admin:
+                          password: contrail123
+            insecure: true
+            client:
+              password: contrail123
+user_command_volumes:
+  - /opt/software/appformix:/opt/software/appformix
+EOF
+
+
+cat > instances.yaml << EOF
+global_configuration:
+  CONTAINER_REGISTRY: ${docker_registry}
+  REGISTRY_PRIVATE_INSECURE: false
+  CONTAINER_REGISTRY_USERNAME: ${hub_username}
+  CONTAINER_REGISTRY_PASSWORD: ${hub_password}
+provider_config:
+  bms:
+    ssh_user: root
+    ssh_pwd: root
+    ntpserver: 0.centos.pool.ntp.org
+    domainsuffix: local
+instances:
+  bms1:
+    ip: ${node_ip}
+    ssh_user: root
+    ssh_pwd: root
+    provider: bms
+    roles:
+      config:
+      config_database:
+      control:
+      webui:
+      analytics:
+      analytics_database:
+      analytics_snmp:
+      openstack_control:
+      openstack_network:
+      openstack_storage:
+      openstack_monitoring:
+      appformix_openstack_controller:
+      appformix_controller:
+      appformix_compute:
+      openstack_compute:
+contrail_configuration:
+  CLOUD_ORCHESTRATOR: openstack
+  RABBITMQ_NODE_PORT: 5673
+  ENCAP_PRIORITY: VXLAN,MPLSoGRE,MPLSoUDP
+  AUTH_MODE: keystone
+  KEYSTONE_AUTH_URL_VERSION: /v3
+  CONTRAIL_CONTAINER_TAG: "${container_tag}"
+  JVM_EXTRA_OPTS: -Xms128m -Xmx1g
+  COLLECTOR_PORT: 18086
+  ANALYTICS_API_INTROSPECT_LISTEN_PORT: 18090
+kolla_config:
+  kolla_globals:
+    enable_haproxy: no
+    enable_ironic: no
+    enable_cinder: no
+    enable_heat: no
+    enable_glance: no
+    enable_barbican: no
+  kolla_passwords:
+    keystone_admin_password: contrail123
+appformix_configuration:
+    appformix_license:  /opt/software/appformix/appformix-openstack-3.1.sig
+EOF
+
+bash install-cc.sh ## it takes about 60 minutes to finish installation
+
+
+Note: before typing bash install-cc.sh, please upload those files to /opt/software/appformix
+ appformix-3.1.x.tar.gz
+ appformix-dependencies-images-3.1.x.tar.gz
+ appformix-network_device-images-3.1.x.tar.gz
+ appformix-openstack-images-3.1.x.tar.gz
+ appformix-platform-images-3.1.x.tar.gz
+ appformix-openstack-3.1.sig
+
+
+To see the installation status, those two commands can be used
+# docker logs -f contrail_command_deployer ## for command installation
+# tail -f /var/log/contrail/deploy.log     ## for contrail cluster installation
+```
+
+After that, contrail-command should show some additional views such as 'Topology View', 'Overlay / Underlay correlation', in a similar sense with contrail-webui.
+
+
+Note: Since analytics-api introspect port is changed from 8090 to 18090, contrail-status won't work well in this setup.
+To workaround this, please try this procedure.
+```
+1. create contrail-status container to be modified
+ # vi /usr/bin/contrail-status
+ remove '--rm' from docker run option
+ # contrail-status
+2. modify port definition file
+ # docker cp contrail-status:/usr/lib/python2.7/site-packages/sandesh_common/vns/constants.py .
+ # sed -i 's/8090/18090/' constants.py
+ # docker cp constants.py contrail-status:/usr/lib/python2.7/site-packages/sandesh_common/vns/constants.py
+3. replace docker run command by docker start command
+ # vi /usr/bin/contrail-status
+ replace docker run command by this: docker start -a contrail-status
+X. type contrail-staus and check if it works as expected
+ # contrail-status 
+```
+
+### contrail-vcenter-fabric-manager
 
 ## Contrail Healthbot
 
