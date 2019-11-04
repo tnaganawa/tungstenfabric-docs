@@ -1,0 +1,225 @@
+
+
+VM-to-VM, different leaf (L2, L3)
+
+[root@centos61 ~]# kubectl get pod -n myns1 -o wide
+NAME                              READY   STATUS    RESTARTS   AGE   IP         NODE       NOMINATED NODE
+vn1-deployment-64c6cf5bc5-f5vt8   1/1     Running   0          44s   10.0.1.4   centos61   <none>
+vn1-deployment-64c6cf5bc5-qq48q   1/1     Running   0          44s   10.0.1.3   centos62   <none>
+[root@centos61 ~]#
+[root@centos61 ~]# kubectl get pod -n myns2 -o wide
+NAME                              READY   STATUS    RESTARTS   AGE   IP         NODE       NOMINATED NODE
+vn2-deployment-6b7fd6d978-cxw42   1/1     Running   0          55s   10.0.2.3   centos62   <none>
+vn2-deployment-6b7fd6d978-s6rnt   1/1     Running   0          55s   10.0.2.4   centos61   <none>
+[root@centos61 ~]#
+[root@centos61 ~]#
+[root@centos61 ~]# kubectl exec -it -n myns1 vn1-deployment-64c6cf5bc5-f5vt8 sh
+/ # ip -o a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+18: eth0@if19: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue \    link/ether 02:65:89:3e:5c:fd brd ff:ff:ff:ff:ff:ff
+18: eth0    inet 10.0.1.4/24 scope global eth0\       valid_lft forever preferred_lft forever
+/ #
+/ # ping 10.0.1.3
+PING 10.0.1.3 (10.0.1.3): 56 data bytes
+64 bytes from 10.0.1.3: seq=0 ttl=64 time=268.483 ms
+64 bytes from 10.0.1.3: seq=1 ttl=64 time=372.927 ms
+^C
+--- 10.0.1.3 ping statistics ---
+3 packets transmitted, 2 packets received, 33% packet loss
+round-trip min/avg/max = 268.483/320.705/372.927 ms
+/ #
+/ # ping 10.0.2.3
+PING 10.0.2.3 (10.0.2.3): 56 data bytes
+64 bytes from 10.0.2.3: seq=0 ttl=62 time=365.922 ms
+64 bytes from 10.0.2.3: seq=1 ttl=62 time=366.881 ms
+64 bytes from 10.0.2.3: seq=2 ttl=62 time=266.722 ms
+^C
+--- 10.0.2.3 ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 266.722/333.175/366.881 ms
+/ #
+/ #
+
+
+
+VM-to-VM, same leaf (L2, L3)
+
+
+[root@centos61 ~]# kubectl get pod -n myns1 -o wide
+NAME                              READY   STATUS    RESTARTS   AGE    IP         NODE       NOMINATED NODE
+vn1-deployment-64c6cf5bc5-f5vt8   1/1     Running   0          37h    10.0.1.4   centos61   <none>
+vn1-deployment-64c6cf5bc5-qq48q   1/1     Running   0          37h    10.0.1.3   centos62   <none>
+vn1-deployment-64c6cf5bc5-v4225   1/1     Running   0          179m   10.0.1.6   centos63   <none>
+[root@centos61 ~]# kubectl get pod -n myns2 -o wide
+NAME                              READY   STATUS    RESTARTS   AGE    IP         NODE       NOMINATED NODE
+vn2-deployment-6b7fd6d978-72jxc   1/1     Running   0          174m   10.0.2.6   centos63   <none>
+vn2-deployment-6b7fd6d978-cxw42   1/1     Running   0          37h    10.0.2.3   centos62   <none>
+vn2-deployment-6b7fd6d978-s6rnt   1/1     Running   0          37h    10.0.2.4   centos61   <none>
+[root@centos61 ~]#
+
+[root@centos61 ~]# kubectl exec -it -n myns1 vn1-deployment-64c6cf5bc5-f5vt8 sh
+/# ip -o a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+18: eth0@if19: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue \    link/ether 02:65:89:3e:5c:fd brd ff:ff:ff:ff:ff:ff
+18: eth0    inet 10.0.1.4/24 scope global eth0\       valid_lft forever preferred_lft forever
+/ # ping 10.0.1.6
+PING 10.0.1.6 (10.0.1.6): 56 data bytes
+64 bytes from 10.0.1.6: seq=0 ttl=64 time=103.659 ms
+64 bytes from 10.0.1.6: seq=1 ttl=64 time=107.157 ms
+^C
+--- 10.0.1.6 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 103.659/105.408/107.157 ms
+/ # ping 10.0.2.6
+PING 10.0.2.6 (10.0.2.6): 56 data bytes
+64 bytes from 10.0.2.6: seq=0 ttl=63 time=139.296 ms
+64 bytes from 10.0.2.6: seq=1 ttl=63 time=143.470 ms
+^C
+--- 10.0.2.6 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 139.296/141.383/143.470 ms
+/ # [root@centos61 ~]#
+[root@centos61 ~]#
+
+
+
+
+BMS-to-BMS, same leaf, (L2, L3)
+
+vyos@vyos:~$ ip -o a
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+4: bond0    inet 10.0.1.102/24 brd 10.0.1.255 scope global bond0\       valid_lft forever preferred_lft forever
+4: bond0    inet6 fe80::5054:ff:fe3d:ed53/64 scope link \       valid_lft forever preferred_lft forever
+vyos@vyos:~$
+
+vyos@vyos:~$ sudo ping -c 3 10.0.1.103
+PING 10.0.1.103 (10.0.1.103) 56(84) bytes of data.
+64 bytes from 10.0.1.103: icmp_req=1 ttl=64 time=110 ms
+64 bytes from 10.0.1.103: icmp_req=2 ttl=64 time=135 ms
+64 bytes from 10.0.1.103: icmp_req=3 ttl=64 time=133 ms
+
+--- 10.0.1.103 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2001ms
+rtt min/avg/max/mdev = 110.380/126.612/135.569/11.506 ms
+vyos@vyos:~$
+
+
+vyos@vyos:~$ ip -o a
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+4: bond0    inet 10.0.1.101/24 brd 10.0.1.255 scope global bond0\       valid_lft forever preferred_lft forever
+4: bond0    inet6 fe80::5054:ff:fe4e:b657/64 scope link \       valid_lft forever preferred_lft forever
+vyos@vyos:~$
+
+vyos@vyos:~$ ping 10.0.2.101
+PING 10.0.2.101 (10.0.2.101) 56(84) bytes of data.
+64 bytes from 10.0.2.101: icmp_req=1 ttl=63 time=73.8 ms
+64 bytes from 10.0.2.101: icmp_req=2 ttl=63 time=100 ms
+64 bytes from 10.0.2.101: icmp_req=3 ttl=63 time=3.15 ms
+^C
+--- 10.0.2.101 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+rtt min/avg/max/mdev = 3.153/59.187/100.608/41.105 ms
+vyos@vyos:~$
+
+
+
+BMS-to-BMS, different leaf (L2, L3)
+
+vyos@vyos:~$ ip -o a
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+4: bond0    inet 10.0.1.101/24 brd 10.0.1.255 scope global bond0\       valid_lft forever preferred_lft forever
+4: bond0    inet6 fe80::5054:ff:fe4e:b657/64 scope link \       valid_lft forever preferred_lft forever
+vyos@vyos:~$
+vyos@vyos:~$ ping 10.0.1.102
+PING 10.0.1.102 (10.0.1.102) 56(84) bytes of data.
+64 bytes from 10.0.1.102: icmp_req=1 ttl=64 time=388 ms
+64 bytes from 10.0.1.102: icmp_req=2 ttl=64 time=394 ms
+64 bytes from 10.0.1.102: icmp_req=3 ttl=64 time=388 ms
+^C
+--- 10.0.1.102 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2002ms
+rtt min/avg/max/mdev = 388.610/390.569/394.470/2.850 ms
+vyos@vyos:~$
+
+vyos@vyos:~$ ip -o a
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+4: bond0    inet 10.0.1.102/24 brd 10.0.1.255 scope global bond0\       valid_lft forever preferred_lft forever
+4: bond0    inet6 fe80::5054:ff:fe3d:ed53/64 scope link \       valid_lft forever preferred_lft forever
+vyos@vyos:~$
+
+vyos@vyos:~$ sudo ping -c 3 10.0.2.101
+PING 10.0.2.101 (10.0.2.101) 56(84) bytes of data.
+64 bytes from 10.0.2.101: icmp_req=1 ttl=62 time=320 ms
+64 bytes from 10.0.2.101: icmp_req=2 ttl=62 time=251 ms
+64 bytes from 10.0.2.101: icmp_req=3 ttl=62 time=343 ms
+
+--- 10.0.2.101 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2002ms
+rtt min/avg/max/mdev = 251.322/305.293/343.993/39.343 ms
+vyos@vyos:~$
+
+
+
+VM-to-BMS, different leaf (L2, L3)
+
+
+[root@centos61 ~]# kubectl get pod -n myns1 -o wide                            
+NAME                              READY   STATUS    RESTARTS   AGE   IP        NODE       NOMINATED NODE
+vn1-deployment-64c6cf5bc5-f5vt8   1/1     Running   0          14h   10.0.1.4  centos61   <none>
+vn1-deployment-64c6cf5bc5-qq48q   1/1     Running   0          14h   10.0.1.3  centos62   <none>
+[root@centos61 ~]#
+[root@centos61 ~]# kubectl get pod -n myns2 -o wide
+NAME                              READY   STATUS    RESTARTS   AGE   IP        NODE       NOMINATED NODE
+vn2-deployment-6b7fd6d978-cxw42   1/1     Running   0          14h   10.0.2.3  centos62   <none>
+vn2-deployment-6b7fd6d978-s6rnt   1/1     Running   0          14h   10.0.2.4  centos61   <none>
+[root@centos61 ~]#
+
+[root@centos61 ~]# kubectl exec -it -n myns1 vn1-deployment-64c6cf5bc5-qq48q sh
+/ # ip -o a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+24: eth0@if25: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue \    link/ether 02:64:b6:c7:2e:fd brd ff:ff:ff:ff:ff:ff
+24: eth0    inet 10.0.1.3/24 scope global eth0\       valid_lft forever preferred_lft forever
+/ # 
+
+/ # ping 10.0.1.101
+PING 10.0.1.101 (10.0.1.101): 56 data bytes
+64 bytes from 10.0.1.101: seq=0 ttl=64 time=381.592 ms
+64 bytes from 10.0.1.101: seq=1 ttl=64 time=383.544 ms
+64 bytes from 10.0.1.101: seq=2 ttl=64 time=287.214 ms
+^C
+--- 10.0.1.101 ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 287.214/350.783/383.544 ms
+/ #
+
+
+[root@centos61 ~]#  kubectl exec -it -n myns2 vn2-deployment-6b7fd6d978-cxw42 sh
+/ #
+/ #
+/ # ip -o a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+26: eth0@if27: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue \    link/ether 02:7b:2f:27:44:fd brd ff:ff:ff:ff:ff:ff
+26: eth0    inet 10.0.2.3/24 scope global eth0\       valid_lft forever preferred_lft forever
+/ #
+
+/ # ping 10.0.1.101
+PING 10.0.1.101 (10.0.1.101): 56 data bytes
+64 bytes from 10.0.1.101: seq=0 ttl=62 time=350.042 ms
+64 bytes from 10.0.1.101: seq=1 ttl=62 time=362.426 ms
+64 bytes from 10.0.1.101: seq=2 ttl=62 time=324.121 ms
+^C
+--- 10.0.1.101 ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 324.121/345.529/362.426 ms
+/ #
+
+
+

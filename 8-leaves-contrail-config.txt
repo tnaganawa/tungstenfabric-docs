@@ -1,0 +1,137 @@
+
+[root@centos61 contrail-ansible-deployer]# cat config/instances.yaml
+provider_config:
+  bms:
+   ssh_user: root
+   ssh_pwd: root
+   ssh_public_key: /root/.ssh/id_rsa.pub
+   ssh_private_key: /root/.ssh/id_rsa
+   domainsuffix: local
+   ntpserver: 0.centos.pool.ntp.org
+instances:
+  bms1:
+   provider: bms
+   roles:
+      config_database:
+      config:
+      control:
+      analytics:
+      analytics_database:
+      webui:
+      k8s_master:
+      kubemanager:
+      vrouter:
+        VROUTER_GATEWAY: 172.18.183.1
+      k8s_node:
+   ip: 192.168.122.61
+  bms2:
+   provider: bms
+   roles:
+      control:
+      vrouter:
+        VROUTER_GATEWAY: 172.18.185.1
+      k8s_node:
+   ip: 192.168.122.62
+  bms11:
+   provider: bms
+   roles:
+      vrouter:
+        VROUTER_GATEWAY: 172.18.183.1
+      k8s_node:
+   ip: 192.168.122.63
+contrail_configuration:
+  CONTROL_NODES: 172.18.183.11,172.18.185.11
+  CONTRAIL_CONTAINER_TAG: 1910.23
+  KUBERNETES_CLUSTER_PROJECT: {}
+  JVM_EXTRA_OPTS: "-Xms128m -Xmx1g"
+  ## COLLECTOR_PORT: 18086
+  ENCAP_PRIORITY: VXLAN,MPLSoUDP,MPLSoGRE
+global_configuration:
+  CONTAINER_REGISTRY: hub.juniper.net/contrail
+  CONTAINER_REGISTRY_USERNAME: xxxx
+  CONTAINER_REGISTRY_PASSWORD: xxxx
+[root@centos61 contrail-ansible-deployer]#
+
+
+
+[root@centos61 ~]# cat command_servers.yml
+---
+command_servers:
+    server1:
+        ip: 192.168.122.61
+        connection: ssh
+        ssh_user: root
+        ssh_pass: root
+        sudo_pass: root
+        ntpserver: 0.centos.pool.ntp.org
+
+        registry_insecure: false
+        container_registry: hub.juniper.net/contrail
+        container_tag: 1910.23
+        config_dir: /etc/contrail
+
+        contrail_config:
+            database:
+                type: postgres
+                dialect: postgres
+                password: contrail123
+            keystone:
+                assignment:
+                    data:
+                      users:
+                        admin:
+                          password: contrail123
+            auth_type: basic-auth
+            insecure: true
+            client:
+              password: contrail123
+[root@centos61 ~]#
+[root@centos61 ~]#
+[root@centos61 ~]#
+[root@centos61 ~]# cat install-cc.sh
+docker pull hub.juniper.net/contrail/contrail-command-deployer:1910.23
+docker run -td --net host -e orchestrator=kubernetes -e action=import_cluster -v /root/command_servers.yml:/command_servers.yml -v /root/contrail-ansible-deployer/config/instances.yaml:/instances.yml --privileged --name contrail_command_deployer hub.juniper.net/contrail/contrail-command-deployer:1910.23
+[root@centos61 ~]#
+[root@centos61 ~]#
+
+
+[root@centos61 ~]# cat myns1.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: myns1
+  annotations: {
+    "opencontrail.org/network" : '{"domain":"default-domain", "project": "k8s-default", "name":"vn1"}'
+  }
+[root@centos61 ~]# 
+[root@centos61 ~]# kubectl create -f myns1.yaml
+
+[root@centos61 ~]# cat first-containers.yaml
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: vn1-deployment
+  labels:
+    app: vn1-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vn1-deployment
+  template:
+    metadata:
+      labels:
+        app: vn1-deployment
+    spec:
+      containers:
+      - name: cirros
+        image: cirros
+        ports:
+        - containerPort: 22
+      tolerations:
+        - key: "node-role.kubernetes.io/master"
+          effect: "NoSchedule"
+          operator: "Exists"
+[root@centos61 ~]#
+[root@centos61 ~]# kubectl create -f first-containers.yaml -n myns1
+
