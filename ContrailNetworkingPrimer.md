@@ -321,11 +321,24 @@ To try this, you can firstly set up management switch, and connect all the Tungs
  - Note: when Tripleo is used, you might need to disable ping check to make installation work
  - When config-database needs HA, some manual config might needed before fabric automation is installed
 
-After that, you can configure 'underlay' vn in contrail command, with subnets which can be assigned to tungsten fabric nodes, and do brownfield onboard, and configure virtual-port-group on the QFX ports, which has tungsten fabric nodes connected.
- - Note: to make that work, please don't connect logical-router to underaly vn
+After that, you can configure 'underlay' VN in contrail command, with subnets which can be assigned to tungsten fabric nodes, and do brownfield onboard, and configure virtual-port-group on the QFX ports, which has tungsten fabric nodes connected.
+ - Note: to make that work, please don't connect logical-router to underaly VN, since in that case, irb will be inside a VRF, and it can't contact to the underlay subnet
 
-After that, each tungsten fabric nodes can ping with vQFX loopback ips, which is set by contrail fabric autmation, and contrail fabric are fully UP!
+After that, each tungsten fabric nodes can ping to vQFX loopback ips, which is set by contrail fabric autmation, and contrail fabric are fully UP.
  - To reach loopback ip from tungsten fabric nodes, some underlay routing protocol might be needed
+
+
+As an example, I tried two spines and 8 leaves setup, and set them up with (mostly) fabric automation features.
+![8-leaves](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/vRouter-ESI-LAG-BMS-diagram.png)
+
+Detailed configuration and ping results are attached.
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/8-leaves-vqfx-config.txt
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/8-leaves-contrail-config.txt
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/8-leaves-ping-result.txt
+
+Note:
+Some configuration such as irb for vRouters, and bgp export policy for EVPN route needs to be written manually.
+
 
 ### PNF integration
 
