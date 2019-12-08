@@ -9,8 +9,8 @@ Table of Contents
       * [vQFX limitation](#vqfx-limitation)
       * [Integration with fabric automation and vRouters](#integration-with-fabric-automation-and-vrouters)
       * [PNF integration](#pnf-integration)
-      * [Ironic integration](#ironic-integration)
       * [Appformix integration](#appformix-integration)
+      * [Ironic integration](#ironic-integration-wip)
    * [Contrail Healthbot](#contrail-healthbot)
    * [Contrail multicloud](#contrail-multicloud)
       * [container deployment](#container-deployment)
@@ -353,8 +353,6 @@ From vRouter side, it just means lr1 is extended to QFX and can send traffic to 
 
 So with contrail command, vRouter's vm can be integrated with PNF, although some manual config is still needed.
 
-### Ironic integration
-
 ### Appformix integration
 
 Since most of the analytics features of contrail-command is implemented in appformix module, installation of that module is also needed to enable visualization features.
@@ -516,6 +514,162 @@ To workaround this, please try this procedure.
 X. type contrail-staus and check if it works as expected
  # contrail-status 
 ```
+### Ironic integration WIP
+Contrail has some feature to integrate with ironic, based mainly on fabric-manager.
+
+To use this feature, several things need to be taken care of.
+
+Firstly, since ironic's workflow use 'ironic-provision' VN to clean volume and install new image data, this VN need to access the ironic-conductor, which is located at the underlay.
+So this VN need to be configured with both overlay and underlay access, and the most straight forward way is to use similar setting with vRouter integration chapter.
+
+Secondly, since ironic itself won't have much knowledge about how to configure switch port, some info about QFX port and BMS need to be configured in both databases (ironic and contrail configdb).
+For this purpose, contrail command has some workflow to firstly fill contrail configdb, and fill ironic db with that info.
+
+#### ironic setup
+
+##### Underlay setup
+
+Firstly, you need to create two leaves setting with fabric-manager.
+ - I used vqfx194 to connect AIO node of contrail, and vqfx195 to connect BMS (two lean spines vqfx191, vqfx192 are connected to them)
+
+Since CSN feature is needed to manage BMS, AIO has vrouter role with TSN_EVPN_MODE specified
+```
+provider_config:
+  bms:
+   ssh_user: root
+   ssh_pwd: root
+   ssh_public_key: /root/.ssh/id_rsa.pub
+   ssh_private_key: /root/.ssh/id_rsa
+   domainsuffix: local
+   ntpserver: 0.centos.pool.ntp.org
+instances:
+  bms1:
+    provider: bms
+    ip: 192.168.122.97
+    roles:
+      config_database:
+      config:
+      control:
+      analytics:
+      analytics_database:
+      webui:
+      openstack:
+      vrouter:
+        TSN_EVPN_MODE: true
+        VROUTER_GATEWAY: 172.18.0.1
+      openstack_compute:
+contrail_configuration:
+  CLOUD_ORCHESTRATOR: openstack
+  CONTROL_NODES: 172.18.0.97
+  TSN_NODES: 172.18.0.97 ## set the same IP with vhost0
+  CONTRAIL_CONTAINER_TAG: 1911.31
+  RABBITMQ_NODE_PORT: 5673
+  AUTH_MODE: keystone
+  KEYSTONE_AUTH_URL_VERSION: /v3
+  JVM_EXTRA_OPTS: "-Xms128m -Xmx1g"
+kolla_config:
+  kolla_globals:
+    enable_haproxy: no
+  kolla_passwords:
+    keystone_admin_password: contrail123
+global_configuration:
+  CONTAINER_REGISTRY: hub.juniper.net/contrail
+  CONTAINER_REGISTRY_USERNAME: username
+  CONTAINER_REGISTRY_PASSWORD: password
+```
+
+After AIO is connected to fabric and fabric is created by that, 'ironic-provision' VN will be created from contrail-command, and it is extended to leaf QFX for BMS access (vqfx195 in this setup) to configure irb to reach underlay subnet.
+![ironic-provision-VN](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/ironic-ironic-provision-VN.png)
+
+To use AIO CSN for the dhcp access from this leaf, Fabric > fabric-name > physical router name > edit, Associated Service Nodes need to be filled
+ - without this definition, vqfx195 won't receive EVPN T2 route from contrail-controller
+![associate-CSN](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/ironic-associated-csn.png)
+
+##### BMS setup 
+
+After that, you firstly need to create flavor and image which will be used by ironic and nova. 
+You can use command's UI to do this: Workloads > Flavors and Workloads > Images (please set Server Type: Baremetal Server)
+
+For this setup, I used those five images.
+ - curl -O http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img
+ - curl -O http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-initramfs
+ - curl -O http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-kernel
+ - curl -O https://tarballs.openstack.org/ironic-python-agent/coreos/files/coreos_production_pxe-stable-queens.vmlinuz
+ - curl -O https://tarballs.openstack.org/ironic-python-agent/coreos/files/coreos_production_pxe_image-oem-stable-queens.cpio.gz
+
+Those openstack cli also can be used, but please set --property server_type=baremetal, since without that, it cannot be used from command webui.
+
+```
+$ glance image-create --name my-kernel --visibility public --property server_type='baremetal' \
+  --disk-format aki --container-format aki < cirros-0.4.0-x86_64-kernel
+$ MY_VMLINUZ_UUID=$(openstack image show -c id my-kernel -f value)
+$ glance image-create --name my-image.initrd --visibility public --property server_type='baremetal' \
+  --disk-format ari --container-format ari < cirros-0.4.0-x86_64-initramfs
+$ MY_INITRD_UUID=$(openstack image show -c id my-image.initrd -f value) 
+$ glance image-create --name my-image --visibility public \
+  --disk-format qcow2 --container-format bare --property server_type='baremetal' --property \
+  kernel_id=$MY_VMLINUZ_UUID --property \
+  ramdisk_id=$MY_INITRD_UUID < cirros-0.4.0-x86_64-disk.img
+$ glance image-create --name deploy-vmlinuz --visibility public --property server_type='baremetal' \
+      --disk-format aki --container-format aki < coreos_production_pxe.vmlinuz
+$ glance image-create --name deploy-initrd --visibility public --property server_type='baremetal' \
+      --disk-format ari --container-format ari < coreos_production_pxe_image-oem.cpio.gz
+
+$ openstack flavor create --id auto --ram 512 --vcpus 1 --disk 4 --property baremetal=true --public baremetal
+```
+
+
+Then BMS's ipmi port will be filled in with some info about QFX port, which BMS is connected, Infrastructure -> Servers -> Create -> Detailed -> Baremetal
+ - please set enable PXE, and fill in IPMI info
+ - This information is firstly saved in various tables in contrail configdb, such as node, port, virtual-machine-interface 
+![ironic-bms-port-info](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/ironic-bms-port-info.png)
+
+
+After that, you can enroll this BMS definition in ironic db with Infrastructure -> Cluster -> Cluster Nodes -> Baremetal Servers -> Add -> Baremetal Servers
+
+Then you can see ironic db is filled in with this info.
+```
+$ openstack baremetal node list
++--------------------------------------+----------+---------------+-------------+--------------------+-------------+
+| UUID                                 | Name     | Instance UUID | Power State | Provisioning State | Maintenance |
++--------------------------------------+----------+---------------+-------------+--------------------+-------------+
+| c3404f1c-ea67-481c-a733-58ba86527d71 | 195_bms2 | None          | power on    | manageable         | False       |
++--------------------------------------+----------+---------------+-------------+--------------------+-------------+
+
+$ openstack baremetal node provide c3404f1c-ea67-481c-a733-58ba86527d71
+$ openstack baremetal node list
++--------------------------------------+----------+---------------+-------------+--------------------+-------------+
+| UUID                                 | Name     | Instance UUID | Power State | Provisioning State | Maintenance |
++--------------------------------------+----------+---------------+-------------+--------------------+-------------+
+| c3404f1c-ea67-481c-a733-58ba86527d71 | 195_bms2 | None          | power on    | available          | False       |
++--------------------------------------+----------+---------------+-------------+--------------------+-------------+
+$
+```
+
+##### Create BMS Instance
+
+When baremetal node status become 'available', it can be used to instantiate BMS node from horizon and command UI, in a similar manner to create VMs. 
+ - for availability zone, nova-baremetal need to be specified
+
+When everything is working well, CSN node will get a vif for BMS, and return dhcp response when BMS send dhcp request.
+ - ironic-provision subnet's ip will be assigned firstlly
+```
+# ./contrail-introspect-cli/ist.py vr intf 16
++-------+--------------------------------------+--------+-------------------+-------------+---------------+---------+--------------------------------------+
+| index | name                                 | active | mac_addr          | ip_addr     | mdata_ip_addr | vm_name | vn_name                             |
++-------+--------------------------------------+--------+-------------------+-------------+---------------+---------+--------------------------------------+
+| 16    | 5eb8e7cc-485a-47cc-8756-89355432492a | Active | 52:54:00:95:75:59 | 172.18.11.3 | 0.0.0.0       | n/a     | default-domain:admin:ironic-         |
+|       |                                      |        |                   |             |               |         | provision                           |
++-------+--------------------------------------+--------+-------------------+-------------+---------------+---------+--------------------------------------+
+#
+```
+
+Then it will receive IP by dhcp, do tftp to get kernel and boot, and do some tasks with iSCSI.
+ - Having said that, vQFX 18.4R1 has several limitations, which I haven't yet fully worked around (and this doc will be WIP status for a while :( )
+ - 1. when l2 packets is sent, it sometimes send VNI 0 packets, and it can't receive IP through dhcp 
+ - 2. tftp will be pretty slow, since vQFX has pretty high latency (- 100 ms)
+ - 3. Since vQFX can't forward over 1,500 bytes packets, iSCSI won't work well
+
 
 ### contrail-vcenter-fabric-manager
 
