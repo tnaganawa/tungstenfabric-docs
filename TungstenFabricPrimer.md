@@ -42,6 +42,7 @@ Table of Contents
       * [webui](#webui)
       * [backup and restore](#backup-and-restore)
       * [Changing container parameters](#changing-container-parameters)
+   * [Troubleshooting Tips](#troubleshooting-tips)
    * [Appendix](#appendix)
       * [Cluster update](#cluster-update)
       * [L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration](#l3vpn--evpn-t2t5-vxlanmpls-integration)
@@ -2516,6 +2517,151 @@ So you can type this command to edit environment variables, and can delete some 
 ```
 kubectl edit configmap -n kube-system env
 ```
+
+# Troubleshooting Tips
+
+When using vRouter, there could be some situations routing won't work well as expected.
+
+I have gathered most common issues and steps to investigate vRouter's routing behavior.
+
+To investigate this, there are two ways, one is to see config detail related, and the other is to see operational state of control and vRouter.
+
+Since for the former, contrail-api-cli is most useful, and the latter, ist.py is (especailly for remote-debug),
+let me describe some info in this format.
+
+Note: if these tools are not available, you can use curl for that purpose.
+
+For example, when
+```
+source /etc/kolla/kolla_toolbox/admin-openrc.sh
+contrail-api-cli --host x.x.x.x ls -l virtual-network
+contrail-api-cli --host x.x.x.x cat virtual-network/xxxx-xxxx-xxxx-xxxx
+```
+is needed, those command collect the same info.
+```
+source /etc/kolla/kolla_toolbox/admin-openrc.sh
+openstack token issue
+curl -H 'x-auth-token: tokenid' x.x.x.x:8082/virtual-networks
+curl -H 'x-auth-token: tokenid' x.x.x.x:8082/virtual-network/xxxx-xxxx-xxxx-xxxx
+```
+
+In a similar manner, ist.py also can be replaced by various curl command.
+Let me describe curl command for most common case. (cli is more memorable though)
+```
+ist.py ctr route show
+   curl control-ip:8083/Snh_ShowRouteReq
+ist.py ctr route nei
+   curl control-ip:8083/Snh_BgpNeighborReq
+ist.py vr intf
+   curl vrouter-ip:8085/Snh_ItfReq
+ist.py vr vrf
+   curl vrouter-ip:8085/Snh_VrfListReq
+ist.py vr route -v vrf-id
+   curl vrouter-ip:8085/Snh_Inet4UcRouteReq?vrf_index=vrf-id
+```
+
+
+### x. some VM-to-VM packets can't reach the other node
+ To investigate this, firstly, it needs to be seen that is control plane issue or data plane issue.
+ For control plane issue, those commands will be most useful.
+```
+ # ist.py ctr route show
+ # ist.py vr intf
+ # ist.py vr vrf
+ # ist.py vr route -v (vrf id)
+```
+
+ If routing seems ok, you can firstly see if packet is arrived at the destination vrouter by tcpdump.
+```
+ # tcpdump -i any -nn udp port 6635 or udp port 4789 or proto gre or icmp # for physical NIC
+ # tcpdump -i any -nn icmp # for tap device
+```
+
+ When packet reached the destination vRouter, check 
+```
+ # flow -l
+```
+ to see if it is dropped by flow action.
+  - For example, action: D(Policy), D(SG) indicates it is dropped by network-policy or security-group
+ To investigate the flow action further, those command would help.
+```
+ # ist.py vr intf -f text
+ # ist.py vr acl
+```
+
+Note: To see the reason of packet drop, dropstats command could have some more info. 
+```
+ # watch -n 1 'dropstats | grep -v -w 0'
+ # watch -n 1 'vif --get 0 --get-drop-stats'
+ # watch -n 1 'vif --get n --get-drop-stats' (n is vif id)
+ # ping -i 0.2 overlay-ip # this can be used to see specific dropstats counter is incrementing because of that packets
+```
+
+### x. I can't access VMs from external nodes
+ check
+```
+ # flow -l
+```
+to see flow action of this packet. If action was D(SG), it is dropped by security-group, so it need to be changed to permit external access (default for openstack ingress rule is to allow VM-to-VM access only)
+
+### x. kubernetes service / ingress won't up, SNAT with floating-ip won't work well
+ Since those are set up by svc-monitor, you can firstly check
+```
+ # tail -f /var/log/contrail/contrail-svc-monitor.log
+```
+ to see some error is seen.
+  - One example is 'No vRouter is availale' is logged, so they can't start those service. That is caused by NodeStatus from vRouter to analytics-api is 'Non-Functional' for some reason, so it needs to be investigated from vRouter side.
+
+ If svc-monitor is working well, you need to investigate behavior of load-balancer object.
+
+ When service is used, it adds ecmp route to reach application, so those commands can be used to investigate control plane (same procedure to see VM-to-VM routing)
+```
+ # ist.py ctr route show
+ # ist.py vr route -v (vrf-id)
+```
+
+ When ingress or SNAT is used, it will start haproxy process inside linux namespace in vRouter container.
+ To investigate the detail, you can try those commands, to see those name
+```
+ # docker exec -it vrouter-agent bash
+   # ip netns
+   # ip netns exec vrouter-xxx ip -o a
+   # ip netns exec vrouter-xxx ip route
+   # ip netns exec vrouter-xxx iptables -L -n -v -t nat
+ # tail -f /var/log/messages # haproxy log is logged
+```
+
+ Since ingress service and SNAT also use vRouter routing, those commands also are helpful to see prefixes to those service are exported to vRouter's routing table.
+```
+ # ist.py ctr route show
+ # ist.py vr vrf
+ # ist.py vr route -v (vrf-id)
+```
+
+### x. service-chain won't work well
+ Since service-chain use change vRouter routing table, firstly those commands can be used, to see if routing-instances are successfully created, and ServiceChain route is correctly imported
+```
+ # ist.py ctr route summary
+ # ist.py ctr route show
+ # ist.py ctr route show -p ServiceChain
+ # ist.py ctr sc
+```
+
+ If control plane works well, you need to investigate data plane behaivor in the same manner with VM-to-VM traffic (security-group also can block service-chain traffic, so please also check that to investigate service-chain from external traffic)
+```
+ # tcpdump -i any -nn udp port 6635 or udp port 4789 or proto gre or icmp
+ # ist.py vr intf
+ # ist.py vr vrf
+ # ist.py vr route -v (vrf-id)
+ # flow -l
+```
+
+### x. distributed SNAT won't work well
+ That feature is implemented by ACL on vRouter, so to investigate this feature, this command is useful.
+```
+ # ist.py vr intf -f text
+```
+ If icmp works well and tcp / udp won't work well, please also check port lists are specified.
 
 # Appendix
 
