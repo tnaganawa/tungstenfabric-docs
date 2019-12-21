@@ -3336,6 +3336,7 @@ In this case, routers have to stitch EVPN/VXLAN and EVPN/MPLS, which will be ach
  - https://www.juniper.net/documentation/en_US/junos/topics/concept/data-center-interconnect-evpn-vxlan-evpn-mpls-wan-overview.html
 
 If it is used as NFVI, since Tungsten Fabric currently doesn't support service-chain with EVPN type-5, L3VPN / MPLS over UDP will be the only possible choice.
+ - Note: from R1912, control / vRouter implemented service-chain based on EVPN T5 (and VXLAN), so L3VPN / MPLS over IP won't be a strict requirement: https://github.com/Juniper/contrail-specs/blob/master/R1912/bms-service-chaining.md
  - https://github.com/Juniper/contrail-specs/blob/master/EVPN-type-5-support-in-Contrail.md#control-node
  - MPLS over GRE is also ok, although it has less entropy to be used for such as LAG load-balance
 
