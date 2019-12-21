@@ -17,6 +17,7 @@ Table of Contents
         * [svc-monitor](#svc-monitor)
       * [config-database (zookeeper, cassandra, rabbitmq)](#config-database-zookeeper-cassandra-rabbitmq)
       * [nodemgr](#nodemgr)
+      * [device-manager](#device-manager)
       * [analytics](#analytics)
       * [analytics-database](#analytics-database)
       * [webui (webui-web, webui-job)](#webui-webui-web-webui-job)
@@ -720,6 +721,48 @@ This component have a bit different behavior if assigned different role. So it i
 
 Additionaly, it also does the first provision of each nodes, which means to notify config-api that this ip has a role xxx assigned. So even if the analytics feature is not required, this module need to be there, at least for the first time a node is up.
 
+## device-manager
+
+This process is used to configure physical-router, based on objects in config-database.
+
+Internally, it uses the same logic with schema-transformer and svc-monitor, which subscribe rabbitmq to see config change, and when something changed, the amqp client kicks some logic.
+ - For schema-transformer, it will update some more config, for svc-monitor, it will kick some logic in vRouters, and for device-manager, it will update physical-router's configuration
+
+This behavior is controlled by reaction_map, which defines the way some change on some config objects will propagate other config's change.
+ - https://github.com/Juniper/contrail-controller/blob/master/src/config/device-manager/device_manager/device_manager.py#L59
+
+For example, when a bgp-router is updated,
+```
+        'bgp_router': {
+            'self': ['bgp_router', 'physical_router'],
+            'bgp_router': ['physical_router'],
+            'physical_router': [],
+           },
+```
+based on 'self' definition, it will propagate to bgp-router and physical-router with refs to the original bgp-router object.
+ - For bgp-router, it mean bgp-router object which peered with the original bgp-router
+
+After that, updated bgp-router in turn propagate that to the physical-router, which bgp-router objects resides on.
+```
+        'bgp_router': {
+            (snip)
+            'bgp_router': ['physical_router'],
+            (snip)
+           },
+```
+Since physical-router won't update something when event is propagated from bgp-router, event stopped there, and physical-router config with original bgp-router, and peered bgp-router will be updated.
+```
+        'physical_router': {
+            (snip)
+            'bgp_router': [],
+            (snip)
+},
+```
+
+When physical-router receives update event, it will call push_conf function from plugin, it will basically create router config based on objects in config-database.
+ - currently, only MX / QFX has opensource plugin: https://github.com/Juniper/contrail-controller/tree/master/src/config/device-manager/device_manager/plugins/juniper
+
+To enable this feature, this knob is needed to be configured in /etc/contrail/common_config.env: DEVICE_MANAGER__DEFAULTS__push_mode=0, and config procedure is described there: https://www.juniper.net/documentation/en_US/contrail5.0/topics/concept/using-device-manager-netconf-contrail.html
 
 ## analytics
 
