@@ -8,6 +8,7 @@ Table of Contents
       * [LACP against linux bridge](#lacp-against-linux-bridge)
       * [vQFX limitation](#vqfx-limitation)
       * [Integration with fabric automation and vRouters](#integration-with-fabric-automation-and-vrouters)
+      * [Multi fabric setup](#multi-fabric-setup)
       * [PNF integration](#pnf-integration)
       * [Appformix integration](#appformix-integration)
       * [Ironic integration](#ironic-integration-wip)
@@ -339,6 +340,40 @@ Detailed configuration and ping results are attached.
 Note:
 Some configuration such as irb for vRouters, and bgp export policy for EVPN route needs to be written manually.
 
+### Multi fabric setup
+
+In most cases, multi fabric is a requirement to implement large DC setup, and fabric-manager supports that in several ways.
+
+One way is to use L3DCI feature which it natively supports, to configure EVPN T5 peer between border QFX.
+
+Having said that, it is also possible to configure l2 traffic between multi fabrics, with some manual configuration on QFX and tungsten fabric config-database.
+
+Overall idea is to set up EVPN peers between RRs in both fabrics, and make each leaf switch send EVPN routes between them.
+
+#### Implementation
+
+I'll start with this minimal setup (1912.32 is used).
+ - diagram
+ 
+Both fabric1 and fabric2 has one spine and one leaf, and spines have l3 connectivity between them.
+ - super-spine could be between them, if they don't join EVPN peer
+
+Firstly, greenfield onboarding or brownfield onboarding is done for two fabrics.
+ - Route Reflector for spine, and ERB-Unicast-gateway for leaf are configured
+ - underlay bgp inside each fabric will be automatically configured if greenfield onboarding is used
+
+After that, spine's interfaces are manually configured ip, and unicast bgp between them.
+
+Finally, I configured Clusters > Advanced Options > bgp-router, and updated associated peer, to include other fabric's spine.
+ - If one of the peers is configured, schema-transformer automatically update other side
+
+Then EVPN peer will be up between RRs to make all the leaves interchange EVPN route,
+and other objects like virtual-network, virtual-port-group, logical-router can be used in both fabric.
+ - RR and tungsten fabric control EVPN peer also will be up
+
+I'll attach BMS to BMS and BMS to VM ping result for L2, L3 traffic, for reference purpose.
+
+So it is not too difficult to configure multiple fabrics and vRouters under that, even if l2 extension between fabrics is a requirement.
 
 ### PNF integration
 
