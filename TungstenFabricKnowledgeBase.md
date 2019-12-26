@@ -286,3 +286,23 @@ index 36412b2..a830b5c 100644
          proto_prefix->prefix[mac_len_offset] = 48;
          size_t mac_offset = mac_len_offset + 1;
 ```
+
+#### 'enable_nova: no' can be configurable
+
+```
+git clone -b contrail/queens https://github.com/Juniper/contrail-kolla-ansible
+
+diff --git a/ansible/post-deploy-contrail.yml b/ansible/post-deploy-contrail.yml
+index e603207..c700d88 100644
+--- a/ansible/post-deploy-contrail.yml
++++ b/ansible/post-deploy-contrail.yml
+@@ -63,6 +63,8 @@
+       - ['baremetal-hosts', 'virtual-hosts']
+     register: command_result
+     failed_when: "command_result.rc == 1 and 'already exists' not in command_result.stderr"
++    when:
++      - enable_nova | bool
+     run_once: yes
+ 
+   - name: Add compute hosts to virtual-hosts Aggregate Group
+```
