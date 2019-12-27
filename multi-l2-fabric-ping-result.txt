@@ -1,0 +1,125 @@
+
+[BMS (fabric1) to BMS (fabric2), L2]
+
+BMS (fabric1): 10.0.11.101
+BMS (fabric2): 10.0.11.111
+
+
+vyos@vyos:~$ ip -o a
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+2: eth0    inet 10.0.11.101/24 brd 10.0.11.255 scope global eth0\       valid_lft forever preferred_lft forever
+2: eth0    inet6 fe80::5054:ff:fe25:5e43/64 scope link \       valid_lft forever preferred_lft forever
+vyos@vyos:~$
+vyos@vyos:~$ ping 10.0.11.1
+PING 10.0.11.1 (10.0.11.1) 56(84) bytes of data.
+64 bytes from 10.0.11.1: icmp_req=1 ttl=64 time=200 ms
+64 bytes from 10.0.11.1: icmp_req=2 ttl=64 time=118 ms
+^C
+--- 10.0.11.1 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1001ms
+rtt min/avg/max/mdev = 118.005/159.037/200.069/41.032 ms
+vyos@vyos:~$
+vyos@vyos:~$ ping 10.0.11.111
+PING 10.0.11.111 (10.0.11.111) 56(84) bytes of data.
+64 bytes from 10.0.11.111: icmp_req=1 ttl=64 time=558 ms
+64 bytes from 10.0.11.111: icmp_req=2 ttl=64 time=275 ms
+64 bytes from 10.0.11.111: icmp_req=3 ttl=64 time=304 ms
+^C
+--- 10.0.11.111 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2000ms
+rtt min/avg/max/mdev = 275.230/379.338/558.784/127.430 ms
+vyos@vyos:~$
+
+
+[fabric1 VM to fabric2 BMS, L2]
+
+VM (fabric1): 10.0.11.4
+BMS (fabric2): 10.0.11.111
+
+$ ip -o a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast qlen 1000\   link/ether 02:fc:03:ec:ea:e2 brd ff:ff:ff:ff:ff:ff
+2: eth0    inet 10.0.11.4/24 brd 10.0.11.255 scope global eth0\       valid_lftforever preferred_lft forever
+2: eth0    inet6 fe80::fc:3ff:feec:eae2/64 scope link \       valid_lft foreverpreferred_lft forever
+$
+$ ping 10.0.11.1
+PING 10.0.11.1 (10.0.11.1): 56 data bytes
+64 bytes from 10.0.11.1: seq=0 ttl=64 time=3.984 ms
+64 bytes from 10.0.11.1: seq=1 ttl=64 time=1.476 ms
+^C
+--- 10.0.11.1 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 1.476/2.730/3.984 ms
+$
+
+$ arp -n -a
+? (10.0.11.2) at 00:00:5e:00:01:00 [ether]  on eth0
+? (10.0.11.1) at 00:00:5e:00:01:00 [ether]  on eth0
+? (10.0.11.102) at <incomplete>  on eth0
+? (10.0.11.101) at <incomplete>  on eth0
+? (10.0.11.111) at 52:54:00:e4:4d:6b [ether] PERM on eth0
+$
+ -> static arp is needed to aviod vQFX limitation
+
+$ ping 10.0.11.111
+PING 10.0.11.111 (10.0.11.111): 56 data bytes
+64 bytes from 10.0.11.111: seq=0 ttl=64 time=396.219 ms
+64 bytes from 10.0.11.111: seq=1 ttl=64 time=110.799 ms
+64 bytes from 10.0.11.111: seq=2 ttl=64 time=208.875 ms
+64 bytes from 10.0.11.111: seq=3 ttl=64 time=212.870 ms
+^C
+--- 10.0.11.111 ping statistics ---
+4 packets transmitted, 4 packets received, 0% packet loss
+round-trip min/avg/max = 110.799/232.190/396.219 ms
+$
+
+[fabric2 BMS (vn12) to fabric2 BMS vn11, fabric1 BMS vn11, vm vn11: L3]
+
+BMS (fabric2), vn12, 10.0.12.111
+BMS (fabric2), vn11, 10.0.11.111
+BMS (fabric1), vn11, 10.0.11.101
+VM (fabric1), vn11, 10.0.11.4
+
+vyos@vyos:~$ ip -o a
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+2: eth0    inet 10.0.12.111/24 brd 10.0.12.255 scope global eth0\       valid_lft forever preferred_lft forever
+2: eth0    inet6 fe80::5054:ff:fee3:14be/64 scope link \       valid_lft forever preferred_lft forever
+vyos@vyos:~$
+vyos@vyos:~$ ping 10.0.11.111
+PING 10.0.11.111 (10.0.11.111) 56(84) bytes of data.
+64 bytes from 10.0.11.111: icmp_req=1 ttl=63 time=191 ms
+64 bytes from 10.0.11.111: icmp_req=2 ttl=63 time=199 ms
+64 bytes from 10.0.11.111: icmp_req=3 ttl=63 time=189 ms
+^C
+--- 10.0.11.111 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2002ms
+rtt min/avg/max/mdev = 189.073/193.095/199.010/4.286 ms
+vyos@vyos:~$
+vyos@vyos:~$ ping 10.0.11.101
+PING 10.0.11.101 (10.0.11.101) 56(84) bytes of data.
+64 bytes from 10.0.11.101: icmp_req=1 ttl=62 time=193 ms
+64 bytes from 10.0.11.101: icmp_req=2 ttl=62 time=474 ms
+64 bytes from 10.0.11.101: icmp_req=3 ttl=62 time=204 ms
+^C
+--- 10.0.11.101 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2001ms
+rtt min/avg/max/mdev = 193.810/291.091/474.954/130.084 ms
+vyos@vyos:~$
+vyos@vyos:~$ ping 10.0.11.4
+PING 10.0.11.4 (10.0.11.4) 56(84) bytes of data.
+64 bytes from 10.0.11.4: icmp_req=1 ttl=62 time=492 ms
+64 bytes from 10.0.11.4: icmp_req=2 ttl=62 time=492 ms
+64 bytes from 10.0.11.4: icmp_req=3 ttl=62 time=394 ms
+64 bytes from 10.0.11.4: icmp_req=4 ttl=62 time=462 ms
+^C
+--- 10.0.11.4 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3004ms
+rtt min/avg/max/mdev = 394.856/460.664/492.815/39.910 ms
+vyos@vyos:~$
+
+
+

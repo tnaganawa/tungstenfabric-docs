@@ -1,0 +1,1006 @@
+
+root@vqfx191> show configuration | display set | no-more | except vendor-id
+set version 18.4R1.8
+set groups __contrail_basic__ snmp community public authorization read-only
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from family evpn
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 2
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 1
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 3
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 4
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 5
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 6
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 then community add COM-MAINTENANCE
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 then accept
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term100 then accept
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from family evpn
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from community COM-MAINTENANCE
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 2
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 1
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 3
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 4
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 5
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 6
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 then reject
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE-underlay then as-path-prepend "9999 9999 9999"
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE-underlay then accept
+set groups __contrail_basic__ policy-options community COM-MAINTENANCE members 9999:9999
+set groups __contrail_basic__ protocols l2-learning global-mac-table-aging-time 1800
+set groups __contrail_underlay_ip_clos__ interfaces lo0 unit 0 family inet address 172.16.11.252/32 primary
+set groups __contrail_underlay_ip_clos__ interfaces lo0 unit 0 family inet address 172.16.11.252/32 preferred
+set groups __contrail_underlay_ip_clos__ interfaces xe-0/0/0 mtu 9192
+set groups __contrail_underlay_ip_clos__ interfaces xe-0/0/0 unit 0 family inet address 172.16.12.2/30
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement PFE-LB then load-balance per-packet
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term loopback from protocol direct
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term loopback from protocol bgp
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term loopback then accept
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term default then reject
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term loopback from protocol bgp
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term loopback from protocol direct
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term loopback then accept
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term default then reject
+set groups __contrail_underlay_ip_clos__ routing-options router-id 172.16.11.252
+set groups __contrail_underlay_ip_clos__ routing-options route-distinguisher-id 172.16.11.252
+set groups __contrail_underlay_ip_clos__ routing-options forwarding-table export PFE-LB
+set groups __contrail_underlay_ip_clos__ routing-options forwarding-table ecmp-fast-reroute
+set groups __contrail_underlay_ip_clos__ protocols bgp log-updown
+set groups __contrail_underlay_ip_clos__ protocols bgp graceful-restart
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP type external
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP mtu-discovery
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP import IPCLOS_BGP_IMP
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP export IPCLOS_BGP_EXP
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP vpn-apply-export
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP local-as 65300
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP multipath multiple-as
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP bfd-liveness-detection minimum-interval 350
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP bfd-liveness-detection multiplier 3
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP bfd-liveness-detection session-mode automatic
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP neighbor 172.16.12.1 description vqfx194
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP neighbor 172.16.12.1 peer-as 65301
+set groups __contrail_underlay_infra_bms_access__
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet-vpn from family inet-vpn
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet-vpn then next-hop self
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet6-vpn from family inet6-vpn
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet6-vpn then next-hop self
+set groups __contrail_overlay_bgp__ routing-options router-id 172.16.11.252
+set groups __contrail_overlay_bgp__ routing-options route-distinguisher-id 172.16.11.252
+set groups __contrail_overlay_bgp__ routing-options autonomous-system 64512
+set groups __contrail_overlay_bgp__ routing-options resolution rib bgp.rtarget.0 resolution-ribs inet.0
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 type internal
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 local-address 172.16.11.252
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 hold-time 90
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 import REJECT-MAINTENANCE-MODE
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 family evpn signaling
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 family route-target
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 export _contrail_ibgp_export_policy
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 vpn-apply-export
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 cluster 172.16.11.252
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 local-as 64512
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 multipath
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 neighbor 172.16.11.251 peer-as 64512
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 neighbor 172.18.11.98 peer-as 64512
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr type internal
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr local-address 172.16.11.252
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr hold-time 90
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr import REJECT-MAINTENANCE-MODE
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr family evpn signaling
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr family route-target
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr export _contrail_ibgp_export_policy
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr vpn-apply-export
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr local-as 64512
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr multipath
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr neighbor 172.16.21.251 peer-as 64512
+set apply-groups __contrail_basic__
+set apply-groups __contrail_underlay_ip_clos__
+set apply-groups __contrail_underlay_infra_bms_access__
+set apply-groups __contrail_overlay_bgp__
+set system root-authentication encrypted-password "$6$odq4wT9m$6J0D9AxtrEgKJ3qJ1eTs95LqIV6r4mXuhayCZA/Yx563vaCmwKtuWGIqskkrSSjcZQxyyH1JAId8ea5UwGjcb1"
+set system services ssh root-login allow
+set system services netconf ssh
+set system host-name vqfx191
+set system syslog user * any emergency
+set system syslog file messages any notice
+set system syslog file messages authorization info
+set system syslog file interactive-commands interactive-commands any
+set system extensions providers juniper license-type juniper deployment-scope commercial
+set system extensions providers chef license-type juniper deployment-scope commercial
+set interfaces xe-0/0/0 unit 0 family inet
+set interfaces xe-0/0/1 unit 0 family inet
+set interfaces xe-0/0/4 unit 0 family inet address 172.16.12.129/30
+set interfaces em0 unit 0 family inet address 192.168.122.191/24
+set interfaces em1 unit 0 family inet address 169.254.0.2/24
+set interfaces lo0 unit 0 family inet
+set forwarding-options storm-control-profiles default all
+set routing-options autonomous-system 64512
+set protocols bgp group IPCLOS_eBGP neighbor 172.16.12.130 peer-as 65201
+set protocols lldp interface xe-0/0/0
+set protocols igmp-snooping vlan default
+set vlans default vlan-id 1
+
+{master:0}
+root@vqfx191>
+
+
+
+root@vqfx193> show configuration | no-more | display set | except vendor-id
+set version 18.4R1.8
+set groups __contrail_basic__ snmp community public authorization read-only
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from family evpn
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 2
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 1
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 3
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 4
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 5
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 6
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 then community add COM-MAINTENANCE
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 then accept
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term100 then accept
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from family evpn
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from community COM-MAINTENANCE
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 2
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 1
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 3
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 4
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 5
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 6
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 then reject
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE-underlay then as-path-prepend "9999 9999 9999"
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE-underlay then accept
+set groups __contrail_basic__ policy-options community COM-MAINTENANCE members 9999:9999
+set groups __contrail_basic__ protocols l2-learning global-mac-table-aging-time 1800
+set groups __contrail_underlay_ip_clos__ interfaces lo0 unit 0 family inet address 172.16.21.251/32 primary
+set groups __contrail_underlay_ip_clos__ interfaces lo0 unit 0 family inet address 172.16.21.251/32 preferred
+set groups __contrail_underlay_ip_clos__ interfaces xe-0/0/1 mtu 9192
+set groups __contrail_underlay_ip_clos__ interfaces xe-0/0/1 unit 0 family inet address 172.16.22.1/30
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement PFE-LB then load-balance per-packet
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term loopback from protocol direct
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term loopback from protocol bgp
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term loopback then accept
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term default then reject
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term loopback from protocol bgp
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term loopback from protocol direct
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term loopback then accept
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term default then reject
+set groups __contrail_underlay_ip_clos__ routing-options router-id 172.16.21.251
+set groups __contrail_underlay_ip_clos__ routing-options route-distinguisher-id 172.16.21.251
+set groups __contrail_underlay_ip_clos__ routing-options forwarding-table export PFE-LB
+set groups __contrail_underlay_ip_clos__ routing-options forwarding-table ecmp-fast-reroute
+set groups __contrail_underlay_ip_clos__ protocols bgp log-updown
+set groups __contrail_underlay_ip_clos__ protocols bgp graceful-restart
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP type external
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP mtu-discovery
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP import IPCLOS_BGP_IMP
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP export IPCLOS_BGP_EXP
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP vpn-apply-export
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP local-as 65201
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP multipath multiple-as
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP bfd-liveness-detection minimum-interval 350
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP bfd-liveness-detection multiplier 3
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP bfd-liveness-detection session-mode automatic
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP neighbor 172.16.22.2 description vqfx195
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP neighbor 172.16.22.2 peer-as 65200
+set groups __contrail_underlay_infra_bms_access__
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet-vpn from family inet-vpn
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet-vpn then next-hop self
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet6-vpn from family inet6-vpn
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet6-vpn then next-hop self
+set groups __contrail_overlay_bgp__ routing-options router-id 172.16.21.251
+set groups __contrail_overlay_bgp__ routing-options route-distinguisher-id 172.16.21.251
+set groups __contrail_overlay_bgp__ routing-options autonomous-system 64512
+set groups __contrail_overlay_bgp__ routing-options resolution rib bgp.rtarget.0 resolution-ribs inet.0
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 type internal
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 local-address 172.16.21.251
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 hold-time 90
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 import REJECT-MAINTENANCE-MODE
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 family evpn signaling
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 family route-target
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 export _contrail_ibgp_export_policy
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 vpn-apply-export
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 cluster 172.16.21.251
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 local-as 64512
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 multipath
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 neighbor 172.16.21.252 peer-as 64512
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 neighbor 172.18.11.98 peer-as 64512
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr type internal
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr local-address 172.16.21.251
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr hold-time 90
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr import REJECT-MAINTENANCE-MODE
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr family evpn signaling
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr family route-target
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr export _contrail_ibgp_export_policy
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr vpn-apply-export
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr local-as 64512
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr multipath
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512-rr neighbor 172.16.11.252 peer-as 64512
+set apply-groups __contrail_basic__
+set apply-groups __contrail_underlay_ip_clos__
+set apply-groups __contrail_underlay_infra_bms_access__
+set apply-groups __contrail_overlay_bgp__
+set system root-authentication encrypted-password "$6$BpXE8G1U$E0CK.QC0enodG43dOshtz5zBpDsTevES.vhbxa1GlMh32bbpesp0zXZtxOmIS2sbgzvQEUxYy7GHrxk7g11MJ0"
+set system services ssh root-login allow
+set system services netconf ssh
+set system host-name vqfx193
+set system syslog user * any emergency
+set system syslog file messages any notice
+set system syslog file messages authorization info
+set system syslog file interactive-commands interactive-commands any
+set system extensions providers juniper license-type juniper deployment-scope commercial
+set system extensions providers chef license-type juniper deployment-scope commercial
+set interfaces xe-0/0/0 unit 0 family inet
+set interfaces xe-0/0/1 unit 0 family inet
+set interfaces xe-0/0/3 unit 0 family inet address 172.16.12.130/30
+set interfaces em0 unit 0 family inet address 192.168.122.193/24
+set interfaces em1 unit 0 family inet address 169.254.0.2/24
+set interfaces lo0 unit 0 family inet
+set forwarding-options storm-control-profiles default all
+set routing-options autonomous-system 64512
+set protocols bgp group IPCLOS_eBGP neighbor 172.16.12.129 peer-as 65300
+set protocols lldp interface xe-0/0/1
+set protocols igmp-snooping vlan default
+set vlans default vlan-id 1
+
+{master:0}
+root@vqfx193>
+
+
+
+root@vqfx194> show configuration | display set | no-more | except vendor-id
+set version 18.4R1.8
+set groups __contrail_basic__ snmp community public authorization read-only
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from family evpn
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 2
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 1
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 3
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 4
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 5
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 6
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 then community add COM-MAINTENANCE
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 then accept
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term100 then accept
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from family evpn
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from community COM-MAINTENANCE
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 2
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 1
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 3
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 4
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 5
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 6
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 then reject
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE-underlay then as-path-prepend "9999 9999 9999"
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE-underlay then accept
+set groups __contrail_basic__ policy-options community COM-MAINTENANCE members 9999:9999
+set groups __contrail_basic__ protocols l2-learning global-mac-table-aging-time 1800
+set groups __contrail_underlay_ip_clos__ interfaces lo0 unit 0 family inet address 172.16.11.251/32 primary
+set groups __contrail_underlay_ip_clos__ interfaces lo0 unit 0 family inet address 172.16.11.251/32 preferred
+set groups __contrail_underlay_ip_clos__ interfaces xe-0/0/0 mtu 9192
+set groups __contrail_underlay_ip_clos__ interfaces xe-0/0/0 unit 0 family inet address 172.16.12.1/30
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement PFE-LB then load-balance per-packet
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term loopback from protocol direct
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term loopback from protocol bgp
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term loopback then accept
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term default then reject
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term loopback from protocol bgp
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term loopback from protocol direct
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term loopback then accept
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term default then reject
+set groups __contrail_underlay_ip_clos__ routing-options router-id 172.16.11.251
+set groups __contrail_underlay_ip_clos__ routing-options route-distinguisher-id 172.16.11.251
+set groups __contrail_underlay_ip_clos__ routing-options forwarding-table export PFE-LB
+set groups __contrail_underlay_ip_clos__ routing-options forwarding-table ecmp-fast-reroute
+set groups __contrail_underlay_ip_clos__ protocols bgp log-updown
+set groups __contrail_underlay_ip_clos__ protocols bgp graceful-restart
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP type external
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP mtu-discovery
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP import IPCLOS_BGP_IMP
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP export IPCLOS_BGP_EXP
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP vpn-apply-export
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP local-as 65301
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP multipath multiple-as
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP bfd-liveness-detection minimum-interval 350
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP bfd-liveness-detection multiplier 3
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP bfd-liveness-detection session-mode automatic
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP neighbor 172.16.12.2 description vqfx191
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP neighbor 172.16.12.2 peer-as 65300
+set groups __contrail_underlay_infra_bms_access__
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet-vpn from family inet-vpn
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet-vpn then next-hop self
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet6-vpn from family inet6-vpn
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet6-vpn then next-hop self
+set groups __contrail_overlay_bgp__ routing-options router-id 172.16.11.251
+set groups __contrail_overlay_bgp__ routing-options route-distinguisher-id 172.16.11.251
+set groups __contrail_overlay_bgp__ routing-options autonomous-system 64512
+set groups __contrail_overlay_bgp__ routing-options resolution rib bgp.rtarget.0 resolution-ribs inet.0
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 type internal
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 local-address 172.16.11.251
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 hold-time 90
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 import REJECT-MAINTENANCE-MODE
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 family evpn signaling
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 family route-target
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 export _contrail_ibgp_export_policy
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 vpn-apply-export
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 local-as 64512
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 multipath
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 neighbor 172.16.11.252 peer-as 64512
+set groups __contrail_overlay_evpn__ policy-options policy-statement EVPN-LB term term1 from protocol evpn
+set groups __contrail_overlay_evpn__ policy-options policy-statement EVPN-LB term term1 then load-balance per-packet
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_underlay194-l2-7-import term t1 from community target_64512_8000006
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_underlay194-l2-7-import term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_underlay194-l2-7-export term t1 then community add target_64512_8000006
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_underlay194-l2-7-export term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn11-l2-19-import term t1 from community target_64512_8000022
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn11-l2-19-import term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn11-l2-19-export term t1 then community add target_64512_8000022
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn11-l2-19-export term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn12-l2-21-import term t1 from community target_64512_8000025
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn12-l2-21-import term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn12-l2-21-export term t1 then community add target_64512_8000025
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn12-l2-21-export term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-import term t1 from community target_64512_8000024
+set groups __contrail_overlay_evpn__ policy-options policy-statement __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-import term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-export term t1 then community add target_64512_8000024
+set groups __contrail_overlay_evpn__ policy-options policy-statement __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-export term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement import-evpn term esi-in from community community-esi-in
+set groups __contrail_overlay_evpn__ policy-options policy-statement import-evpn term esi-in then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement import-evpn term default-term then reject
+set groups __contrail_overlay_evpn__ policy-options community target_64512_8000006 members target:64512:8000006
+set groups __contrail_overlay_evpn__ policy-options community target_64512_8000022 members target:64512:8000022
+set groups __contrail_overlay_evpn__ policy-options community target_64512_8000025 members target:64512:8000025
+set groups __contrail_overlay_evpn__ policy-options community target_64512_8000024 members target:64512:8000024
+set groups __contrail_overlay_evpn__ policy-options community community-esi-in members target:64512:7999999
+set groups __contrail_overlay_evpn__ routing-options forwarding-table export EVPN-LB
+set groups __contrail_overlay_evpn__ protocols evpn vni-options vni 7 vrf-target target:64512:8000006
+set groups __contrail_overlay_evpn__ protocols evpn vni-options vni 19 vrf-target target:64512:8000022
+set groups __contrail_overlay_evpn__ protocols evpn vni-options vni 21 vrf-target target:64512:8000025
+set groups __contrail_overlay_evpn__ protocols evpn encapsulation vxlan
+set groups __contrail_overlay_evpn__ protocols evpn extended-vni-list all
+set groups __contrail_overlay_evpn__ switch-options vtep-source-interface lo0.0
+set groups __contrail_overlay_evpn__ switch-options route-distinguisher 172.16.11.251:7999
+set groups __contrail_overlay_evpn__ switch-options vrf-import _contrail_underlay194-l2-7-import
+set groups __contrail_overlay_evpn__ switch-options vrf-import _contrail_vn11-l2-19-import
+set groups __contrail_overlay_evpn__ switch-options vrf-import _contrail_vn12-l2-21-import
+set groups __contrail_overlay_evpn__ switch-options vrf-import __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-import
+set groups __contrail_overlay_evpn__ switch-options vrf-import import-evpn
+set groups __contrail_overlay_evpn__ switch-options vrf-target target:64512:7999999
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/3 description "Virtual Port Group : vqfx194-xe003"
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/3 native-vlan-id 194
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/3 mtu 9192
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/3 unit 0 family ethernet-switching interface-mode trunk
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/3 unit 0 family ethernet-switching vlan members bd-7
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/4 description "Virtual Port Group : vqfx194-xe004"
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/4 native-vlan-id 111
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/4 mtu 9192
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/4 unit 0 family ethernet-switching interface-mode trunk
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/4 unit 0 family ethernet-switching vlan members bd-19
+set groups __contrail_overlay_evpn_erb_access__ protocols evpn multicast-mode ingress-replication
+set groups __contrail_overlay_evpn_erb_access__ switch-options vrf-target auto
+set groups __contrail_overlay_evpn_erb_access__ vlans bd-7 description "Virtual Network - underlay194"
+set groups __contrail_overlay_evpn_erb_access__ vlans bd-7 vlan-id 194
+set groups __contrail_overlay_evpn_erb_access__ vlans bd-7 vxlan vni 7
+set groups __contrail_overlay_evpn_erb_access__ vlans bd-19 description "Virtual Network - vn11"
+set groups __contrail_overlay_evpn_erb_access__ vlans bd-19 vlan-id 111
+set groups __contrail_overlay_evpn_erb_access__ vlans bd-19 vxlan vni 19
+set groups __contrail_overlay_evpn_erb_access__ vlans bd-21 description "Virtual Network - vn12"
+set groups __contrail_overlay_evpn_ucast_gateway__ interfaces irb gratuitous-arp-reply
+set groups __contrail_overlay_evpn_ucast_gateway__ interfaces irb unit 19 family inet address 10.0.11.1/24
+set groups __contrail_overlay_evpn_ucast_gateway__ interfaces irb unit 19 mac 00:00:5e:01:00:01
+set groups __contrail_overlay_evpn_ucast_gateway__ interfaces irb unit 7 family inet address 172.18.11.1/24
+set groups __contrail_overlay_evpn_ucast_gateway__ interfaces irb unit 7 mac 00:00:5e:01:00:01
+set groups __contrail_overlay_evpn_ucast_gateway__ interfaces irb unit 21 family inet address 10.0.12.1/24
+set groups __contrail_overlay_evpn_ucast_gateway__ interfaces irb unit 21 mac 00:00:5e:01:00:01
+set groups __contrail_overlay_evpn_ucast_gateway__ forwarding-options multicast-replication evpn irb local-remote
+set groups __contrail_overlay_evpn_ucast_gateway__ protocols igmp interface irb.19
+set groups __contrail_overlay_evpn_ucast_gateway__ protocols igmp interface irb.7
+set groups __contrail_overlay_evpn_ucast_gateway__ protocols igmp interface irb.21
+set groups __contrail_overlay_evpn_ucast_gateway__ protocols evpn multicast-mode ingress-replication
+set groups __contrail_overlay_evpn_ucast_gateway__ protocols evpn default-gateway do-not-advertise
+set groups __contrail_overlay_evpn_ucast_gateway__ protocols igmp-snooping vlan all proxy
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-19 description "Virtual Network - vn11"
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-19 vlan-id none
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-19 l3-interface irb.19
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-19 vxlan vni 19
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-7 description "Virtual Network - underlay194"
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-7 vlan-id none
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-7 l3-interface irb.7
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-7 vxlan vni 7
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-21 description "Virtual Network - vn12"
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-21 vlan-id none
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-21 l3-interface irb.21
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-21 vxlan vni 21
+set groups __contrail_overlay_evpn_type5__ interfaces lo0 unit 1020 family inet address 127.0.0.1/32
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 1 from protocol direct
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 1 then accept
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 2 from protocol static
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 2 then accept
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 3 from protocol evpn
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 3 from route-filter 0.0.0.0/0 prefix-length-range /32-/32
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 3 then accept
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f instance-type vrf
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f interface lo0.1020
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f interface irb.19
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f interface irb.21
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f vrf-import __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-import
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f vrf-export __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-export
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f routing-options rib __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f.inet6.0 multipath
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f routing-options static route 172.16.0.18/32 discard
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f routing-options multipath
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f protocols evpn ip-prefix-routes advertise direct-nexthop
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f protocols evpn ip-prefix-routes encapsulation vxlan
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f protocols evpn ip-prefix-routes vni 20
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f protocols evpn ip-prefix-routes export type5_policy
+set groups __contrail_overlay_evpn_type5__ routing-options forwarding-table chained-composite-next-hop ingress evpn
+set groups __contrail_overlay_evpn_type5__ protocols evpn default-gateway no-gateway-community
+set groups __contrail_overlay_dhcp_relay__
+set groups __contrail_overlay_security_group_vqfx-10000__
+set groups __contrail_overlay_lag__
+set groups __contrail_overlay_multi_homing__
+set groups __contrail_overlay_storm_control__
+set groups __contrail_overlay_telemetry__
+set apply-groups __contrail_basic__
+set apply-groups __contrail_underlay_ip_clos__
+set apply-groups __contrail_underlay_infra_bms_access__
+set apply-groups __contrail_overlay_bgp__
+set apply-groups __contrail_overlay_evpn__
+set apply-groups __contrail_overlay_evpn_erb_access__
+set apply-groups __contrail_overlay_evpn_ucast_gateway__
+set apply-groups __contrail_overlay_evpn_type5__
+set apply-groups __contrail_overlay_dhcp_relay__
+set apply-groups __contrail_overlay_security_group_vqfx-10000__
+set apply-groups __contrail_overlay_lag__
+set apply-groups __contrail_overlay_multi_homing__
+set apply-groups __contrail_overlay_storm_control__
+set apply-groups __contrail_overlay_telemetry__
+set system root-authentication encrypted-password "$6$mwlgSCk5$gcXNbOwX33Yiupm6.p0E5/R.rBC.8wrOKOE6jI8rjsOgG6sr84r4PQZukVHX3GpZ85POlVna28T7s8qybw1l/0"
+set system services ssh root-login allow
+set system services netconf ssh
+set system host-name vqfx194
+set system syslog user * any emergency
+set system syslog file messages any notice
+set system syslog file messages authorization info
+set system syslog file interactive-commands interactive-commands any
+set system extensions providers juniper license-type juniper deployment-scope commercial
+set system extensions providers chef license-type juniper deployment-scope commercial
+set interfaces xe-0/0/0 unit 0 family inet
+set interfaces xe-0/0/1 unit 0 family inet
+set interfaces xe-0/0/2 unit 0 family inet
+set interfaces em0 unit 0 family inet address 192.168.122.194/24
+set interfaces em1 unit 0 family inet address 169.254.0.2/24
+set interfaces lo0 unit 0 family inet
+set forwarding-options storm-control-profiles default all
+set policy-options policy-statement export-vmto-route term t1 from protocol evpn
+set policy-options policy-statement export-vmto-route term t1 from route-filter 172.18.0.0/16 prefix-length-range /32-/32
+set policy-options policy-statement export-vmto-route term t1 then accept
+set policy-options policy-statement export-vmto-route term t2 from protocol static
+set policy-options policy-statement export-vmto-route term t2 then accept
+set routing-options autonomous-system 64512
+set protocols bgp export export-vmto-route
+set protocols lldp interface xe-0/0/0
+set protocols lldp interface xe-0/0/1
+set protocols lldp interface xe-0/0/2
+set protocols igmp-snooping vlan default
+set vlans default vlan-id 1
+
+{master:0}
+root@vqfx194>
+
+
+root@vqfx195> show configuration | display set | no-more | except vendor-id
+set version 18.4R1.8
+set groups __contrail_basic__ snmp community public authorization read-only
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from family evpn
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 2
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 1
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 3
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 4
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 5
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 from nlri-route-type 6
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 then community add COM-MAINTENANCE
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term1 then accept
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE term term100 then accept
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from family evpn
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from community COM-MAINTENANCE
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 2
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 1
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 3
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 4
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 5
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 from nlri-route-type 6
+set groups __contrail_basic__ policy-options policy-statement REJECT-MAINTENANCE-MODE term term1 then reject
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE-underlay then as-path-prepend "9999 9999 9999"
+set groups __contrail_basic__ policy-options policy-statement MAINTENANCE-MODE-underlay then accept
+set groups __contrail_basic__ policy-options community COM-MAINTENANCE members 9999:9999
+set groups __contrail_basic__ protocols l2-learning global-mac-table-aging-time 1800
+set groups __contrail_underlay_ip_clos__ interfaces lo0 unit 0 family inet address 172.16.21.252/32 primary
+set groups __contrail_underlay_ip_clos__ interfaces lo0 unit 0 family inet address 172.16.21.252/32 preferred
+set groups __contrail_underlay_ip_clos__ interfaces xe-0/0/2 mtu 9192
+set groups __contrail_underlay_ip_clos__ interfaces xe-0/0/2 unit 0 family inet address 172.16.22.2/30
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement PFE-LB then load-balance per-packet
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term loopback from protocol direct
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term loopback from protocol bgp
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term loopback then accept
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_EXP term default then reject
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term loopback from protocol bgp
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term loopback from protocol direct
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term loopback then accept
+set groups __contrail_underlay_ip_clos__ policy-options policy-statement IPCLOS_BGP_IMP term default then reject
+set groups __contrail_underlay_ip_clos__ routing-options router-id 172.16.21.252
+set groups __contrail_underlay_ip_clos__ routing-options route-distinguisher-id 172.16.21.252
+set groups __contrail_underlay_ip_clos__ routing-options forwarding-table export PFE-LB
+set groups __contrail_underlay_ip_clos__ routing-options forwarding-table ecmp-fast-reroute
+set groups __contrail_underlay_ip_clos__ protocols bgp log-updown
+set groups __contrail_underlay_ip_clos__ protocols bgp graceful-restart
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP type external
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP mtu-discovery
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP import IPCLOS_BGP_IMP
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP export IPCLOS_BGP_EXP
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP vpn-apply-export
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP local-as 65200
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP multipath multiple-as
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP bfd-liveness-detection minimum-interval 350
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP bfd-liveness-detection multiplier 3
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP bfd-liveness-detection session-mode automatic
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP neighbor 172.16.22.1 description vqfx193
+set groups __contrail_underlay_ip_clos__ protocols bgp group IPCLOS_eBGP neighbor 172.16.22.1 peer-as 65201
+set groups __contrail_underlay_infra_bms_access__
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet-vpn from family inet-vpn
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet-vpn then next-hop self
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet6-vpn from family inet6-vpn
+set groups __contrail_overlay_bgp__ policy-options policy-statement _contrail_ibgp_export_policy term inet6-vpn then next-hop self
+set groups __contrail_overlay_bgp__ routing-options router-id 172.16.21.252
+set groups __contrail_overlay_bgp__ routing-options route-distinguisher-id 172.16.21.252
+set groups __contrail_overlay_bgp__ routing-options autonomous-system 64512
+set groups __contrail_overlay_bgp__ routing-options resolution rib bgp.rtarget.0 resolution-ribs inet.0
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 type internal
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 local-address 172.16.21.252
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 hold-time 90
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 import REJECT-MAINTENANCE-MODE
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 family evpn signaling
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 family route-target
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 export _contrail_ibgp_export_policy
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 vpn-apply-export
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 local-as 64512
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 multipath
+set groups __contrail_overlay_bgp__ protocols bgp group _contrail_asn-64512 neighbor 172.16.21.251 peer-as 64512
+set groups __contrail_overlay_evpn__ policy-options policy-statement EVPN-LB term term1 from protocol evpn
+set groups __contrail_overlay_evpn__ policy-options policy-statement EVPN-LB term term1 then load-balance per-packet
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn11-l2-19-import term t1 from community target_64512_8000022
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn11-l2-19-import term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn11-l2-19-export term t1 then community add target_64512_8000022
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn11-l2-19-export term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn12-l2-21-import term t1 from community target_64512_8000025
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn12-l2-21-import term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn12-l2-21-export term t1 then community add target_64512_8000025
+set groups __contrail_overlay_evpn__ policy-options policy-statement _contrail_vn12-l2-21-export term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-import term t1 from community target_64512_8000024
+set groups __contrail_overlay_evpn__ policy-options policy-statement __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-import term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-export term t1 then community add target_64512_8000024
+set groups __contrail_overlay_evpn__ policy-options policy-statement __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-export term t1 then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement import-evpn term esi-in from community community-esi-in
+set groups __contrail_overlay_evpn__ policy-options policy-statement import-evpn term esi-in then accept
+set groups __contrail_overlay_evpn__ policy-options policy-statement import-evpn term default-term then reject
+set groups __contrail_overlay_evpn__ policy-options community target_64512_8000022 members target:64512:8000022
+set groups __contrail_overlay_evpn__ policy-options community target_64512_8000025 members target:64512:8000025
+set groups __contrail_overlay_evpn__ policy-options community target_64512_8000024 members target:64512:8000024
+set groups __contrail_overlay_evpn__ policy-options community community-esi-in members target:64512:7999999
+set groups __contrail_overlay_evpn__ routing-options forwarding-table export EVPN-LB
+set groups __contrail_overlay_evpn__ protocols evpn vni-options vni 19 vrf-target target:64512:8000022
+set groups __contrail_overlay_evpn__ protocols evpn vni-options vni 21 vrf-target target:64512:8000025
+set groups __contrail_overlay_evpn__ protocols evpn encapsulation vxlan
+set groups __contrail_overlay_evpn__ protocols evpn extended-vni-list all
+set groups __contrail_overlay_evpn__ switch-options vtep-source-interface lo0.0
+set groups __contrail_overlay_evpn__ switch-options route-distinguisher 172.16.21.252:7999
+set groups __contrail_overlay_evpn__ switch-options vrf-import _contrail_vn11-l2-19-import
+set groups __contrail_overlay_evpn__ switch-options vrf-import _contrail_vn12-l2-21-import
+set groups __contrail_overlay_evpn__ switch-options vrf-import __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-import
+set groups __contrail_overlay_evpn__ switch-options vrf-import import-evpn
+set groups __contrail_overlay_evpn__ switch-options vrf-target target:64512:7999999
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/3 description "Virtual Port Group : vqfx195-xe003"
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/3 native-vlan-id 111
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/3 mtu 9192
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/3 unit 0 family ethernet-switching interface-mode trunk
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/3 unit 0 family ethernet-switching vlan members bd-19
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/4 description "Virtual Port Group : vqfx195-xe004"
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/4 native-vlan-id 112
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/4 mtu 9192
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/4 unit 0 family ethernet-switching interface-mode trunk
+set groups __contrail_overlay_evpn_erb_access__ interfaces xe-0/0/4 unit 0 family ethernet-switching vlan members bd-21
+set groups __contrail_overlay_evpn_erb_access__ protocols evpn multicast-mode ingress-replication
+set groups __contrail_overlay_evpn_erb_access__ switch-options vrf-target auto
+set groups __contrail_overlay_evpn_erb_access__ vlans bd-19 description "Virtual Network - vn11"
+set groups __contrail_overlay_evpn_erb_access__ vlans bd-19 vlan-id 111
+set groups __contrail_overlay_evpn_erb_access__ vlans bd-19 vxlan vni 19
+set groups __contrail_overlay_evpn_erb_access__ vlans bd-21 description "Virtual Network - vn12"
+set groups __contrail_overlay_evpn_erb_access__ vlans bd-21 vlan-id 112
+set groups __contrail_overlay_evpn_erb_access__ vlans bd-21 vxlan vni 21
+set groups __contrail_overlay_evpn_ucast_gateway__ interfaces irb gratuitous-arp-reply
+set groups __contrail_overlay_evpn_ucast_gateway__ interfaces irb unit 19 family inet address 10.0.11.1/24
+set groups __contrail_overlay_evpn_ucast_gateway__ interfaces irb unit 19 mac 00:00:5e:01:00:01
+set groups __contrail_overlay_evpn_ucast_gateway__ interfaces irb unit 21 family inet address 10.0.12.1/24
+set groups __contrail_overlay_evpn_ucast_gateway__ interfaces irb unit 21 mac 00:00:5e:01:00:01
+set groups __contrail_overlay_evpn_ucast_gateway__ forwarding-options multicast-replication evpn irb local-remote
+set groups __contrail_overlay_evpn_ucast_gateway__ protocols igmp interface irb.19
+set groups __contrail_overlay_evpn_ucast_gateway__ protocols igmp interface irb.21
+set groups __contrail_overlay_evpn_ucast_gateway__ protocols evpn multicast-mode ingress-replication
+set groups __contrail_overlay_evpn_ucast_gateway__ protocols evpn default-gateway do-not-advertise
+set groups __contrail_overlay_evpn_ucast_gateway__ protocols igmp-snooping vlan all proxy
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-19 description "Virtual Network - vn11"
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-19 vlan-id none
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-19 l3-interface irb.19
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-19 vxlan vni 19
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-21 description "Virtual Network - vn12"
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-21 vlan-id none
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-21 l3-interface irb.21
+set groups __contrail_overlay_evpn_ucast_gateway__ vlans bd-21 vxlan vni 21
+set groups __contrail_overlay_evpn_type5__ interfaces lo0 unit 1020 family inet address 127.0.0.1/32
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 1 from protocol direct
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 1 then accept
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 2 from protocol static
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 2 then accept
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 3 from protocol evpn
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 3 from route-filter 0.0.0.0/0 prefix-length-range /32-/32
+set groups __contrail_overlay_evpn_type5__ policy-options policy-statement type5_policy term 3 then accept
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f instance-type vrf
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f interface lo0.1020
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f interface irb.19
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f interface irb.21
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f vrf-import __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-import
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f vrf-export __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f-export
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f routing-options rib __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f.inet6.0 multipath
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f routing-options static route 172.16.0.15/32 discard
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f routing-options multipath
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f protocols evpn ip-prefix-routes advertise direct-nexthop
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f protocols evpn ip-prefix-routes encapsulation vxlan
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f protocols evpn ip-prefix-routes vni 20
+set groups __contrail_overlay_evpn_type5__ routing-instances __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f protocols evpn ip-prefix-routes export type5_policy
+set groups __contrail_overlay_evpn_type5__ routing-options forwarding-table chained-composite-next-hop ingress evpn
+set groups __contrail_overlay_evpn_type5__ protocols evpn default-gateway no-gateway-community
+set groups __contrail_overlay_dhcp_relay__
+set groups __contrail_overlay_security_group_vqfx-10000__
+set groups __contrail_overlay_lag__
+set groups __contrail_overlay_multi_homing__
+set groups __contrail_overlay_storm_control__
+set groups __contrail_overlay_telemetry__
+set apply-groups __contrail_basic__
+set apply-groups __contrail_underlay_ip_clos__
+set apply-groups __contrail_underlay_infra_bms_access__
+set apply-groups __contrail_overlay_bgp__
+set apply-groups __contrail_overlay_evpn__
+set apply-groups __contrail_overlay_evpn_erb_access__
+set apply-groups __contrail_overlay_evpn_ucast_gateway__
+set apply-groups __contrail_overlay_evpn_type5__
+set apply-groups __contrail_overlay_dhcp_relay__
+set apply-groups __contrail_overlay_security_group_vqfx-10000__
+set apply-groups __contrail_overlay_lag__
+set apply-groups __contrail_overlay_multi_homing__
+set apply-groups __contrail_overlay_storm_control__
+set apply-groups __contrail_overlay_telemetry__
+set system root-authentication encrypted-password "$6$OyLj273F$L/qUmTuqLCtwqq.pPqaHS4p162SI4hBJUTqzj1AQyzl/ddNbZ0C.DGy1c/RaWAO0LMPfbSbmKidJEL0MABOqE."
+set system services ssh root-login allow
+set system services netconf ssh
+set system host-name vqfx195
+set system syslog user * any emergency
+set system syslog file messages any notice
+set system syslog file messages authorization info
+set system syslog file interactive-commands interactive-commands any
+set system extensions providers juniper license-type juniper deployment-scope commercial
+set system extensions providers chef license-type juniper deployment-scope commercial
+set interfaces xe-0/0/0 unit 0 family inet
+set interfaces xe-0/0/1 unit 0 family inet
+set interfaces xe-0/0/2 unit 0 family inet
+set interfaces em0 unit 0 family inet address 192.168.122.195/24
+set interfaces em1 unit 0 family inet address 169.254.0.2/24
+set interfaces lo0 unit 0 family inet
+set forwarding-options storm-control-profiles default all
+set policy-options policy-statement export-vmto-route term t1 from protocol evpn
+set policy-options policy-statement export-vmto-route term t1 from route-filter 172.18.0.0/16 prefix-length-range /32-/32
+set policy-options policy-statement export-vmto-route term t1 then accept
+set routing-options autonomous-system 64512
+set protocols bgp export export-vmto-route
+set protocols lldp interface xe-0/0/0
+set protocols lldp interface xe-0/0/1
+set protocols lldp interface xe-0/0/2
+set protocols igmp-snooping vlan default
+set vlans default vlan-id 1
+
+{master:0}
+root@vqfx195>
+
+
+
+
+root@vqfx191> show bgp summary
+Threading mode: BGP I/O
+Groups: 3 Peers: 6 Down peers: 0
+Table          Tot Paths  Act Paths Suppressed    History Damp State    Pending
+bgp.rtarget.0
+                      69         69          0          0          0          0
+bgp.evpn.0
+                     112         67          0          0          0          0
+inet.0
+                      16          8          0          0          0          0
+Peer                     AS      InPkt     OutPkt    OutQ   Flaps Last Up/Dwn State|#Active/Received/Accepted/Damped...
+172.16.11.251         64512       3658       4463       0       1  1d 3:05:28 Establ
+  bgp.evpn.0: 11/11/11/0
+  bgp.rtarget.0: 5/5/5/0
+172.16.12.1           65301        859        856       0       4     6:28:44 Establ
+  inet.0: 2/5/5/0
+172.16.12.130         65201       1610       1608       0       1    12:12:02 Establ
+  inet.0: 4/7/7/0
+172.16.21.251         64512       4520       4426       0       0  1d 3:48:35 Establ
+  bgp.evpn.0: 11/56/56/0
+  bgp.rtarget.0: 32/32/32/0
+172.18.11.98          64512       3869       4467       0       1  1d 3:03:35 Establ
+  bgp.evpn.0: 45/45/45/0
+  bgp.rtarget.0: 32/32/32/0
+
+{master:0}
+root@vqfx191> show ethernet-switching mac-ip-table
+
+{master:0}
+root@vqfx191> show ethernet-switching table
+
+{master:0}
+root@vqfx191> show evpn database
+
+{master:0}
+root@vqfx191>
+
+
+root@vqfx193> show bgp summary
+Threading mode: BGP I/O
+Groups: 3 Peers: 5 Down peers: 0
+Table          Tot Paths  Act Paths Suppressed    History Damp State    Pending
+bgp.rtarget.0
+                      67         67          0          0          0          0
+bgp.evpn.0
+                     109         64          0          0          0          0
+inet.0
+                      14          7          0          0          0          0
+Peer                     AS      InPkt     OutPkt    OutQ   Flaps Last Up/Dwn State|#Active/Received/Accepted/Damped...
+172.16.11.252         64512       4432       4523       0       0  1d 3:50:08 Establ
+  bgp.evpn.0: 8/53/53/0
+  bgp.rtarget.0: 32/32/32/0
+172.16.12.129         65300       1613       1613       0       1    12:13:34 Establ
+  inet.0: 6/10/10/0
+172.16.21.252         64512       3419       4206       0       1  1d 1:24:34 Establ
+  bgp.evpn.0: 11/11/11/0
+  bgp.rtarget.0: 4/4/4/0
+172.16.22.2           65200       2805       2789       0       5    21:04:57 Establ
+  inet.0: 1/4/4/0
+172.18.11.98          64512       3942       4487       0       1  1d 3:04:55 Establ
+  bgp.evpn.0: 45/45/45/0
+  bgp.rtarget.0: 31/31/31/0
+
+{master:0}
+root@vqfx193> show ethernet-switching mac-ip-table
+
+{master:0}
+root@vqfx193> show ethernet-switching table
+
+{master:0}
+root@vqfx193> show evpn database
+
+{master:0}
+root@vqfx193>
+
+
+root@vqfx194> show bgp summary
+Threading mode: BGP I/O
+Groups: 2 Peers: 2 Down peers: 0
+Table          Tot Paths  Act Paths Suppressed    History Damp State    Pending
+bgp.rtarget.0
+                      33         28          0          0          0          0
+bgp.evpn.0
+                      16         16          0          0          0          0
+inet.0
+                      11          8          0          0          0          0
+Peer                     AS      InPkt     OutPkt    OutQ   Flaps Last Up/Dwn State|#Active/Received/Accepted/Damped...
+172.16.11.252         64512       4456       3649       0       0  1d 3:02:09 Establ
+  __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f.evpn.0: 6/6/6/0
+  __default_evpn__.evpn.0: 0/0/0/0
+  bgp.evpn.0: 16/16/16/0
+  bgp.rtarget.0: 28/33/33/0
+  default-switch.evpn.0: 16/16/16/0
+172.16.12.2           65300        851        852       0       3     6:25:24 Establ
+  inet.0: 8/11/11/0
+
+root@vqfx194>
+
+root@vqfx194> show ethernet-switching mac-ip-table
+
+MAC IP flags  (S - Static, D - Dynamic, L - Local , R - Remote, K - Kernel, RT - Dest Route,
+               AD - Advt to remote, RE - Re-ARP/ND, RO - Router, OV - Override)
+ Routing instance : default-switch
+ Bridging domain : bd-19
+   IP                           MAC                  Flags             Logical            Active
+   address                      address                                Interface          source
+   10.0.11.1                    00:00:5e:01:00:01    S,K
+   10.0.11.4                    02:fc:03:ec:ea:e2    DR,K,RT           vtep.32769         172.18.11.98
+   10.0.11.101                  52:54:00:25:5e:43    DL,K,RT,AD        xe-0/0/4.0
+   10.0.11.111                  52:54:00:e4:4d:6b    DR,K,RT           vtep.32770         172.16.21.252
+
+MAC IP flags  (S - Static, D - Dynamic, L - Local , R - Remote, K - Kernel, RT - Dest Route,
+               AD - Advt to remote, RE - Re-ARP/ND, RO - Router, OV - Override)
+ Routing instance : default-switch
+ Bridging domain : bd-21
+   IP                           MAC                  Flags             Logical            Active
+   address                      address                                Interface          source
+   10.0.12.1                    00:00:5e:01:00:01    S,K
+   10.0.12.111                  52:54:00:e3:14:be    DR,K,RT           vtep.32770         172.16.21.252
+
+MAC IP flags  (S - Static, D - Dynamic, L - Local , R - Remote, K - Kernel, RT - Dest Route,
+               AD - Advt to remote, RE - Re-ARP/ND, RO - Router, OV - Override)
+ Routing instance : default-switch
+ Bridging domain : bd-7
+   IP                           MAC                  Flags             Logical            Active
+   address                      address                                Interface          source
+   172.18.11.1                  00:00:5e:01:00:01    S,K
+   172.18.11.98                 52:54:00:5d:19:71    DL,K,RT,AD        xe-0/0/3.0
+
+{master:0}
+root@vqfx194> show ethernet-switching table
+
+MAC flags (S - static MAC, D - dynamic MAC, L - locally learned, P - Persistent static
+           SE - statistics enabled, NM - non configured MAC, R - remote PE MAC, O - ovsdb MAC)
+
+
+Ethernet switching table : 5 entries, 5 learned
+Routing instance : default-switch
+   Vlan                MAC                 MAC      Logical                Active
+   name                address             flags    interface              source
+   bd-19               02:fc:03:ec:ea:e2   D        vtep.32769             172.18.11.98
+   bd-19               52:54:00:25:5e:43   D        xe-0/0/4.0
+   bd-19               52:54:00:e4:4d:6b   D        vtep.32770             172.16.21.252
+   bd-21               52:54:00:e3:14:be   D        vtep.32770             172.16.21.252
+   bd-7                52:54:00:5d:19:71   D        xe-0/0/3.0
+
+{master:0}
+root@vqfx194> show evpn database
+Instance: default-switch
+VLAN  DomainId  MAC address        Active source                  Timestamp        IP address
+     7          00:00:5e:01:00:01  irb.7                          Dec 26 05:15:13  172.18.11.1
+     7          52:54:00:5d:19:71  xe-0/0/3.0                     Dec 26 05:15:12  172.18.11.98
+     19         00:00:5e:01:00:01  irb.19                         Dec 26 06:15:25  10.0.11.1
+     19         02:fc:03:ec:ea:e2  172.18.11.98                   Dec 27 01:52:02  10.0.11.4
+     19         52:54:00:25:5e:43  xe-0/0/4.0                     Dec 26 06:17:46  10.0.11.101
+     19         52:54:00:e4:4d:6b  172.16.21.252                  Dec 27 01:52:02  10.0.11.111
+     21         00:00:5e:01:00:01  irb.21                         Dec 27 01:52:03  10.0.12.1
+     21         52:54:00:e3:14:be  172.16.21.252                  Dec 27 01:52:02  10.0.12.111
+
+{master:0}
+root@vqfx194> show route table _contrail
+error: No routing tables matching specification.
+
+{master:0}
+root@vqfx194> show route table __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f.inet.0
+
+__contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f.inet.0: 12 destinations, 14 routes (11 active, 0 holddown, 1 hidden)
+@ = Routing Use Only, # = Forwarding Use Only
++ = Active Route, - = Last Active, * = Both
+
+10.0.11.0/24       *[Direct/0] 1d 02:03:04
+                    >  via irb.19
+                    [EVPN/170] 06:26:27
+                    >  to 172.16.12.2 via xe-0/0/0.0
+10.0.11.1/32       *[Local/0] 1d 02:03:04
+                       Local via irb.19
+10.0.11.4/32       *[EVPN/170] 06:26:27
+                    >  to 172.18.11.98 via irb.7
+10.0.11.101/32     *[EVPN/7] 1d 02:00:43
+                    >  via irb.19
+10.0.11.111/32     *[EVPN/170] 06:26:27
+                    >  to 172.16.12.2 via xe-0/0/0.0
+10.0.12.0/24       *[Direct/0] 06:26:26
+                    >  via irb.21
+                    [EVPN/170] 06:26:27
+                    >  to 172.16.12.2 via xe-0/0/0.0
+10.0.12.1/32       *[Local/0] 06:26:26
+                       Local via irb.21
+10.0.12.111/32     *[EVPN/170] 06:26:27
+                    >  to 172.16.12.2 via xe-0/0/0.0
+172.16.0.15/32     *[EVPN/170] 06:26:27
+                    >  to 172.16.12.2 via xe-0/0/0.0
+172.16.0.18/32     *[Static/5] 1d 03:05:38
+                       Discard
+224.0.0.22/32      *[IGMP/0] 1d 01:16:45
+                       MultiRecv
+
+{master:0}
+root@vqfx194>
+
+
+
+
+root@vqfx195> show bgp summary
+Threading mode: BGP I/O
+Groups: 2 Peers: 2 Down peers: 0
+Table          Tot Paths  Act Paths Suppressed    History Damp State    Pending
+bgp.rtarget.0
+                      33         29          0          0          0          0
+bgp.evpn.0
+                      13         13          0          0          0          0
+inet.0
+                      12          9          0          0          0          0
+Peer                     AS      InPkt     OutPkt    OutQ   Flaps Last Up/Dwn State|#Active/Received/Accepted/Damped...
+172.16.21.251         64512       4199       3411       0       0  1d 1:21:39 Establ
+  __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f.evpn.0: 5/5/5/0
+  __default_evpn__.evpn.0: 0/0/0/0
+  bgp.evpn.0: 13/13/13/0
+  bgp.rtarget.0: 29/33/33/0
+  default-switch.evpn.0: 13/13/13/0
+172.16.22.1           65201       2783       2797       0       2    21:02:02 Establ
+  inet.0: 9/12/12/0
+
+{master:0}
+root@vqfx195> show ethernet-switching mac-ip-table
+
+MAC IP flags  (S - Static, D - Dynamic, L - Local , R - Remote, K - Kernel, RT - Dest Route,
+               AD - Advt to remote, RE - Re-ARP/ND, RO - Router, OV - Override)
+ Routing instance : default-switch
+ Bridging domain : bd-19
+   IP                           MAC                  Flags             Logical            Active
+   address                      address                                Interface          source
+   10.0.11.1                    00:00:5e:01:00:01    S,K
+   10.0.11.4                    02:fc:03:ec:ea:e2    DR,K,RT           vtep.32769         172.18.11.98
+   10.0.11.101                  52:54:00:25:5e:43    DR,K,RT           vtep.32770         172.16.11.251
+   10.0.11.111                  52:54:00:e4:4d:6b    DL,K,RT,AD        xe-0/0/3.0
+
+MAC IP flags  (S - Static, D - Dynamic, L - Local , R - Remote, K - Kernel, RT - Dest Route,
+               AD - Advt to remote, RE - Re-ARP/ND, RO - Router, OV - Override)
+ Routing instance : default-switch
+ Bridging domain : bd-21
+   IP                           MAC                  Flags             Logical            Active
+   address                      address                                Interface          source
+   10.0.12.1                    00:00:5e:01:00:01    S,K
+   10.0.12.111                  52:54:00:e3:14:be    DL,K,RT,AD        xe-0/0/4.0
+
+{master:0}
+root@vqfx195> show ethernet-switching table
+
+MAC flags (S - static MAC, D - dynamic MAC, L - locally learned, P - Persistent static
+           SE - statistics enabled, NM - non configured MAC, R - remote PE MAC, O - ovsdb MAC)
+
+
+Ethernet switching table : 4 entries, 4 learned
+Routing instance : default-switch
+   Vlan                MAC                 MAC      Logical                Active
+   name                address             flags    interface              source
+   bd-19               02:fc:03:ec:ea:e2   D        vtep.32769             172.18.11.98
+   bd-19               52:54:00:25:5e:43   D        vtep.32770             172.16.11.251
+   bd-19               52:54:00:e4:4d:6b   D        xe-0/0/3.0
+   bd-21               52:54:00:e3:14:be   D        xe-0/0/4.0
+
+{master:0}
+root@vqfx195> show route table __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f.inet.0
+
+__contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f.inet.0: 12 destinations, 14 routes (11 active, 0 holddown, 1 hidden)
+@ = Routing Use Only, # = Forwarding Use Only
++ = Active Route, - = Last Active, * = Both
+
+10.0.11.0/24       *[Direct/0] 1d 01:23:29
+                    >  via irb.19
+                    [EVPN/170] 06:28:02
+                    >  to 172.16.22.1 via xe-0/0/2.0
+10.0.11.1/32       *[Local/0] 1d 01:23:29
+                       Local via irb.19
+10.0.11.4/32       *[EVPN/170] 06:28:03
+                    >  to 172.16.22.1 via xe-0/0/2.0
+10.0.11.101/32     *[EVPN/170] 06:28:02
+                    >  to 172.16.22.1 via xe-0/0/2.0
+10.0.11.111/32     *[EVPN/7] 1d 01:17:47
+                    >  via irb.19
+10.0.12.0/24       *[Direct/0] 1d 01:18:24
+                    >  via irb.21
+                    [EVPN/170] 06:28:01
+                    >  to 172.16.22.1 via xe-0/0/2.0
+10.0.12.1/32       *[Local/0] 1d 01:18:24
+                       Local via irb.21
+10.0.12.111/32     *[EVPN/7] 1d 01:18:24
+                    >  via irb.21
+172.16.0.15/32     *[Static/5] 1d 01:25:43
+                       Discard
+172.16.0.18/32     *[EVPN/170] 06:28:02
+                    >  to 172.16.22.1 via xe-0/0/2.0
+224.0.0.22/32      *[IGMP/0] 02:33:52
+                       MultiRecv
+
+{master:0}
+root@vqfx195>
