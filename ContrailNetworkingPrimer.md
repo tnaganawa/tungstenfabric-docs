@@ -353,7 +353,7 @@ Overall idea is to set up EVPN peers between RRs in both fabrics, and make each 
 #### Implementation
 
 I'll start with this minimal setup (1912.32 is used).
- - diagram
+![multi-l2-fabric](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/multi-l2-fabric-diagram.png)
  
 Both fabric1 and fabric2 has one spine and one leaf, and spines have l3 connectivity between them.
  - super-spine could be between them, if they don't join EVPN peer
@@ -363,6 +363,14 @@ Firstly, greenfield onboarding or brownfield onboarding is done for two fabrics.
  - underlay bgp inside each fabric will be automatically configured if greenfield onboarding is used
 
 After that, spine's interfaces are manually configured ip, and unicast bgp between them.
+```
+vqfx191:
+ set interfaces xe-0/0/4 unit 0 family inet address 172.16.12.129/30
+ set protocols bgp group IPCLOS_eBGP neighbor 172.16.12.130 peer-as 65201
+vqfx193:
+ set interfaces xe-0/0/3 unit 0 family inet address 172.16.12.130/30
+ set protocols bgp group IPCLOS_eBGP neighbor 172.16.12.129 peer-as 65300
+```
 
 Finally, I configured Clusters > Advanced Options > bgp-router, and updated associated peer, to include other fabric's spine.
  - If one of the peers is configured, schema-transformer automatically update other side
@@ -372,6 +380,8 @@ and other objects like virtual-network, virtual-port-group, logical-router can b
  - RR and tungsten fabric control EVPN peer also will be up
 
 I'll attach BMS to BMS and BMS to VM ping result for L2, L3 traffic, for reference purpose.
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/multi-l2-fabric-vQFX-config.txt
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/multi-l2-fabric-ping-result.txt
 
 So it is not too difficult to configure multiple fabrics and vRouters under that, even if l2 extension between fabrics is a requirement.
 
