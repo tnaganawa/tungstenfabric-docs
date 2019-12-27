@@ -866,10 +866,6 @@ VLAN  DomainId  MAC address        Active source                  Timestamp     
      21         52:54:00:e3:14:be  172.16.21.252                  Dec 27 01:52:02  10.0.12.111
 
 {master:0}
-root@vqfx194> show route table _contrail
-error: No routing tables matching specification.
-
-{master:0}
 root@vqfx194> show route table __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f.inet.0
 
 __contrail_lr11_92ea70f6-d780-47f3-a2c5-5edb88b3819f.inet.0: 12 destinations, 14 routes (11 active, 0 holddown, 1 hidden)
