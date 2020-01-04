@@ -17,6 +17,7 @@ Table of Contents
       * [container deployment](#container-deployment)
       * [baremetal instance deployment](#baremetal-instance-deployment)
    * [Contrail SD-WAN](#contrail-sd-wan)
+   * [Troubleshooting Tips](#troubleshooting-tips)
 
 
 This document is to describe the difference between Contrail Networking and Tungsten Fabric.
@@ -726,3 +727,10 @@ Then it will receive IP by dhcp, do tftp to get kernel and boot, and do some tas
 ### baremetal instance deployment
 
 ## Contrail SD-WAN
+
+## Troubleshooting Tips
+### login to command failed for some reason
+1. Command internally uses 'local storage' (not only cookie) for login auth, so for some situation, it also needs to be cleared.
+ - Firefox: Web Developer > Storage Inspector > Local Storage > Delete All
+### fabric automation won't push correct configuration
+1. It internally expects that the first one of ENCAP_PRIORITY is VXLAN, so it needs to be set to have correct configuration.
