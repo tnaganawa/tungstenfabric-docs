@@ -2709,6 +2709,85 @@ to see flow action of this packet. If action was D(SG), it is dropped by securit
 ```
  If icmp works well and tcp / udp won't work well, please also check port lists are specified.
 
+### x. cni returned Poll VM-CFG 404 error
+
+In kubernetes deployment, cni sometimes returns this error and won't assign IPs to pod. (This is seen in various place such kubectl describe pod)
+```
+networkPlugin cni failed to set up pod "coredns-5644d7b6d9-p8fkk_kube-system" network: Failed in Poll VM-CFG. Error : Failed in PollVM. Error : Failed HTTP Get operation. Return code 404
+```
+
+This message is a generic error, and caused by several reasons .. 
+
+Internally, when pod is created, cni tries to receive its IP from vrouter-agent, which in turn receive that from control process by XMPP. 
+ - that is based on virtual-machine-interface info, which is created by kube-manager from kube-apiserver info.
+
+So to fix this issue, serveral steps need to be done.
+
+1. contrail-status on controller node
+ - config-api, control needs to be in ‘active’ state
+
+2. contrail-status on contrail-kube-manager node is in 'active' state
+ - this process will retrieve the info from kube-apiserver and create pod / load balancer etc on config-api
+ 
+3. contrail-status on vrouter node
+ - vrouter-agent needs to be in ‘active’ state
+ 
+4. if standalone kubernetes yaml is used, it has known limitation about race condition between vrouter registration and vrouter-agent restart.
+Restarting control might resolve this issue.
+```
+ # docker restart control_control_1
+```
+ 
+5. if everything is fine,
+ - /var/log/contrail/contrail-kube-manager.log
+ - /var/log/contrail/api-zk.log
+ - /var/log/contrail/contrail-vrouter-agent.log
+ - /var/log/contrail/cni/opencontrail.log <- cni log
+
+needs to be investigated further ..
+ - root cause might be xmpp issue, underlay issue, /etc/hosts issue and so on
+
+### x. disk is full
+
+When disk size is, say, 50GB, it might be full after one week or so from installtion.
+When this occured, analytics data need to be removed and analytics database need to be restarted.
+```
+[check analytics db size]
+du -smx /var/lib/docker/volumes/analytics_database_analytics_cassandra/_data/ContrailAnalyticsCql
+
+[if it is large, remove by this]
+rm -rf /var/lib/docker/volumes/analytics_database_analytics_cassandra/_data/ContrailAnalyticsCql
+docker-compose -f /etc/contrail/analytics_database/docker-compose.yaml down
+docker-compose -f /etc/contrail/analytics_database/docker-compose.yaml up -d
+```
+
+To avoid this issue in future, this knob can be used.
+```
+echo 'ANALYTICS_STATISTICS_TTL=2' >> /etc/contrail/common_analytics.env
+docker-compose -f /etc/contrail/analytics/docker-compose.yaml down
+docker-compose -f /etc/contrail/analytics/docker-compose.yaml up -d
+```
+
+### x. analytics cassandra state detected down
+
+If this error is seen in contrail-status, it states analytics cassandra is not working well.
+```
+== Contrail database ==
+nodemgr: initializing (Cassandra state detected DOWN.)
+```
+
+If JVM_EXTRA_OPTS: "-Xms128m -Xmx1g" is set, most likely the cause is java's OutOfMemory error, so it can be updated to something like
+```
+JVM_EXTRA_OPTS: "-Xms128m -Xmx2g"
+```
+in /etc/contrail/common.env,
+and analytics database can be restarted.
+```
+docker-compose -f /etc/contrail/analytics_database/docker-compose.yaml down
+docker-compose -f /etc/contrail/analytics_database/docker-compose.yaml up -d
+```
+
+
 # Appendix
 
 ## Cluster update
