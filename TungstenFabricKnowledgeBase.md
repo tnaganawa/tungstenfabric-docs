@@ -313,3 +313,78 @@ https://review.opencontrail.org/c/Juniper/contrail-specs/+/55761
 #### kubernetes multi master setup
 1. https://review.opencontrail.org/c/Juniper/contrail-controller/+/55758
 1. https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#k8sk8s
+
+#### tc-flower offload
+
+```
+For someone interested,
+
+I tried two vRouter setup and type those commands on one node to bypass vRouter datapath in favor of tc,
+and found tc-flower based vxlan datapath (egress) and vRouter's vxlan datapath can communicate :)
+ - ingress vxlan decap won't work well, I'm still investigating ..
+
+vRouter0: 172.31.4.175 (container, 10.0.1.251)
+vRouter1: 172.31.1.214 (container, 10.0.1.250, connected to tapeth0-038fdd)
+
+[from specific tap to known ip address, vxlan encap could be offloaded to tc]
+ - typed on vRouter1
+ip link set vxlan7 up
+ip link add vxlan7 type vxlan vni 7 dev ens5 dstport 0 external
+tc filter add dev tapeth0-038fdd protocol ip parent ffff: \
+                flower \
+                  ip_proto icmp dst_ip 10.0.1.251 \
+                action simple sdata "ttt" action tunnel_key set \
+                  src_ip 172.31.1.214 \
+                  dst_ip 172.31.4.175 \
+                  id 7 \
+                  dst_port 4789 \
+                action mirred egress redirect dev vxlan7
+
+[although for egress traffic vRouter1 is bypassed, it can still communicate]
+
+[root@ip-172-31-1-214 ~]# tcpdump -nn -i ens5 udp
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on ens5, link-type EN10MB (Ethernet), capture size 262144 bytes
+04:55:41.566458 IP 172.31.1.214.57877 > 172.31.4.175.4789: VXLAN, flags [I] (0x08), vni 7
+IP 10.0.1.250 > 10.0.1.251: ICMP echo request, id 60416, seq 180, length 64
+04:55:41.566620 IP 172.31.4.175.61117 > 172.31.1.214.4789: VXLAN, flags [I] (0x08), vni 7
+IP 10.0.1.251 > 10.0.1.250: ICMP echo reply, id 60416, seq 180, length 64
+04:55:42.570917 IP 172.31.1.214.57877 > 172.31.4.175.4789: VXLAN, flags [I] (0x08), vni 7
+IP 10.0.1.250 > 10.0.1.251: ICMP echo request, id 60416, seq 181, length 64
+04:55:42.571056 IP 172.31.4.175.61117 > 172.31.1.214.4789: VXLAN, flags [I] (0x08), vni 7
+IP 10.0.1.251 > 10.0.1.250: ICMP echo reply, id 60416, seq 181, length 64
+^C
+4 packets captured
+5 packets received by filter
+0 packets dropped by kernel
+[root@ip-172-31-1-214 ~]#
+
+/ # ping 10.0.1.251
+PING 10.0.1.251 (10.0.1.251): 56 data bytes
+64 bytes from 10.0.1.251: seq=0 ttl=64 time=5.183 ms
+64 bytes from 10.0.1.251: seq=1 ttl=64 time=4.587 ms
+^C
+--- 10.0.1.251 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 4.587/4.885/5.183 ms
+/ # 
+
+[tap's RX is not incrementing since that is bypassed (TX increments, since ingress traffic still uses vRouter datapath)]
+
+[root@ip-172-31-1-214 ~]# vif --get 8 | grep bytes
+            RX packets:3393  bytes:288094 errors:0
+            TX packets:3438  bytes:291340 errors:0
+[root@ip-172-31-1-214 ~]# vif --get 8 | grep bytes
+            RX packets:3393  bytes:288094 errors:0
+            TX packets:3439  bytes:291438 errors:0
+[root@ip-172-31-1-214 ~]# vif --get 8 | grep bytes
+            RX packets:3394  bytes:288136 errors:0
+            TX packets:3442  bytes:291676 errors:0
+[root@ip-172-31-1-214 ~]# vif --get 8 | grep bytes
+            RX packets:3394  bytes:288136 errors:0
+            TX packets:3444  bytes:291872 errors:0
+[root@ip-172-31-1-214 ~]# vif --get 8 | grep bytes
+            RX packets:3394  bytes:288136 errors:0
+            TX packets:3447  bytes:292166 errors:0
+[root@ip-172-31-1-214 ~]#
+```
