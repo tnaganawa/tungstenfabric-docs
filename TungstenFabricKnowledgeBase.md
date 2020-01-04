@@ -306,3 +306,10 @@ index e603207..c700d88 100644
  
    - name: Add compute hosts to virtual-hosts Aggregate Group
 ```
+
+#### security endpoint stats per tag as UVE
+https://review.opencontrail.org/c/Juniper/contrail-specs/+/55761
+
+#### kubernetes multi master setup
+1. https://review.opencontrail.org/c/Juniper/contrail-controller/+/55758
+1. https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#k8sk8s
