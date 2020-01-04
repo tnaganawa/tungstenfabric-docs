@@ -119,13 +119,16 @@ k8s master need to have at least 2 vCPUs and 8GB mem, and 8GB disk. k8s node nee
 
 ```
 ## all the commands are typed at k8s master node
-yum -y install epel-release git ansible-2.4.2.0
+yum -y remove PyYAML python-requests
+yum -y install git
+easy_install pip
+pip install PyYAML requests ansible==2.7.11
 ssh-keygen
 cd .ssh/
 cat id_rsa.pub >> authorized_keys
 ssh-copy-id root@(k8s node's ip) ## or manually register id_rsa.pub to authorized_keys
 cd
-git clone -b R5.0 http://github.com/Juniper/contrail-ansible-deployer
+git clone -b R5.1 http://github.com/Juniper/contrail-ansible-deployer
 cd contrail-ansible-deployer
 vi config/instances.yaml
 (replace contents with this)
@@ -156,7 +159,7 @@ instances:
      k8s_node:
    ip: 172.31.41.236 ## k8s node's ip
 contrail_configuration:
-  CONTRAIL_CONTAINER_TAG: r5.0.1
+  CONTRAIL_CONTAINER_TAG: r5.1
   KUBERNETES_CLUSTER_PROJECT: {}
   JVM_EXTRA_OPTS: "-Xms128m -Xmx1g"
 global_configuration:
