@@ -173,6 +173,10 @@ make KERNELDIR=/lib/modules/3.10.0-1062.el7.x86_64/build clean
 ### Nested kubernetes installation on openstack
 ### Tungsten fabric deployment on public cloud
 ### erm-vpn
+When erm-vpn is enabled, vrouter send multicast traffic to up to 4 nodes, to avoid ingress replication to all the nodes.
+Control implements a tree to send multicast packets to all nodes.
+ - https://tools.ietf.org/html/draft-marques-l3vpn-mcast-edge-00
+ - https://review.opencontrail.org/c/Juniper/contrail-controller/+/256
 
 ### Random tungsten fabric patch (not tested)
 #### static schedule for svc-monitor logic to choose available vRouters
