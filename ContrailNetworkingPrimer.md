@@ -16,7 +16,7 @@ Table of Contents
    * [Contrail multicloud](#contrail-multicloud)
       * [container deployment](#container-deployment)
       * [baremetal instance deployment](#baremetal-instance-deployment)
-   * [Contrail Insight](#contrail-insight)
+   * [Contrail Insights](#contrail-insights)
    * [Contrail SD-WAN](#contrail-sd-wan)
    * [Troubleshooting Tips](#troubleshooting-tips)
 
@@ -727,7 +727,7 @@ Then it will receive IP by dhcp, do tftp to get kernel and boot, and do some tas
 ### container deployment
 ### baremetal instance deployment
 
-## Contrail Insight
+## Contrail Insights
 ## Contrail SD-WAN
 
 ## Troubleshooting Tips
