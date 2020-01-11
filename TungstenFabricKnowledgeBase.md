@@ -170,6 +170,63 @@ cd /root/contrail/vrouter
 make KERNELDIR=/lib/modules/3.10.0-1062.el7.x86_64/build clean
 ```
 
+### multi kube-master deployment
+
+3 tungsten fabric controller nodes: m3.xlarge  
+100 kube-master, 800 workers: m3.medium
+
+tf-controller installation and first-containers.yaml is the same with this url
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#2-tungstenfabric-up-and-running
+
+Ami is also the same (ami-3185744e), but kernel version is updated by yum -y update kernel (converted to image, and it is used to start instances)
+
+/tmp/aaa.pem is the keypair, specified in ec2 instances
+
+```
+(commands are typed on one of tungsten fabric controller nodes)
+yum -y install epel-release
+yum -y install parallel
+
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].PrivateIpAddress' --output text | tr '\t' '\n' > /tmp/all.txt
+head -n 100 /tmp/all.txt > masters.txt
+tail -n 800 /tmp/all.txt > workers.txt
+
+ulimit -n 4096
+cat all.txt | parallel -j1000 ssh -i /tmp/aaa.pem -o StrictHostKeyChecking=no centos@{} id
+cat all.txt | parallel -j1000 ssh -i /tmp/aaa.pem centos@{} sudo sysctl -w net.bridge.bridge-nf-call-iptables=1
+ -
+cat -n masters.txt | parallel -j1000 -a - --colsep '\t' ssh -i /tmp/aaa.pem centos@{2} sudo kubeadm init --token aaaaaa.aaaabbbbccccdddd --ignore-preflight-errors=NumCPU --pod-network-cidr=10.32.{1}.0/24 --service-cidr=10.96.{1}.0/24 --service-dns-domain=cluster{1}.local
+-
+vi assign-kube-master.py
+computenodes=8
+with open ('masters.txt') as aaa:
+ with open ('workers.txt') as bbb:
+  for masternode in aaa.read().rstrip().split('\n'):
+   for i in range (computenodes):
+    tmp=bbb.readline().rstrip()
+    print ("{}\t{}".format(masternode, tmp))
+ -
+cat masters.txt | parallel -j1000 ssh -i /tmp/aaa.pem centos@{} sudo cp /etc/kubernetes/admin.conf /tmp/admin.conf
+cat masters.txt | parallel -j1000 ssh -i /tmp/aaa.pem centos@{} sudo chmod 644 /tmp/admin.conf
+cat -n masters.txt | parallel -j1000 -a - --colsep '\t' scp -i /tmp/aaa.pem centos@{2}:/tmp/admin.conf kubeconfig-{1}
+-
+cat -n masters.txt | parallel -j1000 -a - --colsep '\t' kubectl --kubeconfig=kubeconfig-{1} get node
+-
+cat -n join.txt | parallel -j1000 -a - --colsep '\t' ssh -i /tmp/aaa.pem centos@{3} sudo kubeadm join {2}:6443 --token aaaaaa.aaaabbbbccccdddd --discovery-token-unsafe-skip-ca-verification
+-
+(modify controller-ip in cni-tungsten-fabric.yaml)
+cat -n masters.txt | parallel -j1000 -a - --colsep '\t' cp cni-tungsten-fabric.yaml cni-{1}.yaml
+cat -n masters.txt | parallel -j1000 -a - --colsep '\t' sed -i -e "s/k8s2/k8s{1}/" -e "s/10.32.2/10.32.{1}/" -e "s/10.64.2/10.64.{1}/" -e "s/10.96.2/10.96.{1}/"  -e "s/172.31.x.x/{2}/" cni-{1}.yaml
+-
+cat -n masters.txt | parallel -j1000 -a - --colsep '\t' kubectl --kubeconfig=kubeconfig-{1} apply -f cni-{1}.yaml
+-
+sed -i 's!kubectl!kubectl --kubeconfig=/etc/kubernetes/admin.conf!' set-label.sh 
+cat masters.txt | parallel -j1000 scp -i /tmp/aaa.pem set-label.sh centos@{}:/tmp
+cat masters.txt | parallel -j1000 ssh -i /tmp/aaa.pem centos@{} sudo bash /tmp/set-label.sh
+-
+cat -n masters.txt | parallel -j1000 -a - --colsep '\t' kubectl --kubeconfig=kubeconfig-{1} create -f first-containers.yaml
+```
+
 ### Nested kubernetes installation on openstack
 ### Tungsten fabric deployment on public cloud
 ### erm-vpn
