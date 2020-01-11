@@ -182,6 +182,9 @@ Ami is also the same (ami-3185744e), but kernel version is updated by yum -y upd
 
 /tmp/aaa.pem is the keypair, specified in ec2 instances
 
+cni.yaml is attached:
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/multi-kube-master-deployment-cni-tungsten-fabric.yaml
+
 ```
 (commands are typed on one of tungsten fabric controller nodes)
 yum -y install epel-release
