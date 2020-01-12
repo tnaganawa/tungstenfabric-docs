@@ -831,6 +831,12 @@ Since it directly uses Tungsten Fabric db, some features, such as bridge assignm
 When a port is assigned vif-type: vrouter, which will be automatically done by 'create port' API through that neutron-plugin, it will use nova-vif-driver for vRouter (https://github.com/Juniper/contrail-nova-vif-driver), which will do some tasks other than just creating a tap device when called, such as creating vif on vRouter through vrouter-port-control script, etc.
  - In most cases, you don't need to delve into the detail of those behavior. Although in some situations like live migration stopped somewhere, you might need to be careful about the status of vif ..
 
+Note: One recent addition is tungsten fabric also has got ml2 based plugin.
+ - https://www.youtube.com/watch?v=4MkkMRR9U2s
+ - https://opendev.org/x/networking-opencontrail
+
+So if users already use ml2 with MySQL, they can firstly add vRouter as one of ml2 network-type, use that in specific virtual-network, and migrate from other ml2 plugin to vRouter by detach and attach interface. (optionally to replace neutron core plugin, if all the migration finished)
+
 ## kubernetes
 
 When used with kubernetes, the behavior is similar to openstack case, although it uses CNI for nova-vif-driver, and kube-manager for neutron-api.
