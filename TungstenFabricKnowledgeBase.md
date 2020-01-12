@@ -172,7 +172,7 @@ make KERNELDIR=/lib/modules/3.10.0-1062.el7.x86_64/build clean
 
 ### multi kube-master deployment
 
-3 tungsten fabric controller nodes: m3.xlarge  
+3 tungsten fabric controller nodes: m3.xlarge (4 vcpu) -> c3.4xlarge (16 vcpu) # since schema-transformer needed cpu resource for acl calculation, I need to add resource  
 100 kube-master, 800 workers: m3.medium
 
 tf-controller installation and first-containers.yaml is the same with this url
