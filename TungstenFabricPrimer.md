@@ -3655,6 +3655,303 @@ default via 192.168.131.254 dev eth0 proto static metric 100
 [root@centos153 ~]#
 ```
 
+### To configure EVPN T5 route
+
+Before R1908, to enable EVPN T5, vxlan-routing is a project level setting, so once this knob is enabled, all the logical-router are in type: vxlan-routing, and can't be used as snat-routing logical-router.
+ - https://github.com/Juniper/contrail-specs/blob/master/EVPN-type-5-support-in-Contrail.md
+
+After R1908, this setting can be set per logical-router.
+ - https://review.opencontrail.org/c/Juniper/contrail-controller/+/51794
+
+Having said that, currently there is no way to create vxlan-routing logical-router from webui (it can be created by API).
+
+One way to try this feature is, to modify config-api module to use vxlan-routing instead of snat-routing.
+```
+# docker exec -it config_api_1 bash
+  # sed -i 's/snat-routing/vxlan-routing/' /usr/lib/python2.7/site-packages/vnc_cfg_api_server/resources/logical_router.py
+  # exit
+# docker restart config_api_1
+```
+
+After this, when some logical-router is attached to a vitual-network, EVPN T5 route is sent to other bgp peer.
+ - Orchestrator needs to be openstack
+
+```
+(one VM is created in virtual-network vn1)
+(kolla-toolbox)[ansible@ip-172-31-13-153 /]$ openstack server list
++--------------------------------------+------+--------+--------------+--------+---------+
+| ID                                   | Name | Status | Networks     | Image  | Flavor  |
++--------------------------------------+------+--------+--------------+--------+---------+
+| e3a43979-a8ae-4f05-b065-0b0841cee47b | vm1  | ACTIVE | vn1=10.0.1.3 | cirros | m1.tiny |
++--------------------------------------+------+--------+--------------+--------+---------+
+(kolla-toolbox)[ansible@ip-172-31-13-153 /]$ 
+
+(when logical-router is not connected to vn1, no type 5 route is seen)
+[root@ip-172-31-13-153 ~]# ./contrail-introspect-cli/ist.py ctr route show --family evpn | grep ^5
+[root@ip-172-31-13-153 ~]# 
+
+
+(when logical-router is connected to vn1, type 5 route for this VM is sent to other bgp peer)
+[root@ip-172-31-13-153 ~]# ./contrail-introspect-cli/ist.py ctr route show --family evpn | grep ^5
+5-0:0-0-10.0.1.3/32, age: 0:00:07.126096, last_modified: 2020-Jan-12 13:50:27.307760
+5-172.31.13.153:3-0-10.0.1.3/32, age: 0:00:07.077088, last_modified: 2020-Jan-12 13:50:27.356768
+[root@ip-172-31-13-153 ~]# 
+```
+
+In addition, after R1912, EVPN T5 also can be used for service-chain route. (it can be used with vxlan)
+ - https://github.com/Juniper/contrail-specs/blob/master/R1912/bms-service-chaining.md
+
+To configure this, those procedure need to be followed.
+ - tested with opencontrailnightly:1912-latest, one node install is used (openstack controller, tungsten fabric controller, vRouter is used)
+
+1. Create two virtual-networks (vn1, vn2) and logical-routers (lr1, lr2)
+2. Connect lr1 to vn1, lr2 to vn2
+3. Check that virtual-network LR::lr1, LR::lr2 are automatically created
+```
+(kolla-toolbox)[ansible@ip-172-31-13-153 /]$ openstack network list
++--------------------------------------+-------------------------+--------------------------------------+
+| ID                                   | Name                    | Subnets                              |
++--------------------------------------+-------------------------+--------------------------------------+
+| 667344f9-36f1-4d56-8d9e-e5b8c856658b | LR::lr1                 | ab81f262-52d3-496f-825e-758ca5e6d60f |
+| 0acf42ab-f917-4a32-a95a-5f2a555e955d | ip-fabric               |                                      |
+| 5ac821b2-b823-4ea7-8be2-e1ee71547df8 | LR::lr2                 | 45b16ec8-0497-4610-843d-13d6913f4c41 |
+| 0a0e30c2-d2fa-46dd-bd6f-233897f156f4 | vn1                     | c739aa67-bad3-4a69-b110-797018579b22 |
+| 822b12ae-8b9c-4c32-be91-1611c245e761 | vn2                     | c67c9f25-8169-44dd-b1cd-8d9ab788a0da |
+| 16715adc-93cb-4297-847a-50fcbcdef98b | __link_local__          |                                      |
+| 95b08fcc-b027-407a-8b35-8470989b7d5a | dci-network             |                                      |
+| 728957ed-9db3-4502-b45a-2ce3ce0ed575 | default-virtual-network |                                      |
++--------------------------------------+-------------------------+--------------------------------------+
+(kolla-toolbox)[ansible@ip-172-31-13-153 /]$ 
+```
+
+4. add subnets to LR::lr1 and LR::lr2 (TF webui can be used for this)
+5. create VNF with vNICs in LR::lr1 and LR::lr2
+```
+(kolla-toolbox)[ansible@ip-172-31-13-153 /]$ openstack server list
++--------------------------------------+------------+--------+--------------------------------------+--------+---------+
+| ID                                   | Name       | Status | Networks                             | Image  | Flavor  |
++--------------------------------------+------------+--------+--------------------------------------+--------+---------+
+| 4477700f-8183-4f81-b7bf-7fb16e74aba8 | vm2        | ACTIVE | vn2=10.0.2.4                         | cirros | m1.tiny |
+| b631b50c-5ccf-4e48-86a8-bf390c174180 | lr1-to-lr2 | ACTIVE | LR::lr1=10.0.11.3; LR::lr2=10.0.12.3 | cirros | m1.tiny |
+| e3a43979-a8ae-4f05-b065-0b0841cee47b | vm1        | ACTIVE | vn1=10.0.1.3                         | cirros | m1.tiny |
++--------------------------------------+------------+--------+--------------------------------------+--------+---------+
+(kolla-toolbox)[ansible@ip-172-31-13-153 /]$ 
+```
+6. create service-instance, network-policy with LR::lr1 and LR::lr2, and attach network-policy to LR::lr1 and LR::lr2
+
+When everything works fine, EVPN T5 route with protocol ServiceChain, will be added
+```
+[root@ip-172-31-13-153 ~]# ./contrail-introspect-cli/ist.py ctr route show --family evpn | grep -e ^5 -e evpn -A 1 
+default-domain:admin:__contrail_lr_internal_vn_62651c76-7851-4459-8d54-41b2b1289e21__:__contrail_lr_internal_vn_62651c76-7851-4459-8d54-41b2b1289e21__.evpn.0: 2 destinations, 2 routes (1 primary, 1 secondary, 0 infeasible)
+
+5-0:0-0-10.0.1.3/32, age: 0:00:40.299110, last_modified: 2020-Jan-12 14:00:39.070835
+    [ServiceChain (service-interface)|None] age: 0:00:40.302293, localpref: 200, nh: 172.31.13.153, encap: ['vxlan'], label: 8, AS path: None
+--
+5-0:0-0-10.0.2.4/32, age: 0:04:22.046440, last_modified: 2020-Jan-12 13:56:57.323505
+    [XMPP|ip-172-31-13-153.local] age: 0:04:22.049981, localpref: 200, nh: 172.31.13.153, encap: ['vxlan'], label: 8, AS path: None
+--
+default-domain:admin:__contrail_lr_internal_vn_62651c76-7851-4459-8d54-41b2b1289e21__:service-20c08253-7212-40e2-8211-1548652de4b9-default-domain_admin_lr1-to-lr2.evpn.0: 2 destinations, 2 routes (1 primary, 1 secondary, 0 infeasible)
+
+5-0:0-0-10.0.1.3/32, age: 0:00:40.299524, last_modified: 2020-Jan-12 14:00:39.070421
+    [ServiceChain (service-interface)|None] age: 0:00:40.303335, localpref: 200, nh: 172.31.13.153, encap: ['vxlan'], label: 8, AS path: None
+--
+5-0:0-0-10.0.2.4/32, age: 0:00:40.316583, last_modified: 2020-Jan-12 14:00:39.053362
+    [XMPP|ip-172-31-13-153.local] age: 0:00:40.320727, localpref: 200, nh: 172.31.13.153, encap: ['vxlan'], label: 8, AS path: None
+--
+default-domain:admin:__contrail_lr_internal_vn_7693de7f-9b96-41de-84af-c6db113132e2__:__contrail_lr_internal_vn_7693de7f-9b96-41de-84af-c6db113132e2__.evpn.0: 2 destinations, 2 routes (1 primary, 1 secondary, 0 infeasible)
+
+5-0:0-0-10.0.1.3/32, age: 0:10:52.062185, last_modified: 2020-Jan-12 13:50:27.307760
+    [XMPP|ip-172-31-13-153.local] age: 0:10:52.066796, localpref: 200, nh: 172.31.13.153, encap: ['vxlan'], label: 6, AS path: None
+--
+5-0:0-0-10.0.2.4/32, age: 0:00:40.299766, last_modified: 2020-Jan-12 14:00:39.070179
+    [ServiceChain (service-interface)|None] age: 0:00:40.304752, localpref: 200, nh: 172.31.13.153, encap: ['vxlan'], label: 6, AS path: None
+--
+default-domain:admin:__contrail_lr_internal_vn_7693de7f-9b96-41de-84af-c6db113132e2__:service-20c08253-7212-40e2-8211-1548652de4b9-default-domain_admin_lr1-to-lr2.evpn.0: 2 destinations, 2 routes (1 primary, 1 secondary, 0 infeasible)
+
+5-0:0-0-10.0.1.3/32, age: 0:00:40.465418, last_modified: 2020-Jan-12 14:00:38.904527
+    [XMPP|ip-172-31-13-153.local] age: 0:00:40.470671, localpref: 200, nh: 172.31.13.153, encap: ['vxlan'], label: 6, AS path: None
+--
+5-0:0-0-10.0.2.4/32, age: 0:00:40.299958, last_modified: 2020-Jan-12 14:00:39.069987
+    [ServiceChain (service-interface)|None] age: 0:00:40.305449, localpref: 200, nh: 172.31.13.153, encap: ['vxlan'], label: 6, AS path: None
+--
+default-domain:admin:vn1:vn1.evpn.0: 4 destinations, 4 routes (4 primary, 0 secondary, 0 infeasible)
+
+--
+default-domain:admin:vn2:vn2.evpn.0: 4 destinations, 4 routes (4 primary, 0 secondary, 0 infeasible)
+
+--
+bgp.evpn.0: 13 destinations, 13 routes (0 primary, 13 secondary, 0 infeasible)
+
+--
+5-172.31.13.153:3-0-10.0.1.3/32, age: 0:10:52.013177, last_modified: 2020-Jan-12 13:50:27.356768
+    [XMPP|ip-172-31-13-153.local] age: 0:10:52.023700, localpref: 200, nh: 172.31.13.153, encap: ['vxlan'], label: 6, AS path: None
+--
+5-172.31.13.153:5-0-10.0.2.4/32, age: 0:04:22.046385, last_modified: 2020-Jan-12 13:56:57.323560
+    [XMPP|ip-172-31-13-153.local] age: 0:04:22.057108, localpref: 200, nh: 172.31.13.153, encap: ['vxlan'], label: 8, AS path: None
+--
+5-172.31.13.153:6-0-10.0.2.4/32, age: 0:00:40.299816, last_modified: 2020-Jan-12 14:00:39.070129
+    [ServiceChain (service-interface)|None] age: 0:00:40.310798, localpref: 200, nh: 172.31.13.153, encap: ['vxlan'], label: 6, AS path: None
+--
+5-172.31.13.153:7-0-10.0.1.3/32, age: 0:00:40.299164, last_modified: 2020-Jan-12 14:00:39.070781
+    [ServiceChain (service-interface)|None] age: 0:00:40.310369, localpref: 200, nh: 172.31.13.153, encap: ['vxlan'], label: 8, AS path: None
+--
+default-domain:default-project:ip-fabric:ip-fabric.evpn.0: 4 destinations, 4 routes (4 primary, 0 secondary, 0 infeasible)
+
+[root@ip-172-31-13-153 ~]#
+```
+
+vRouter's vrf also will got nh to VNF
+```
+[root@ip-172-31-13-153 ~]# ./contrail-introspect-cli/ist.py vr vrf
++--------------------------------------+---------+---------+---------+-----------+----------+--------------------------------------+
+| name                                 | ucindex | mcindex | brindex | evpnindex | vxlan_id | vn                                   |
++--------------------------------------+---------+---------+---------+-----------+----------+--------------------------------------+
+| default-domain:admin:__contrail_lr_i | 5       | 5       | 5       | 5         | 8        | default-domain:admin:__contrail_lr_i |
+| nternal_vn_62651c76-7851-4459-8d54-4 |         |         |         |           |          | nternal_vn_62651c76-7851-4459-8d54-4 |
+| 1b2b1289e21__:__contrail_lr_internal |         |         |         |           |          | 1b2b1289e21__                        |
+| _vn_62651c76-7851-4459-8d54-41b2b128 |         |         |         |           |          |                                      |
+| 9e21__                               |         |         |         |           |          |                                      |
+| default-domain:admin:__contrail_lr_i | 7       | 7       | 7       | 7         | 0        | N/A                                  |
+| nternal_vn_62651c76-7851-4459-8d54-4 |         |         |         |           |          |                                      |
+| 1b2b1289e21__:service-86899929-7419  |         |         |         |           |          |                                      |
+| -427a-9b3f-f8e4a3d990eb-default-     |         |         |         |           |          |                                      |
+| domain_admin_lr1-to-lr2              |         |         |         |           |          |                                      |
+| default-domain:admin                 | 3       | 3       | 3       | 3         | 6        | default-domain:admin                 |
+| :__contrail_lr_internal_vn_7693de7f- |         |         |         |           |          | :__contrail_lr_internal_vn_7693de7f- |
+| 9b96-41de-84af-c6db113132e2__        |         |         |         |           |          | 9b96-41de-84af-c6db113132e2__        |
+| :__contrail_lr_internal_vn_7693de7f- |         |         |         |           |          |                                      |
+| 9b96-41de-84af-c6db113132e2__        |         |         |         |           |          |                                      |
+| default-domain:admin                 | 6       | 6       | 6       | 6         | 0        | N/A                                  |
+| :__contrail_lr_internal_vn_7693de7f- |         |         |         |           |          |                                      |
+| 9b96-41de-84af-                      |         |         |         |           |          |                                      |
+| c6db113132e2__:service-86899929-7419 |         |         |         |           |          |                                      |
+| -427a-9b3f-f8e4a3d990eb-default-     |         |         |         |           |          |                                      |
+| domain_admin_lr1-to-lr2              |         |         |         |           |          |                                      |
+| default-domain:admin:vn1:vn1         | 2       | 2       | 2       | 2         | 5        | default-domain:admin:vn1             |
+| default-domain:admin:vn2:vn2         | 4       | 4       | 4       | 4         | 7        | default-domain:admin:vn2             |
+| default-domain:default-project:ip-   | 0       | 0       | 0       | 0         | 0        | N/A                                  |
+| fabric:__default__                   |         |         |         |           |          |                                      |
+| default-domain:default-project:ip-   | 1       | 1       | 1       | 1         | 2        | default-domain:default-project:ip-   |
+| fabric:ip-fabric                     |         |         |         |           |          | fabric                               |
++--------------------------------------+---------+---------+---------+-----------+----------+--------------------------------------+
+[root@ip-172-31-13-153 ~]# 
+[root@ip-172-31-13-153 ~]# ./contrail-introspect-cli/ist.py vr route -v 3
+0.255.255.252/32
+    [172.31.13.153] pref:200
+     to 2:34:66:61:a2:96 via tap346661a2-96, assigned_label:39, nh_index:46 , nh_type:interface, nh_policy:enabled, active_label:39, vxlan_id:0
+    [LocalVmPort] pref:200
+     to 2:34:66:61:a2:96 via tap346661a2-96, assigned_label:39, nh_index:46 , nh_type:interface, nh_policy:enabled, active_label:39, vxlan_id:0
+10.0.1.3/32
+    [EVPN-ROUTING] pref:200
+     to 2:98:88:3c:38:50 via tap98883c38-50, assigned_label:-1, nh_index:34 , nh_type:interface, nh_policy:enabled, active_label:6, vxlan_id:6
+10.0.2.4/32
+    [172.31.13.153] pref:200
+     to 2:34:66:61:a2:96 via tap346661a2-96, assigned_label:39, nh_index:46 , nh_type:interface, nh_policy:enabled, active_label:39, vxlan_id:0
+10.0.11.0/24
+    [Local] pref:100
+     nh_index:1 , nh_type:discard, nh_policy:disabled, active_label:-1, vxlan_id:0
+10.0.11.1/32
+    [Local] pref:100
+     to 0:0:0:0:0:1 via pkt0, assigned_label:-1, nh_index:13 , nh_type:interface, nh_policy:enabled, active_label:-1, vxlan_id:0
+10.0.11.2/32
+    [Local] pref:100
+     to 0:0:0:0:0:1 via pkt0, assigned_label:-1, nh_index:13 , nh_type:interface, nh_policy:enabled, active_label:-1, vxlan_id:0
+10.0.11.3/32
+    [172.31.13.153] pref:200
+     to 2:34:66:61:a2:96 via tap346661a2-96, assigned_label:39, nh_index:46 , nh_type:interface, nh_policy:enabled, active_label:39, vxlan_id:0
+    [LocalVmPort] pref:200
+     to 2:34:66:61:a2:96 via tap346661a2-96, assigned_label:39, nh_index:46 , nh_type:interface, nh_policy:enabled, active_label:39, vxlan_id:0
+169.254.169.254/32
+    [LinkLocal] pref:100
+     via vhost0, nh_index:11 , nh_type:receive, nh_policy:enabled, active_label:0, vxlan_id:0
+[root@ip-172-31-13-153 ~]# 
+[root@ip-172-31-13-153 ~]# ./contrail-introspect-cli/ist.py vr route -v 5
+0.255.255.251/32
+    [172.31.13.153] pref:200
+     to 2:15:37:f5:fa:fb via tap1537f5fa-fb, assigned_label:44, nh_index:51 , nh_type:interface, nh_policy:enabled, active_label:44, vxlan_id:0
+    [LocalVmPort] pref:200
+     to 2:15:37:f5:fa:fb via tap1537f5fa-fb, assigned_label:44, nh_index:51 , nh_type:interface, nh_policy:enabled, active_label:44, vxlan_id:0
+10.0.1.3/32
+    [172.31.13.153] pref:200
+     to 2:15:37:f5:fa:fb via tap1537f5fa-fb, assigned_label:44, nh_index:51 , nh_type:interface, nh_policy:enabled, active_label:44, vxlan_id:0
+10.0.2.4/32
+    [EVPN-ROUTING] pref:200
+     to 2:19:e0:a2:b:f3 via tap19e0a20b-f3, assigned_label:-1, nh_index:63 , nh_type:interface, nh_policy:enabled, active_label:8, vxlan_id:8
+10.0.12.0/24
+    [Local] pref:100
+     nh_index:1 , nh_type:discard, nh_policy:disabled, active_label:-1, vxlan_id:0
+10.0.12.1/32
+    [Local] pref:100
+     to 0:0:0:0:0:1 via pkt0, assigned_label:-1, nh_index:13 , nh_type:interface, nh_policy:enabled, active_label:-1, vxlan_id:0
+10.0.12.2/32
+    [Local] pref:100
+     to 0:0:0:0:0:1 via pkt0, assigned_label:-1, nh_index:13 , nh_type:interface, nh_policy:enabled, active_label:-1, vxlan_id:0
+10.0.12.3/32
+    [172.31.13.153] pref:100
+     to 2:15:37:f5:fa:fb via tap1537f5fa-fb, assigned_label:44, nh_index:51 , nh_type:interface, nh_policy:enabled, active_label:44, vxlan_id:0
+    [LocalVmPort] pref:100
+     to 2:15:37:f5:fa:fb via tap1537f5fa-fb, assigned_label:44, nh_index:51 , nh_type:interface, nh_policy:enabled, active_label:44, vxlan_id:0
+169.254.169.254/32
+    [LinkLocal] pref:100
+     via vhost0, nh_index:11 , nh_type:receive, nh_policy:enabled, active_label:0, vxlan_id:0
+[root@ip-172-31-13-153 ~]# 
+[root@ip-172-31-13-153 ~]# ./contrail-introspect-cli/ist.py vr route -v 6
+0.255.255.252/32
+    [172.31.13.153] pref:200
+     to 2:34:66:61:a2:96 via tap346661a2-96, assigned_label:39, nh_index:46 , nh_type:interface, nh_policy:enabled, active_label:39, vxlan_id:0
+10.0.2.4/32
+    [172.31.13.153] pref:200
+     to 2:34:66:61:a2:96 via tap346661a2-96, assigned_label:39, nh_index:46 , nh_type:interface, nh_policy:enabled, active_label:39, vxlan_id:0
+10.0.11.3/32
+    [172.31.13.153] pref:200
+     to 2:34:66:61:a2:96 via tap346661a2-96, assigned_label:39, nh_index:46 , nh_type:interface, nh_policy:enabled, active_label:39, vxlan_id:0
+[root@ip-172-31-13-153 ~]# 
+[root@ip-172-31-13-153 ~]# 
+[root@ip-172-31-13-153 ~]# ./contrail-introspect-cli/ist.py vr route -v 7
+0.255.255.251/32
+    [172.31.13.153] pref:200
+     to 2:15:37:f5:fa:fb via tap1537f5fa-fb, assigned_label:44, nh_index:51 , nh_type:interface, nh_policy:enabled, active_label:44, vxlan_id:0
+10.0.1.3/32
+    [172.31.13.153] pref:200
+     to 2:15:37:f5:fa:fb via tap1537f5fa-fb, assigned_label:44, nh_index:51 , nh_type:interface, nh_policy:enabled, active_label:44, vxlan_id:0
+10.0.12.3/32
+    [172.31.13.153] pref:100
+     to 2:15:37:f5:fa:fb via tap1537f5fa-fb, assigned_label:44, nh_index:51 , nh_type:interface, nh_policy:enabled, active_label:44, vxlan_id:0
+[root@ip-172-31-13-153 ~]# 
+
+[root@ip-172-31-13-153 ~]# ./contrail-introspect-cli/ist.py ctr route show --family l3vpn
+
+bgp.l3vpn.0: 9 destinations, 9 routes (0 primary, 9 secondary, 0 infeasible)
+
+172.31.13.153:1:172.31.13.153/32, age: 0:40:32.414715, last_modified: 2020-Jan-12 13:38:26.922346
+    [XMPP (interface)|ip-172-31-13-153.local] age: 0:40:32.418428, localpref: 100, nh: 172.31.13.153, encap: ['gre', 'udp', 'native'], label: 17, AS path: None
+
+172.31.13.153:2:10.0.1.3/32, age: 0:29:55.551280, last_modified: 2020-Jan-12 13:49:03.785781
+    [XMPP (interface)|ip-172-31-13-153.local] age: 0:29:55.555402, localpref: 200, nh: 172.31.13.153, encap: ['gre', 'udp'], label: 25, AS path: None
+
+172.31.13.153:3:0.255.255.252/32, age: 0:19:58.759556, last_modified: 2020-Jan-12 13:59:00.577505
+    [XMPP (service-interface)|ip-172-31-13-153.local] age: 0:19:58.763917, localpref: 200, nh: 172.31.13.153, encap: ['gre', 'udp'], label: 39, AS path: None
+
+172.31.13.153:3:10.0.11.3/32, age: 0:23:22.131030, last_modified: 2020-Jan-12 13:55:37.206031
+    [XMPP (interface)|ip-172-31-13-153.local] age: 0:23:22.135685, localpref: 200, nh: 172.31.13.153, encap: ['gre', 'udp'], label: 39, AS path: None
+
+172.31.13.153:4:10.0.2.4/32, age: 0:22:02.013695, last_modified: 2020-Jan-12 13:56:57.323366
+    [XMPP (interface)|ip-172-31-13-153.local] age: 0:22:02.018717, localpref: 200, nh: 172.31.13.153, encap: ['gre', 'udp'], label: 49, AS path: None
+
+172.31.13.153:5:0.255.255.251/32, age: 0:19:58.547299, last_modified: 2020-Jan-12 13:59:00.789762
+    [XMPP (service-interface)|ip-172-31-13-153.local] age: 0:19:58.552631, localpref: 200, nh: 172.31.13.153, encap: ['gre', 'udp'], label: 44, AS path: None
+
+172.31.13.153:5:10.0.12.3/32, age: 0:23:35.850393, last_modified: 2020-Jan-12 13:55:23.486668
+    [XMPP (interface)|ip-172-31-13-153.local] age: 0:23:35.856031, localpref: 100, nh: 172.31.13.153, encap: ['gre', 'udp'], label: 44, AS path: None
+
+172.31.13.153:6:10.0.2.4/32, age: 0:08:56.528333, last_modified: 2020-Jan-12 14:10:02.808728
+    [ServiceChain (service-interface)|None] age: 0:08:56.534255, localpref: 200, nh: 172.31.13.153, encap: ['gre', 'udp'], label: 39, AS path: None
+
+172.31.13.153:7:10.0.1.3/32, age: 0:08:56.527653, last_modified: 2020-Jan-12 14:10:02.809408
+    [ServiceChain (service-interface)|None] age: 0:08:56.533918, localpref: 200, nh: 172.31.13.153, encap: ['gre', 'udp'], label: 44, AS path: None
+[root@ip-172-31-13-153 ~]# 
+```
+
 ## Service-Chain (L2, L3, NAT), BGPaaS
 
 ### service-chain
