@@ -452,3 +452,36 @@ round-trip min/avg/max = 4.587/4.885/5.183 ms
             TX packets:3447  bytes:292166 errors:0
 [root@ip-172-31-1-214 ~]#
 ```
+
+#### vRouters on GCE cannot reach other nodes in the same subnet
+
+when vRouter is installed in GCE, it can't reach nodes in the same subnet.
+This patch fixes the issue.
+
+```
+diff --git a/containers/vrouter/agent/entrypoint.sh b/containers/vrouter/agent/entrypoint.sh
+index 18d15e2..222f5b4 100755
+--- a/containers/vrouter/agent/entrypoint.sh
++++ b/containers/vrouter/agent/entrypoint.sh
+@@ -131,20 +131,6 @@ vrouter_ip=${vrouter_cidr%/*}
+ agent_name=${VROUTER_HOSTNAME:-"$(resolve_hostname_by_ip $vrouter_ip)"}
+ [ -z "$agent_name" ] && agent_name="$DEFAULT_HOSTNAME"
+ 
+-# Google has point to point DHCP address to the VM, but we need to initialize
+-# with the network address mask. This is needed for proper forwarding of pkts
+-# at the vrouter interface
+-gcp=$(cat /sys/devices/virtual/dmi/id/chassis_vendor)
+-if [ "$gcp" == "Google" ]; then
+-    intfs=$(curl -s http://metadata.google.internal/computeMetadata/v1beta1/instance/network-interfaces/)
+-    for intf in $intfs ; do
+-        if [[ $phys_int_mac == "$(curl -s http://metadata.google.internal/computeMetadata/v1beta1/instance/network-interfaces/${intf}/mac)" ]]; then
+-            mask=$(curl -s http://metadata.google.internal/computeMetadata/v1beta1/instance/network-interfaces/${intf}/subnetmask)
+-            vrouter_cidr=$vrouter_ip/$(mask2cidr $mask)
+-        fi
+-    done
+-fi
+-
+ vrouter_gateway_opts=''
+ if [[ -n "$VROUTER_GATEWAY" ]] ; then
+     vrouter_gateway_opts="gateway=$VROUTER_GATEWAY"
+```
