@@ -238,6 +238,413 @@ Control implements a tree to send multicast packets to all nodes.
  - https://tools.ietf.org/html/draft-marques-l3vpn-mcast-edge-00
  - https://review.opencontrail.org/c/Juniper/contrail-controller/+/256
 
+### vRouter ml2 plugin 
+
+I tried ml2 feature of vRouter neutron plugin.
+ - https://opendev.org/x/networking-opencontrail/
+ - https://www.youtube.com/watch?v=4MkkMRR9U2s
+
+Three CentOS7.5 (4 cpu, 16 GB mem, 30 GB disk, ami: ami-3185744e) on aws are used.
+Procedure is attached.
+
+```
+openstack-controller: 172.31.15.248
+tungsten-fabric-controller (vRouter): 172.31.10.212
+nova-compute (ovs): 172.31.0.231
+
+(commands are on tungsten-fabric-controller, centos user is used (not root))
+
+sudo yum -y remove PyYAML python-requests
+sudo yum -y install git patch
+sudo easy_install pip
+sudo pip install PyYAML requests ansible==2.8.8
+ssh-keygen
+ add id_rsa.pub to authorized_keys on all three nodes (centos user (not root))
+
+git clone https://opendev.org/x/networking-opencontrail.git
+cd networking-opencontrail
+patch -p1 < ml2-vrouter.diff 
+
+cd playbooks
+cp -i hosts.example hosts
+cp -i group_vars/all.yml.example group_vars/all.yml
+
+(ssh to all the nodes once, to update known_hosts)
+
+ansible-playbook main.yml -i hosts
+
+ - devstack's logs are in /opt/stack/logs/stack.sh.log
+ - openstack processes' log are written in /var/log/messages
+ - 'systemctl list-unit-files | grep devstack' show systemctl entry of openstack processes
+
+(openstack controller node)
+ if devstack failed with mariadb login error, please type this to fix. (last two lines need to be modified for openstack controller's ip and fqdn)
+ commands will be typed by 'centos' user (not root).
+   mysqladmin -u root password admin
+   mysql -uroot -padmin -h127.0.0.1 -e 'GRANT ALL PRIVILEGES ON *.* TO '\''root'\''@'\''%'\'' identified by '\''admin'\'';'
+   mysql -uroot -padmin -h127.0.0.1 -e 'GRANT ALL PRIVILEGES ON *.* TO '\''root'\''@'\''172.31.15.248'\'' identified by '\''admin'\'';'
+   mysql -uroot -padmin -h127.0.0.1 -e 'GRANT ALL PRIVILEGES ON *.* TO '\''root'\''@'\''ip-172-31-15-248.ap-northeast-1.compute.internal'\'' identified by '\''admin'\'';'
+```
+
+hosts, group_vars/all, and patch is attached. (some are bugfix only, but some change the default behavior)
+```
+[centos@ip-172-31-10-212 playbooks]$ cat hosts
+controller ansible_host=172.31.15.248 ansible_user=centos
+
+# This host should be one from the compute host group.
+# Playbooks are not prepared to deploy tungsten fabric compute node separately.
+contrail_controller ansible_host=172.31.10.212 ansible_user=centos local_ip=172.31.10.212
+
+[contrail]
+contrail_controller
+
+[openvswitch]
+other_compute ansible_host=172.31.0.231 local_ip=172.31.0.231 ansible_user=centos
+
+[compute:children]
+contrail
+openvswitch
+[centos@ip-172-31-10-212 playbooks]$ cat group_vars/all.yml
+---
+# IP address for OpenConrail (e.g. 192.168.0.2)
+contrail_ip: 172.31.10.212
+
+# Gateway address for OpenConrail (e.g. 192.168.0.1)
+contrail_gateway:
+
+# Interface name for OpenConrail (e.g. eth0)
+contrail_interface:
+
+# IP address for OpenStack VM (e.g. 192.168.0.3)
+openstack_ip: 172.31.15.248
+
+# OpenStack branch used on VMs.
+openstack_branch: stable/queens
+
+# Optionally use different plugin version (defaults to value of OpenStack branch)
+networking_plugin_version: master
+
+# Tungsten Fabric docker image tag for contrail-ansible-deployer
+contrail_version: master-latest
+
+# If true, then install networking_bgpvpn plugin with contrail driver
+install_networking_bgpvpn_plugin: false
+
+# If true, integration with Device Manager will be enabled and vRouter
+# encapsulation priorities will be set to 'VXLAN,MPLSoUDP,MPLSoGRE'.
+dm_integration_enabled: false
+
+# Optional path to file with topology for DM integration. When set and
+# DM integration enabled, topology.yaml file will be copied to this location
+dm_topology_file:
+
+# If true, password to the created instances for current ansible user
+# will be set to value of instance_password
+change_password: false
+# instance_password: uberpass1
+
+# If set, override docker deamon /etc config file with this data
+# docker_config:
+[centos@ip-172-31-10-212 playbooks]$ 
+
+
+
+[centos@ip-172-31-10-212 networking-opencontrail]$ cat ml2-vrouter.diff 
+diff --git a/playbooks/roles/contrail_node/tasks/main.yml b/playbooks/roles/contrail_node/tasks/main.yml
+index ee29b05..272ee47 100644
+--- a/playbooks/roles/contrail_node/tasks/main.yml
++++ b/playbooks/roles/contrail_node/tasks/main.yml
+@@ -7,7 +7,6 @@
+       - epel-release
+       - gcc
+       - git
+-      - ansible-2.4.*
+       - yum-utils
+       - libffi-devel
+     state: present
+@@ -61,20 +60,20 @@
+     chdir: ~/contrail-ansible-deployer/
+     executable: /bin/bash
+ 
+-- name: Generate ssh key for provisioning other nodes
+-  openssh_keypair:
+-    path: ~/.ssh/id_rsa
+-    state: present
+-  register: contrail_deployer_ssh_key
+-
+-- name: Propagate generated key
+-  authorized_key:
+-    user: "{{ ansible_user }}"
+-    state: present
+-    key: "{{ contrail_deployer_ssh_key.public_key }}"
+-  delegate_to: "{{ item }}"
+-  with_items: "{{ groups.contrail }}"
+-  when: contrail_deployer_ssh_key.public_key
++#- name: Generate ssh key for provisioning other nodes
++#  openssh_keypair:
++#    path: ~/.ssh/id_rsa
++#    state: present
++#  register: contrail_deployer_ssh_key
++#
++#- name: Propagate generated key
++#  authorized_key:
++#    user: "{{ ansible_user }}"
++#    state: present
++#    key: "{{ contrail_deployer_ssh_key.public_key }}"
++#  delegate_to: "{{ item }}"
++#  with_items: "{{ groups.contrail }}"
++#  when: contrail_deployer_ssh_key.public_key
+ 
+ - name: Provision Node before deploy contrail
+   shell: |
+@@ -105,4 +104,4 @@
+     sleep: 5
+     host: "{{ contrail_ip }}"
+     port: 8082
+-    timeout: 300
+\ No newline at end of file
++    timeout: 300
+diff --git a/playbooks/roles/contrail_node/templates/instances.yaml.j2 b/playbooks/roles/contrail_node/templates/instances.yaml.j2
+index e3617fd..81ea101 100644
+--- a/playbooks/roles/contrail_node/templates/instances.yaml.j2
++++ b/playbooks/roles/contrail_node/templates/instances.yaml.j2
+@@ -14,6 +14,7 @@ instances:
+       config_database:
+       config:
+       control:
++      analytics:
+       webui:
+ {% if "contrail_controller" in groups["contrail"] %}
+       vrouter:
+diff --git a/playbooks/roles/docker/tasks/main.yml b/playbooks/roles/docker/tasks/main.yml
+index 8d7971b..5ed9352 100644
+--- a/playbooks/roles/docker/tasks/main.yml
++++ b/playbooks/roles/docker/tasks/main.yml
+@@ -6,7 +6,6 @@
+       - epel-release
+       - gcc
+       - git
+-      - ansible-2.4.*
+       - yum-utils
+       - libffi-devel
+     state: present
+@@ -62,4 +61,4 @@
+       - docker-py==1.10.6
+       - docker-compose==1.9.0
+     state: present
+-    extra_args: --user
+\ No newline at end of file
++    extra_args: --user
+diff --git a/playbooks/roles/node/tasks/main.yml b/playbooks/roles/node/tasks/main.yml
+index 0fb1751..d9ab111 100644
+--- a/playbooks/roles/node/tasks/main.yml
++++ b/playbooks/roles/node/tasks/main.yml
+@@ -1,13 +1,21 @@
+ ---
+-- name: Update kernel
++- name: Install required utilities
+   become: yes
+   yum:
+-    name: kernel
+-    state: latest
+-  register: update_kernel
++    name:
++      - python3-devel
++      - libibverbs  ## needed by openstack controller node
++    state: present
+ 
+-- name: Reboot the machine
+-  become: yes
+-  reboot:
+-  when: update_kernel.changed
+-  register: reboot_machine
++#- name: Update kernel
++#  become: yes
++#  yum:
++#    name: kernel
++#    state: latest
++#  register: update_kernel
++#
++#- name: Reboot the machine
++#  become: yes
++#  reboot:
++#  when: update_kernel.changed
++#  register: reboot_machine
+diff --git a/playbooks/roles/restack_node/tasks/main.yml b/playbooks/roles/restack_node/tasks/main.yml
+index a11e06e..f66d2ee 100644
+--- a/playbooks/roles/restack_node/tasks/main.yml
++++ b/playbooks/roles/restack_node/tasks/main.yml
+@@ -9,7 +9,7 @@
+   become: yes
+   pip:
+     name:
+-      - setuptools
++      - setuptools==43.0.0
+       - requests
+     state: forcereinstall
+ 
+
+[centos@ip-172-31-10-212 networking-opencontrail]$ 
+
+```
+
+
+
+About 50 minutes is needed for installation to finish. 
+
+Although /home/centos/devstack/openrc can be used for 'demo' user login, admin access is needed to specify network-type (empty for vRouter, 'vxlan' for ovs),
+so adminrc need to be manually created.
+
+
+```
+[centos@ip-172-31-15-248 ~]$ cat adminrc 
+export OS_PROJECT_DOMAIN_ID=default
+export OS_REGION_NAME=RegionOne
+export OS_USER_DOMAIN_ID=default
+export OS_PROJECT_NAME=admin
+export OS_IDENTITY_API_VERSION=3
+export OS_PASSWORD=admin
+export OS_AUTH_TYPE=password
+export OS_AUTH_URL=http://172.31.15.248/identity  ## this needs to be modified
+export OS_USERNAME=admin
+export OS_TENANT_NAME=admin
+export OS_VOLUME_API_VERSION=2
+[centos@ip-172-31-15-248 ~]$ 
+
+
+openstack network create testvn
+openstack subnet create --subnet-range 192.168.100.0/24 --network testvn subnet1
+openstack network create --provider-network-type vxlan testvn-ovs
+openstack subnet create --subnet-range 192.168.110.0/24 --network testvn-ovs subnet1-ovs
+
+ - two virtual-networks are created
+[centos@ip-172-31-15-248 ~]$ openstack network list
++--------------------------------------+------------+--------------------------------------+
+| ID                                   | Name       | Subnets                              |
++--------------------------------------+------------+--------------------------------------+
+| d4e08516-71fc-401b-94fb-f52271c28dc9 | testvn-ovs | 991417ab-7da5-44ed-b686-8a14abbe46bb |
+| e872b73e-100e-4ab0-9c53-770e129227e8 | testvn     | 27d828eb-ada4-4113-a6f8-df7dde2c43a4 |
++--------------------------------------+------------+--------------------------------------+
+[centos@ip-172-31-15-248 ~]$
+
+ - testvn's provider:network_type is empty
+
+[centos@ip-172-31-15-248 ~]$ openstack network show testvn
++---------------------------+--------------------------------------+
+| Field                     | Value                                |
++---------------------------+--------------------------------------+
+| admin_state_up            | UP                                   |
+| availability_zone_hints   |                                      |
+| availability_zones        | nova                                 |
+| created_at                | 2020-01-18T16:14:42Z                 |
+| description               |                                      |
+| dns_domain                | None                                 |
+| id                        | e872b73e-100e-4ab0-9c53-770e129227e8 |
+| ipv4_address_scope        | None                                 |
+| ipv6_address_scope        | None                                 |
+| is_default                | None                                 |
+| is_vlan_transparent       | None                                 |
+| mtu                       | 1500                                 |
+| name                      | testvn                               |
+| port_security_enabled     | True                                 |
+| project_id                | 84a573dbfadb4a198ec988e36c4f66f6     |
+| provider:network_type     | local                                |
+| provider:physical_network | None                                 |
+| provider:segmentation_id  | None                                 |
+| qos_policy_id             | None                                 |
+| revision_number           | 3                                    |
+| router:external           | Internal                             |
+| segments                  | None                                 |
+| shared                    | False                                |
+| status                    | ACTIVE                               |
+| subnets                   | 27d828eb-ada4-4113-a6f8-df7dde2c43a4 |
+| tags                      |                                      |
+| updated_at                | 2020-01-18T16:14:44Z                 |
++---------------------------+--------------------------------------+
+[centos@ip-172-31-15-248 ~]$ 
+
+ - and it is created in tungsten fabric's db
+
+(venv) [root@ip-172-31-10-212 ~]# contrail-api-cli --host 172.31.10.212 ls -l virtual-network
+virtual-network/e872b73e-100e-4ab0-9c53-770e129227e8  default-domain:admin:testvn
+virtual-network/5a88a460-b049-4114-a3ef-d7939853cb13  default-domain:default-project:dci-network
+virtual-network/f61d52b0-6577-42e0-a61f-7f1834a2f45e  default-domain:default-project:__link_local__
+virtual-network/46b5d74a-24d3-47dd-bc82-c18f6bc706d7  default-domain:default-project:default-virtual-network
+virtual-network/52925e2d-8c5d-4573-9317-2c346fb9edf0  default-domain:default-project:ip-fabric
+virtual-network/2b0469cf-921f-4369-93a7-2d73350c82e7  default-domain:default-project:_internal_vn_ipv6_link_local
+(venv) [root@ip-172-31-10-212 ~]# 
+
+
+ - on the other hand, testvn-ovs's provider:network_type is vxlan, and segmentation id, mtu is automatically specified
+
+[centos@ip-172-31-15-248 ~]$ openstack network show testvn
++---------------------------+--------------------------------------+
+| Field                     | Value                                |
++---------------------------+--------------------------------------+
+| admin_state_up            | UP                                   |
+| availability_zone_hints   |                                      |
+| availability_zones        | nova                                 |
+| created_at                | 2020-01-18T16:14:42Z                 |
+| description               |                                      |
+| dns_domain                | None                                 |
+| id                        | e872b73e-100e-4ab0-9c53-770e129227e8 |
+| ipv4_address_scope        | None                                 |
+| ipv6_address_scope        | None                                 |
+| is_default                | None                                 |
+| is_vlan_transparent       | None                                 |
+| mtu                       | 1500                                 |
+| name                      | testvn                               |
+| port_security_enabled     | True                                 |
+| project_id                | 84a573dbfadb4a198ec988e36c4f66f6     |
+| provider:network_type     | local                                |
+| provider:physical_network | None                                 |
+| provider:segmentation_id  | None                                 |
+| qos_policy_id             | None                                 |
+| revision_number           | 3                                    |
+| router:external           | Internal                             |
+| segments                  | None                                 |
+| shared                    | False                                |
+| status                    | ACTIVE                               |
+| subnets                   | 27d828eb-ada4-4113-a6f8-df7dde2c43a4 |
+| tags                      |                                      |
+| updated_at                | 2020-01-18T16:14:44Z                 |
++---------------------------+--------------------------------------+
+[centos@ip-172-31-15-248 ~]$ openstack network show testvn-ovs
++---------------------------+--------------------------------------+
+| Field                     | Value                                |
++---------------------------+--------------------------------------+
+| admin_state_up            | UP                                   |
+| availability_zone_hints   |                                      |
+| availability_zones        | nova                                 |
+| created_at                | 2020-01-18T16:14:47Z                 |
+| description               |                                      |
+| dns_domain                | None                                 |
+| id                        | d4e08516-71fc-401b-94fb-f52271c28dc9 |
+| ipv4_address_scope        | None                                 |
+| ipv6_address_scope        | None                                 |
+| is_default                | None                                 |
+| is_vlan_transparent       | None                                 |
+| mtu                       | 1450                                 |
+| name                      | testvn-ovs                           |
+| port_security_enabled     | True                                 |
+| project_id                | 84a573dbfadb4a198ec988e36c4f66f6     |
+| provider:network_type     | vxlan                                |
+| provider:physical_network | None                                 |
+| provider:segmentation_id  | 50                                   |
+| qos_policy_id             | None                                 |
+| revision_number           | 3                                    |
+| router:external           | Internal                             |
+| segments                  | None                                 |
+| shared                    | False                                |
+| status                    | ACTIVE                               |
+| subnets                   | 991417ab-7da5-44ed-b686-8a14abbe46bb |
+| tags                      |                                      |
+| updated_at                | 2020-01-18T16:14:49Z                 |
++---------------------------+--------------------------------------+
+[centos@ip-172-31-15-248 ~]$ 
+
+```
+
 ### Random tungsten fabric patch (not tested)
 #### static schedule for svc-monitor logic to choose available vRouters
 ```
