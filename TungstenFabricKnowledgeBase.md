@@ -245,7 +245,9 @@ I tried ml2 feature of vRouter neutron plugin.
  - https://www.youtube.com/watch?v=4MkkMRR9U2s
 
 Three CentOS7.5 (4 cpu, 16 GB mem, 30 GB disk, ami: ami-3185744e) on aws are used.
-Procedure is attached.
+
+Procedure based on this document is attached.
+ - https://opendev.org/x/networking-opencontrail/src/branch/master/doc/source/installation/playbooks.rst
 
 ```
 openstack-controller: 172.31.15.248
