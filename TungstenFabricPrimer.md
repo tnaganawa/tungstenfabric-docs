@@ -837,6 +837,9 @@ Note: One recent addition is tungsten fabric also has got ml2 based plugin.
 
 So if users already use ml2 with MySQL, they can firstly add vRouter as one of ml2 network-type, use that in specific virtual-network, and migrate from other ml2 plugin to vRouter by detach and attach interface. (optionally to replace neutron core plugin, if all the migration finished)
 
+Some installation detail is also added.
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricKnowledgeBase.md#vrouter-ml2-plugin
+
 ## kubernetes
 
 When used with kubernetes, the behavior is similar to openstack case, although it uses CNI for nova-vif-driver, and kube-manager for neutron-api.
