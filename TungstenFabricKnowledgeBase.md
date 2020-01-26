@@ -1,4 +1,24 @@
 
+
+Table of Contents
+=================
+
+   * [Tungsten Fabric Knowledge Base](#tungsten-fabric-knowledge-base)
+      * [some configuration knobs which are not documented well](#some-configuration-knobs-which-are-not-documented-well)
+         * [forwarding mode](#forwarding-mode)
+         * [flood unknown unicast](#flood-unknown-unicast)
+         * [allow tranisit](#allow-tranisit)
+         * [multiple service chain](#multiple-service-chain)
+      * [charm install](#charm-install)
+      * [How to build tungsten fabric](#how-to-build-tungsten-fabric)
+      * [multi kube-master deployment](#multi-kube-master-deployment)
+      * [Nested kubernetes installation on openstack](#nested-kubernetes-installation-on-openstack)
+      * [Tungsten fabric deployment on public cloud](#tungsten-fabric-deployment-on-public-cloud)
+      * [erm-vpn](#erm-vpn)
+      * [vRouter ml2 plugin](#vrouter-ml2-plugin)
+      * [Random tungsten fabric patch (not tested)](#random-tungsten-fabric-patch-not-tested)
+
+
 # Tungsten Fabric Knowledge Base
 
 Miscellaneous topics for various deployment of tungsten fabric, which is not included in primer document.
