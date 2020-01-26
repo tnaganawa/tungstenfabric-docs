@@ -1,3 +1,6 @@
+
+# Tungsten Fabric Knowledge Base
+
 Miscellaneous topics for various deployment of tungsten fabric, which is not included in primer document.
 
 
@@ -154,7 +157,7 @@ juju ssh 0
     lxc restart juju-cb8047-0-lxd-4
 ```
 
-### How to build tungsten fabric
+## How to build tungsten fabric
 
 This repo's readme mostly worked well.
 https://github.com/Juniper/contrail-dev-env
@@ -207,7 +210,7 @@ cd /root/contrail/vrouter
 make KERNELDIR=/lib/modules/3.10.0-1062.el7.x86_64/build clean
 ```
 
-### multi kube-master deployment
+## multi kube-master deployment
 
 3 tungsten fabric controller nodes: m3.xlarge (4 vcpu) -> c3.4xlarge (16 vcpu) # since schema-transformer needed cpu resource for acl calculation, I need to add resource  
 100 kube-master, 800 workers: m3.medium
@@ -267,7 +270,7 @@ cat masters.txt | parallel -j1000 ssh -i /tmp/aaa.pem centos@{} sudo bash /tmp/s
 cat -n masters.txt | parallel -j1000 -a - --colsep '\t' kubectl --kubeconfig=kubeconfig-{1} create -f first-containers.yaml
 ```
 
-### Nested kubernetes installation on openstack
+## Nested kubernetes installation on openstack
 
 Nested kubernetes installation can be tried on all-in-one openstack node.
 
@@ -296,14 +299,14 @@ KUBERNESTES_NESTED_VROUTER_VIP: {{ KUBERNESTES_NESTED_VROUTER_VIP }} ## this par
 
 If coredns received ip, nested installation is working fine.
 
-### Tungsten fabric deployment on public cloud
-### erm-vpn
+## Tungsten fabric deployment on public cloud
+## erm-vpn
 When erm-vpn is enabled, vrouter send multicast traffic to up to 4 nodes, to avoid ingress replication to all the nodes.
 Control implements a tree to send multicast packets to all nodes.
  - https://tools.ietf.org/html/draft-marques-l3vpn-mcast-edge-00
  - https://review.opencontrail.org/c/Juniper/contrail-controller/+/256
 
-### vRouter ml2 plugin 
+## vRouter ml2 plugin 
 
 I tried ml2 feature of vRouter neutron plugin.
  - https://opendev.org/x/networking-opencontrail/
@@ -712,7 +715,7 @@ virtual-network/2b0469cf-921f-4369-93a7-2d73350c82e7  default-domain:default-pro
 
 ```
 
-### Random tungsten fabric patch (not tested)
+## Random tungsten fabric patch (not tested)
 #### static schedule for svc-monitor logic to choose available vRouters
 ```
 diff --git a/src/config/svc-monitor/svc_monitor/scheduler/vrouter_scheduler.py b
