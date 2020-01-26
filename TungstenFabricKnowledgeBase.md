@@ -326,6 +326,103 @@ Control implements a tree to send multicast packets to all nodes.
  - https://tools.ietf.org/html/draft-marques-l3vpn-mcast-edge-00
  - https://review.opencontrail.org/c/Juniper/contrail-controller/+/256
 
+To illustrate this feature, I created a cluster with 20 kubernetes workers, and deployment with 20 replica.
+ - default-k8s-pod-network is not used, since it is l3-only forwarding mode. Instead, vn1 (10.0.1.0/24) is manually defined
+
+In this setup, this command will dump the next-hops which will send overlay BUM traffic.
+ - vrf 2 has vn1's route on each worker node
+ - all.txt has 20 nodes' IP
+ - When BUM packets are sent from containers on 'Introspect Host', they are sent to 'dip' address by unicast overlay
+
+```
+[root@ip-172-31-12-135 ~]# for i in $(cat all.txt); do ./contrail-introspect-cli/ist.py --host $i vr route -v 2 --family layer2 ff:ff:ff:ff:ff:ff -r | grep -w -e dip -e Introspect | sort -r | uniq ; done
+Introspect Host: 172.31.15.27
+                  dip: 172.31.7.18
+Introspect Host: 172.31.4.249
+                  dip: 172.31.9.151
+                  dip: 172.31.9.108
+                  dip: 172.31.8.233
+                  dip: 172.31.2.127
+                  dip: 172.31.10.233
+Introspect Host: 172.31.14.220
+                  dip: 172.31.7.6
+Introspect Host: 172.31.8.219
+                  dip: 172.31.3.56
+Introspect Host: 172.31.7.223
+                  dip: 172.31.3.56
+Introspect Host: 172.31.2.127
+                  dip: 172.31.7.6
+                  dip: 172.31.7.18
+                  dip: 172.31.4.249
+                  dip: 172.31.3.56
+Introspect Host: 172.31.14.255
+                  dip: 172.31.7.6
+Introspect Host: 172.31.7.6
+                  dip: 172.31.2.127
+                  dip: 172.31.14.255
+                  dip: 172.31.14.220
+                  dip: 172.31.13.115
+                  dip: 172.31.11.208
+Introspect Host: 172.31.10.233
+                  dip: 172.31.4.249
+Introspect Host: 172.31.15.232
+                  dip: 172.31.7.18
+Introspect Host: 172.31.9.108
+                  dip: 172.31.4.249
+Introspect Host: 172.31.8.233
+                  dip: 172.31.4.249
+Introspect Host: 172.31.8.206
+                  dip: 172.31.3.56
+Introspect Host: 172.31.7.142
+                  dip: 172.31.3.56
+Introspect Host: 172.31.15.210
+                  dip: 172.31.7.18
+Introspect Host: 172.31.11.208
+                  dip: 172.31.7.6
+Introspect Host: 172.31.13.115
+                  dip: 172.31.9.151
+Introspect Host: 172.31.7.18
+                  dip: 172.31.2.127
+                  dip: 172.31.15.27
+                  dip: 172.31.15.232
+                  dip: 172.31.15.210
+Introspect Host: 172.31.3.56
+                  dip: 172.31.8.219
+                  dip: 172.31.8.206
+                  dip: 172.31.7.223
+                  dip: 172.31.7.142
+                  dip: 172.31.2.127
+Introspect Host: 172.31.9.151
+                  dip: 172.31.13.115
+[root@ip-172-31-12-135 ~]# 
+```
+
+As an example, I tried to send a ping to multicast address ($ ping 224.0.0.1) from a container on worker 172.31.7.18, and it sent 4 packets to compute nodes which is included in dip list.
+
+```
+[root@ip-172-31-7-18 ~]# tcpdump -nn -i eth0 -v udp port 6635
+
+15:02:29.883608 IP (tos 0x0, ttl 64, id 0, offset 0, flags [none], proto UDP (17), length 170)
+    172.31.7.18.63685 > 172.31.2.127.6635: UDP, length 142
+15:02:29.883623 IP (tos 0x0, ttl 64, id 0, offset 0, flags [none], proto UDP (17), length 170)
+    172.31.7.18.63685 > 172.31.15.27.6635: UDP, length 142
+15:02:29.883626 IP (tos 0x0, ttl 64, id 0, offset 0, flags [none], proto UDP (17), length 170)
+    172.31.7.18.63685 > 172.31.15.210.6635: UDP, length 142
+15:02:29.883629 IP (tos 0x0, ttl 64, id 0, offset 0, flags [none], proto UDP (17), length 170)
+    172.31.7.18.63685 > 172.31.15.232.6635: UDP, length 142
+```
+
+And other nodes (172.31.7.223), which is not defined as direct next-hop, also received multicast packet, although it has some increased latency.
+ - In this case, 2 extra hop is needed: 172.31.7.18 -> 172.31.2.127 -> 172.31.3.56 ->172.31.7.223 
+
+```
+[root@ip-172-31-7-223 ~]# tcpdump -nn -i eth0 -v udp port 6635
+
+15:02:29.884070 IP (tos 0x0, ttl 64, id 0, offset 0, flags [none], proto UDP (17), length 170)
+    172.31.3.56.56541 > 172.31.7.223.6635: UDP, length 142
+```
+
+
 ## vRouter ml2 plugin 
 
 I tried ml2 feature of vRouter neutron plugin.
