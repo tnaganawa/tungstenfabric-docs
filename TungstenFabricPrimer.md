@@ -3955,6 +3955,17 @@ bgp.l3vpn.0: 9 destinations, 9 routes (0 primary, 9 secondary, 0 infeasible)
 [root@ip-172-31-13-153 ~]# 
 ```
 
+### vlan-based and vlan-aware for EVPN T2
+
+In EVPN T2, there are two flavors vlan-based, and vlan-aware, and they are mutually incompatible.
+
+Tungsten Fabric controller, by default, uses vlan-aware flavor, so their evpn t2 route can't be imported by several datacenter switches, which only supports vlan-based flavor.
+ - https://bugs.launchpad.net/juniperopenstack/+bug/1781102
+
+Having said that, this patch (and container based on R1912) makes ethernet tag id zero, and it is reported that some switches begin importing T2 route, if this is applied
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricKnowledgeBase.md#vlan-base-interop
+ - https://hub.docker.com/r/tnaganawa/contrail-controller-control-control
+
 ## Service-Chain (L2, L3, NAT), BGPaaS
 
 ### service-chain
