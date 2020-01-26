@@ -268,6 +268,34 @@ cat -n masters.txt | parallel -j1000 -a - --colsep '\t' kubectl --kubeconfig=kub
 ```
 
 ### Nested kubernetes installation on openstack
+
+Nested kubernetes installation can be tried on all-in-one openstack node.
+
+After that node is intalled by ansible-deployer,
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#openstack-1
+
+one subnet for virtual-network will be created
+ - for example, underlay1, 10.0.1.0/24, SNAT is checked
+
+Additionally, link local service for vRouter TCP/9091 need to be manually created
+ - https://github.com/Juniper/contrail-kubernetes-docs/blob/master/install/kubernetes/nested-kubernetes.md#option-1-fabric-snat--link-local-preferred
+
+This configuration will create DNAT/SNAT, such as from src: 10.0.1.3:xxxx, dst-ip: 10.1.1.11:9091 to src: compute's vhost0 ip:xxxx dst-ip: 127.0.0.1:9091, so CNI inside openstack VM can directly communicate to vrouter-agent on the compute node, and pick port / ip info for containers.
+ - ip address can be either one from the subnet or outside of the subnet.
+
+On that node, two Centos7 (or ubuntu bionic) nodes will be created, and kubernetes cluster will be installed with the same procedure with this url,
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#kubeadm
+
+although yaml file needs to the one for nested install.
+```
+./resolve-manifest.sh contrail-nested-kubernetes.yaml > cni-tungsten-fabric.yaml
+
+KUBEMANAGER_NESTED_MODE: "{{ KUBEMANAGER_NESTED_MODE }}" ## this needs to be "1"
+KUBERNESTES_NESTED_VROUTER_VIP: {{ KUBERNESTES_NESTED_VROUTER_VIP }} ## this parameter needs to be the same IP with the one defined in link-local service (such as 10.1.1.11)
+```
+
+If coredns received ip, nested installation is working fine.
+
 ### Tungsten fabric deployment on public cloud
 ### erm-vpn
 When erm-vpn is enabled, vrouter send multicast traffic to up to 4 nodes, to avoid ingress replication to all the nodes.
