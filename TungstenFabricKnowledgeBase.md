@@ -894,3 +894,30 @@ index 18d15e2..222f5b4 100755
  if [[ -n "$VROUTER_GATEWAY" ]] ; then
      vrouter_gateway_opts="gateway=$VROUTER_GATEWAY"
 ```
+
+#### when it will be used with multus
+
+By default, vRouter CNI uses thick-plugin mode, and it can assign multiple vRouter vnic to a container by itself.
+https://github.com/Juniper/contrail-specs/blob/master/5.1/K8s_pods_multiple_interfaces.md
+
+Unfortunately, it is not compabtible with multus (but I haven't yet fully tested), so when it is used with other CNI (such as SR-IOV, bridge, ..), meta-plugin mode (by default, false is used) need to be specified.
+ - I guess if only one vNIC is used, meta-plugin parameter won't change something, but I haven't yet tested.
+
+```
+(contrail-container-builder)
+
+diff --git a/containers/kubernetes/cni-init/entrypoint.sh b/containers/kubernetes/cni-init/entrypoint.sh
+index 01a4698..18d36c8 100755
+--- a/containers/kubernetes/cni-init/entrypoint.sh
++++ b/containers/kubernetes/cni-init/entrypoint.sh
+@@ -41,7 +41,8 @@ cat << EOM > /host/etc_cni/net.d/10-contrail.conf
+         "poll-timeout"  : 5,
+         "poll-retries"  : 15,
+         "log-file"      : "$LOG_DIR/cni/opencontrail.log",
+-        "log-level"     : "4"
++        "log-level"     : "4",
++        "meta-plugin"     : true
+     },
+ 
+     "name": "contrail-k8s-cni",
+```
