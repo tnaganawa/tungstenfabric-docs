@@ -1,5 +1,42 @@
 Miscellaneous topics for various deployment of tungsten fabric, which is not included in primer document.
 
+
+## some configuration knobs which are not documented well
+
+### forwarding mode
+
+vRouter has several forwarding mode.
+ - https://bugs.launchpad.net/juniperopenstack/+bug/1471637
+
+By default, it will use l2 / l3 mode. L3 mode and L2 mode also have some usecase.
+
+
+### flood unknown unicast
+
+This knob is used when l2 BMS connectivity is used.
+- https://bugs.launchpad.net/juniperopenstack/+bug/1424523
+
+By default, vRouter will drop unknown unicast, since controller knows all mac address of VMs, although it is not the case when l2 BMS is used.
+
+This knob need to be enabled in such case.
+
+
+### allow tranisit
+
+This knob is used with service-chain feature.
+ - https://bugs.launchpad.net/opencontrail/+bug/1365277
+
+When VM1 - VN1 - VNF1 - VN2 - VNF2 - VN3 - VM2 is created and VN1-VN2, VN2-VN3 service-chain is configured, by default, VM1 can't ping VM2, since ServiceChain prefix is not transitive.
+
+When this knob is enabled in VN2, prefix in VN1 will be imported to VN3 and vice versa, so VM1 can ping to VM3.
+
+### multiple service chain
+
+I actually never tried this knob.
+
+Detail is described in this url.
+ - https://bugs.launchpad.net/juniperopenstack/+bug/1505023
+ 
 ## charm install
 
 Tungsten Fabric can also be installed by juju charm.
