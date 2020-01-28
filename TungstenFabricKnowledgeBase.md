@@ -320,6 +320,19 @@ KUBERNESTES_NESTED_VROUTER_VIP: {{ KUBERNESTES_NESTED_VROUTER_VIP }} ## this par
 If coredns received ip, nested installation is working fine.
 
 ## Tungsten fabric deployment on public cloud
+
+When installed on public cloud, vRouter needs to have floating-ip from underlay IP, since no hardware which serve MPLS over IP or VXLAN is avalaible ..
+
+Fortunately, since 4.1, tungsten fabric supports gatewayless feature, so it won't have much difficulty to serve floating-ip from that virtual-network (idea is to attach another IP with ENI, and make it the source of floating-ip, to make the service on vRouter accessible from the outside world)
+ - https://github.com/Juniper/contrail-specs/blob/master/gateway-less-forwarding.md
+
+From vRouter to the outside world, Distribute SNAT feature would do the trick.
+ - https://github.com/Juniper/contrail-specs/blob/master/distributed-snat.md
+ - SNAT with floating-ip also would work well
+
+Additionally, it would be also possible to define two separate load balancers on vRouters to reach the same application, to make it accessble from two different avaibility zones, which potentially ensure higher availablity.
+ - to be investigated
+
 ## erm-vpn
 When erm-vpn is enabled, vrouter send multicast traffic to up to 4 nodes, to avoid ingress replication to all the nodes.
 Control implements a tree to send multicast packets to all nodes.
