@@ -1106,3 +1106,60 @@ index 01a4698..18d36c8 100755
  
      "name": "contrail-k8s-cni",
 ```
+
+#### multi vCenter setup
+
+Tungsten fabric controller nodes serve as many vcenter-plugins as number of vCenters.
+
+Since each vCenter has several ESXi under them, each vcenter-manager on vRouterVM on ESXi with specific vCenter need to be configured with that tenant name (instead of hard-coded 'vCenter' tenant)
+
+```
+contrail-vcenter-plugin:
+diff --git a/src/net/juniper/contrail/vcenter/VCenterMonitor.java b/src/net/juniper/contrail/vcenter/VCenterMonitor.java
+index d5c0043..294ee99 100644
+--- a/src/net/juniper/contrail/vcenter/VCenterMonitor.java
++++ b/src/net/juniper/contrail/vcenter/VCenterMonitor.java
+@@ -74,7 +74,7 @@ public class VCenterMonitor {
+     private static String _authurl           = "http://10.84.24.54:35357/v2.0";
+ 
+     private static String _zookeeperAddrPort  = "127.0.0.1:2181";
+-    private static String _zookeeperLatchPath = "/vcenter-plugin";
++    private static String _zookeeperLatchPath = "/vcenter-plugin"; // make this configurable
+     private static String _zookeeperId        = "node-vcenter-plugin";
+ 
+     static volatile Mode mode  = Mode.VCENTER_ONLY;
+diff --git a/src/net/juniper/contrail/vcenter/VncDB.java b/src/net/juniper/contrail/vcenter/VncDB.java
+index 9d004b7..a831a37 100644
+--- a/src/net/juniper/contrail/vcenter/VncDB.java
++++ b/src/net/juniper/contrail/vcenter/VncDB.java
+@@ -61,8 +61,8 @@ public class VncDB {
+     Mode mode;
+ 
+     public static final String VNC_ROOT_DOMAIN     = "default-domain";
+-    public static final String VNC_VCENTER_PROJECT = "vCenter";
+-    public static final String VNC_VCENTER_IPAM    = "vCenter-ipam";
++    public static final String VNC_VCENTER_PROJECT = "vCenter"; // make this configurable
++    public static final String VNC_VCENTER_IPAM    = "vCenter-ipam"; // make this configurable
+     public static final String VNC_VCENTER_DEFAULT_SG    = "default";
+     public static final String VNC_VCENTER_PLUGIN  = "vcenter-plugin";
+     public static final String VNC_VCENTER_TEST_PROJECT = "vCenter-test";
+
+
+contrail-vcenter-manager:
+diff --git a/cvm/constants.py b/cvm/constants.py
+index 0dcabab..4b30299 100644
+--- a/cvm/constants.py
++++ b/cvm/constants.py
+@@ -31,8 +31,8 @@ VM_UPDATE_FILTERS = [
+     'runtime.powerState',
+ ]
+ VNC_ROOT_DOMAIN = 'default-domain'
+-VNC_VCENTER_PROJECT = 'vCenter'
+-VNC_VCENTER_IPAM = 'vCenter-ipam'
++VNC_VCENTER_PROJECT = 'vCenter' ## make this configurable
++VNC_VCENTER_IPAM = 'vCenter-ipam' ## make this configurable
+ VNC_VCENTER_IPAM_FQN = [VNC_ROOT_DOMAIN, VNC_VCENTER_PROJECT, VNC_VCENTER_IPAM]
+ VNC_VCENTER_DEFAULT_SG = 'default'
+ VNC_VCENTER_DEFAULT_SG_FQN = [VNC_ROOT_DOMAIN, VNC_VCENTER_PROJECT, VNC_VCENTER_DEFAULT_SG]
+```
+
