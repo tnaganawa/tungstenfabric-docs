@@ -4201,6 +4201,10 @@ Since kube-manager supports one parameter cluster_name, which modifies the tenan
 
 This behavior might be changed in future release.
 
+Note:  
+From R2002 and later, this patch fixed the issue and custom patch is not needed anymore.
+ - https://review.opencontrail.org/c/Juniper/contrail-controller/+/55758
+ 
 Note:
 Applying these patch, it seems possible to add multiple kube-master to one Tungsten Fabric cluster.
 
