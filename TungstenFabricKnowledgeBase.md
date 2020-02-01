@@ -1066,6 +1066,8 @@ when vRouter is installed in GCE, it can't reach nodes in the same subnet.
 This patch fixes the issue.
 
 ```
+(contrail-container-builder)
+
 diff --git a/containers/vrouter/agent/entrypoint.sh b/containers/vrouter/agent/entrypoint.sh
 index 18d15e2..222f5b4 100755
 --- a/containers/vrouter/agent/entrypoint.sh
@@ -1091,6 +1093,25 @@ index 18d15e2..222f5b4 100755
  vrouter_gateway_opts=''
  if [[ -n "$VROUTER_GATEWAY" ]] ; then
      vrouter_gateway_opts="gateway=$VROUTER_GATEWAY"
+```
+
+```
+(contrail-controller)
+
+diff --git a/src/vnsw/agent/init/agent_param.cc b/src/vnsw/agent/init/agent_param.cc
+index abc0977..733212c 100644
+--- a/src/vnsw/agent/init/agent_param.cc
++++ b/src/vnsw/agent/init/agent_param.cc
+@@ -442,7 +442,7 @@ void AgentParam::ParseVirtualHostArguments
+     string ip;
+     if (GetOptValue<string>(var_map, ip, "VIRTUAL-HOST-INTERFACE.ip")) {
+         ec = Ip4PrefixParse(ip, &vhost_.addr_, &vhost_.plen_);
+-        if (ec != 0 || vhost_.plen_ >= 32) {
++        if (ec != 0 || vhost_.plen_ > 32) {
+             cout << "Error parsing vhost ip argument from <" << ip << ">\n";
+         }
+     }
+
 ```
 
 #### when it will be used with multus
