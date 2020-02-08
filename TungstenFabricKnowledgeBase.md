@@ -4,6 +4,7 @@ Table of Contents
 =================
 
    * [Tungsten Fabric Knowledge Base](#tungsten-fabric-knowledge-base)
+      * [vRouter internal](#vrouter-internal)
       * [some configuration knobs which are not documented well](#some-configuration-knobs-which-are-not-documented-well)
          * [forwarding mode](#forwarding-mode)
          * [flood unknown unicast](#flood-unknown-unicast)
@@ -23,6 +24,79 @@ Table of Contents
 
 Miscellaneous topics for various deployment of tungsten fabric, which is not included in primer document.
 
+
+## vRouter internal
+
+### vhost0 device
+
+when vRouter is firstly started, it will create vhost0 interface, and the ip and mac which originally assigned to physical interface, will be moved to vhost0.
+
+So natural assumption is that, vhost0 is the vrouter itself, and it does arp response to the external fabric, and the traffic firstly go through vhost0, and enter the VM after that.
+```
+transit traffic:
+ vm - vhost0 - eth0
+self traffic:
+ vhost0 - eth0
+```
+
+Actually, this is not the case.
+ - As an illustration, when tcpdump is done against vhost0 for overlay traffic such as vxlan, it won't show some packets, and tcpdump against physical interface is needed for that purpose ..
+
+Going through the source code, this diagram is the one actually used.
+ - this document is also helpful to understand this: https://wiki.tungsten.io/display/TUN/Offloads?preview=%2F1409118%2F1409513%2FTungsten+Fabric+ParaVirt+Offload+Arch.DOCX
+```
+transit traffic:
+ vm - (dp-core) - eth0
+self traffic:
+ vhost0 - (dp-core) - eth0
+```
+
+In this diagram, vhost0 is similar to irb in some bridge domain served by dp-core, and eth0 is one of the l2 interface in this bridge-domain.
+ - In vrouter term, this state is called 'xconnect (cross-connect)', which is, in my understanding, similar to bridging: https://github.com/Juniper/contrail-vrouter/blob/master/dp-core/vr_interface.c#L231
+ - bridge-domain is a similar concept with linux bridge, and it can have several physical l2-interfaces and one internal l3-interface.
+
+So when eth0 firstly received arp requests from fabric, dp-core will return arp response, based on the mac address originally assigned to eth0.
+
+Then other compute nodes will send some traffic, such as overlay traffic or self-traffic to that vRouter node.
+
+When overlay traffic is used (it is identified by dp-core, based on udp port or gre header), dp-core will strip outer ip and label, and do vrf routing to the specific vm which the label indicates.
+ - when l3 vxlan is used, it will do route lookup based on the routing table in l3 vrf
+ - when mpls is used, the label itself identifies the final interface.
+
+When it receives self traffic, dp-core will use hif_rx in vhost_tx (which, in turn, uses linux function netif_rx, with skb as an argument) to send the traffic to the linux interface, which is vhost0, on vRouter node.
+ - https://github.com/Juniper/contrail-vrouter/blob/master/dp-core/vr_interface.c#L813
+ - https://github.com/Juniper/contrail-vrouter/blob/master/linux/vr_host_interface.c#L2380
+ - https://github.com/Juniper/contrail-vrouter/blob/master/linux/vr_host_interface.c#L228
+
+So for rx / tx for self-traffic, packets always go through dp-core, and for transit traffic, it won't go through vhost0.
+
+### skb to vr_packet
+
+Linux network stack uses sk_buff as the memory store of packet data.
+
+In dp-core, instead, vr_packet is used, so it is an interesting subject how they are converted to each other.
+
+For that purpose, vp_os_packet function is used.
+ - https://github.com/Juniper/contrail-vrouter/blob/master/include/vr_linux.h#L10
+```
+static inline struct sk_buff *
+vp_os_packet(struct vr_packet *pkt)
+{
+    return CONTAINER_OF(cb, struct sk_buff, pkt);
+}
+```
+
+So vr_packet is actually defined in some location in skb struct (sk_buff->cb, which is a member variable used by some application), so skb and vr_packet can be converted by pointer operation.
+
+
+One note, since cb's maximum size is 48 bytes, vr_packet can't be larger than that. Some comments describe this.
+https://github.com/Juniper/contrail-vrouter/blob/master/include/vr_packet.h#L195-L198
+```
+/*
+ * NOTE: Please do not add any more fields without ensuring
+ * that the size is <= 48 bytes in 64 bit systems.
+ */
+```
 
 ## some configuration knobs which are not documented well
 
