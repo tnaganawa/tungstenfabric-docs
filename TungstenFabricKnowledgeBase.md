@@ -1182,6 +1182,13 @@ index 01a4698..18d36c8 100755
      "name": "contrail-k8s-cni",
 ```
 
+Note: when i tried with 2002-latest, it returns this error, even when this knob is set to 'false' :(
+
+```
+I : 13192 : 2020/02/08 13:52:13 vrouter.go:223: Get from vrouter passed. Result &[{VmUuid: Nw: Ip: Plen:0 Gw: Dns: Mac:02:26:3a:9e:14:4a VlanId:65535 VnId:e38b4a74-a95e-4d1e-8166-4569090472b2 VnName:default-domain:k8s-default:k8s-default-pod-network VmiUuid:263a9e14-4a7a-11ea-9efd-063cf1da2350 Args:[{cluster:k8s} {index:0/2} {kind:Pod} {name:vlan-172.16.1.201} {namespace:default} {network:default} {owner:k8s} {project:k8s-default}] Annotations:{Cluster:k8s Kind:Pod Name:vlan-172.16.1.201 Namespace:default Network:default Owner:k8s Project:k8s-default Index:0/2 Interface:}}]
+I : 13192 : 2020/02/08 13:52:13 vrouter.go:511: Iteration 4 : Get VRouter Incomplete - Interfaces Expected: 2, Actual: 1
+```
+
 #### multi vCenter setup
 
 Tungsten fabric controller nodes serve as many vcenter-plugins as number of vCenters.
