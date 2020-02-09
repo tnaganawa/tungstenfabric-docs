@@ -5,6 +5,8 @@ Table of Contents
 
    * [Tungsten Fabric Knowledge Base](#tungsten-fabric-knowledge-base)
       * [vRouter internal](#vrouter-internal)
+      * [control internal](#control-internal)
+      * [config internal](#config-internal)
       * [some configuration knobs which are not documented well](#some-configuration-knobs-which-are-not-documented-well)
          * [forwarding mode](#forwarding-mode)
          * [flood unknown unicast](#flood-unknown-unicast)
@@ -97,6 +99,80 @@ https://github.com/Juniper/contrail-vrouter/blob/master/include/vr_packet.h#L195
  * that the size is <= 48 bytes in 64 bit systems.
  */
 ```
+
+## control internal
+### ifmap-server deprecation
+
+After R4.0, ifmap-server is deprecated, and currently control nodes directly received config information from cassandra.
+ - https://github.com/Juniper/contrail-specs/blob/master/deprecating-discovery-4.0.md
+
+Having said that, internally, it still uses ifmap structs, to store topology data for vrf, interface, logical-router, etc.
+
+To pick the data directly from cassandra, some changes are made for ifmap clients, which is used by control.
+ - https://bugs.launchpad.net/juniperopenstack/+bug/1632470
+
+Originally, ifmap client contains a lot of logic to pick data from ifmap-server, but currently it contains only one logic, to get json file from cassandra, and fill ifmap struct with that data.
+ - https://github.com/Juniper/contrail-controller/tree/R2002/src/ifmap/client
+ - https://github.com/Juniper/contrail-controller/tree/R3.2/src/ifmap/client
+
+So it now uses ifmap as the struct for internal use, not as a wire protocol.
+
+### difference between named and dns
+contrail-dns, and contrail-named is a different process, and it is actually used with different purpose.
+
+contrail-dns has similar feature with contrail-control, and it serves vDNS info with XMPP, and vRouter will do some DNS tasks based on that input.
+ - https://github.com/Juniper/contrail-controller/tree/master/src/dns
+ - https://github.com/Juniper/contrail-controller/wiki/DNS-and-IPAM
+
+contrail-named, actually, doesn't use XMPP, and it uses ISC bind to serve DNS data, and it is used for external DNS query to vDNS entry.
+ - https://github.com/Juniper/contrail-container-builder/blob/master/containers/controller/control/named/entrypoint.sh#L10
+
+## config internal
+### crud operation REST API and msgbus update
+Config-api will serve REST API for CRUD operation of each config objects, such as virtual-network, network-policy, ...
+
+To serve this, it dynamically creates URL, based on schema file.
+ - https://github.com/Juniper/contrail-controller/blob/master/src/config/api-server/vnc_cfg_api_server/vnc_cfg_api_server.py#L1835-L1891
+ - _generate_resource_crud_methods and _generate_resource_crud_uri creates generic methods and URL
+
+Default behavior for this methods are to do cassandra update, and rabbitmq exchange is also filled with some message, for other processes, such as schema-transformer, svc-monitor, device-manager, to consume.
+ - https://github.com/Juniper/contrail-controller/blob/master/src/config/api-server/vnc_cfg_api_server/vnc_db.py#L1595-L1606
+
+```
+    def dbe_create(self, obj_type, obj_uuid, obj_dict):
+        (ok, result) = self._object_db.object_create(obj_type, obj_uuid,
+                                                     obj_dict)
+
+        if ok:
+            # publish to msgbus
+            self._msgbus.dbe_publish('CREATE', obj_type, obj_uuid,
+                                     obj_dict['fq_name'], obj_dict=obj_dict)
+            self._dbe_publish_update_implicit(obj_type, result)
+
+        return (ok, result)
+    # end dbe_create
+```
+
+Other tasks such as checking input data, or fill that with default value, will be done by pre_dbe_create, or post_dbe_create (create can be delete, update, read etc) and it is defined per resource.
+ - https://github.com/Juniper/contrail-controller/tree/master/src/config/api-server/vnc_cfg_api_server/resources
+
+### dependency_tracker
+
+Dependency tracker is used by schema-transformer, svc-monitor, and device-manager, to consume amqp message from config-api, and recursively evaluated the objects referenced by the one updated.
+ - https://github.com/Juniper/contrail-controller/blob/master/src/config/common/cfgm_common/dependency_tracker.py
+
+Internally, if reaction_map, which is a python dict with object name updated and other object name which need to evaluated, contains a key for the object included in amqp message, it will start evaluating that object.
+
+For example, if virtual-machine-interface is updated,
+ - https://github.com/Juniper/contrail-controller/blob/master/src/config/schema-transformer/schema_transformer/to_bgp.py#L92-L94
+
+```
+        'virtual_machine_interface': {
+            'self': ['virtual_machine', 'port_tuple', 'virtual_network',
+                     'bgp_as_a_service'],
+```
+
+it will also evaluate virtual-machine, port-tuple, virtual-network, and bgp-as-a-service, if it has a reference with the virtual-machine-interface, which is originally updated.
 
 ## some configuration knobs which are not documented well
 
