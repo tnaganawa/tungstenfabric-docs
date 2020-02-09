@@ -7,6 +7,7 @@ Table of Contents
       * [vRouter internal](#vrouter-internal)
       * [control internal](#control-internal)
       * [config internal](#config-internal)
+      * [analytics internal](#analytics-internal)
       * [some configuration knobs which are not documented well](#some-configuration-knobs-which-are-not-documented-well)
          * [forwarding mode](#forwarding-mode)
          * [flood unknown unicast](#flood-unknown-unicast)
@@ -128,7 +129,7 @@ contrail-named, actually, doesn't use XMPP, and it uses ISC bind to serve DNS da
  - https://github.com/Juniper/contrail-container-builder/blob/master/containers/controller/control/named/entrypoint.sh#L10
 
 ## config internal
-### crud operation REST API and msgbus update
+### CRUD operation REST API and msgbus update
 Config-api will serve REST API for CRUD operation of each config objects, such as virtual-network, network-policy, ...
 
 To serve this, it dynamically creates URL, based on schema file.
@@ -173,6 +174,61 @@ For example, if virtual-machine-interface is updated,
 ```
 
 it will also evaluate virtual-machine, port-tuple, virtual-network, and bgp-as-a-service, if it has a reference with the virtual-machine-interface, which is originally updated.
+
+
+## analytics internal
+### redis, cassandra and kafka
+Analytics has several backend databases, most notabliy, redis and cassandra, and optionally kafka, if alarmgen is also installed.
+
+Those databases are separately updated by collector, when sandesh update from such as vRouter, control has reached to this process.
+
+When it is received, it reaches ruleeng.cc,
+ - https://github.com/tungstenfabric/tf-analytics/blob/master/contrail-collector/ruleeng.cc#L900
+
+and do some tasks based on the sandesh data type received.
+ - If that is UVE, fill redis and kafka, and if cassandra is installed, also fill stat tables of this db.
+```
+    // First publish to redis and kafka
+    if (uveproc) handle_uve_publish(parent, vmsgp, db, header, db_cb);
+    // Check if the message needs to be dropped
+    if (db && db->DropMessage(header, vmsgp)) {
+        return true;
+    }
+
+    if (db) {
+        // 1. make entry in OBJECT_VALUE_TABLE if needed
+        // 2. get object-type:name{1-6}
+        handle_object_log(parent, vmsgp, db, header, &object_names, db_cb);
+
+        // Insert into the message table
+        db->MessageTableInsert(vmsgp, object_names, db_cb);
+
+        if (uveproc) handle_uve_statistics(parent, vmsgp, db, header, db_cb);
+
+        handle_session_object(parent, db, header, db_cb);
+    }
+```
+
+So redis and kafka will handle UVE only, and when cassandra is not installed, all the data other than UVE is not imported to analytics databases.
+
+### uveupdate.lua
+
+There are some lua files in collector directory, which is used to update redis, when UVE reached to the collector.
+ - https://github.com/tungstenfabric/tf-analytics/blob/master/contrail-collector/uveupdate.lua
+
+Internally, it is converted to cpp file by xxd command when it is compiled.
+ - https://github.com/tungstenfabric/tf-analytics/blob/master/contrail-collector/SConscript#L155-L160
+
+```
+def RedisLuaBuild(env, scr_name):
+  env.Command('%s_lua.cpp' % scr_name ,'%s.lua' % scr_name,\
+                  '(cd %s ; xxd -i %s.lua > ../../../%s/%s_lua.cpp)' %
+              (Dir('#src/contrail-analytics/contrail-collector').path,
+               scr_name, Dir('.').path, scr_name))
+  env.Depends('redis_processor_vizd.cc','%s_lua.cpp' % scr_name)
+```
+
+
 
 ## some configuration knobs which are not documented well
 
