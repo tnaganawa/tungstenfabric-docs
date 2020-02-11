@@ -15,6 +15,7 @@ Table of Contents
          * [multiple service chain](#multiple-service-chain)
       * [charm install](#charm-install)
       * [How to build tungsten fabric](#how-to-build-tungsten-fabric)
+      * [vRouter scale test procedure](#vrouter-scale-test-procedure)
       * [multi kube-master deployment](#multi-kube-master-deployment)
       * [Nested kubernetes installation on openstack](#nested-kubernetes-installation-on-openstack)
       * [Tungsten fabric deployment on public cloud](#tungsten-fabric-deployment-on-public-cloud)
@@ -435,6 +436,89 @@ clean:
 cd /root/contrail/vrouter
 make KERNELDIR=/lib/modules/3.10.0-1062.el7.x86_64/build clean
 ```
+
+## vRouter scale test procedure
+
+Since GCP allowed me to start up to 5k nodes :), this procedure is described primarily for this platform.
+ - Having said that, the same procedure also can be used with AWS
+
+First target was 3k vRouter nodes, but as far as I tried, it is not the maximum, and more might be done with more control nodes or CPU/MEM are added.
+
+In GCP, VPC can be created with several subnets, so control plane nodes have been assigned 172.16.1.0/24, and vRouter nodes have 10.0.0.0/9. (default subnets has /12, and up to 4k nodes can be used)
+
+By default, not all the instances can have global ip, so Cloud NAT need to be defined for vRouter nodes, to access the internet. (I assigned global IPs to control plane nodes, since number of nodes won't be that much)
+
+All the nodes are created by instance-group, with auto-scaling disabled, and fixed number assigned.
+All the nodes are preemptive enabled for lower cost ($0.01/1hr (n1-standard-1) for vRouter, and $0.15/1hr (n1-standard-64) for control plane nodes)
+
+Overall procedure is decribed as follows.
+1. Setup control/config x 5, analytics x 3, kube-master x 1 with this procedure.
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#2-tungstenfabric-up-and-running
+
+It takes up to 30 minutes.
+
+2002-latest is used. JVM_EXTRA_OPTS: "-Xms128m -Xmx20g" is set.
+
+One point to be added, XMPP_KEEPALIVE_SECONDS determines XMPP scalability, and I set this 3
+So after vRouter node failure, it takes 9 seconds for control to recognize it. (by default it is set 10/30)
+I suppose this is a moderate choice for IaaS usecase, but if this value needs to be lower, more CPU would be needed.
+
+For the later use, virtual-network vn1 (10.0.1.0/24, l2/l3) is also created.
+ - https://github.com/tnaganawa/tungctl/blob/master/samples.yaml#L3
+
+2. One kube-master will be set up with this procedure.
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#kubeadm
+
+It takes up to 20 minutes.
+
+For cni.yaml, this url is used.
+ - https://raw.githubusercontent.com/tnaganawa/tungstenfabric-docs/master/multi-kube-master-deployment-cni-tungsten-fabric.yaml
+
+XMPP_KEEPALIVE_SECONDS: "3" is added to env.
+
+Because of this vRouter issue on GCP,
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricKnowledgeBase.md#vrouters-on-gce-cannot-reach-other-nodes-in-the-same-subnet
+
+vrouter-agent container is patched, and yaml need to be changed.
+```
+      - name: contrail-vrouter-agent
+        image: "tnaganawa/contrail-vrouter-agent:2002-latest"  ### this line is changed
+```
+
+set-label.sh and kubectl apply -f cni.yaml is done at this time.
+
+3. start vRouter nodes, and dump the ips with this command.
+```
+(for GCP)
+gcloud --format="value(networkInterfaces[0].networkIP)" compute instances list
+
+(for AWS, this command can be used)
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].PrivateIpAddress' --output text | tr '\t' '\n' 
+```
+
+It takes about 20-30 minutes.
+
+4. Install kubernetes on vRouter nodes, and wait for vRouter nodes are installed by that.
+```
+(/tmp/aaa.pem is the secret key for GCP)
+sudo yum -y install epel-release
+sudo yum -y install parallel
+ulimit -n 8192
+cat aaa.txt | parallel -j3500 scp -i /tmp/aaa.pem -o StrictHostKeyChecking=no install-k8s-packages.sh centos@{}:/tmp
+cat aaa.txt | parallel -j3500 ssh -i /tmp/aaa.pem -o StrictHostKeyChecking=no centos@{} chmod 755 /tmp/install-k8s-packages.sh
+cat aaa.txt | parallel -j3500 ssh -i /tmp/aaa.pem -o StrictHostKeyChecking=no centos@{} sudo /tmp/install-k8s-packages.sh
+cat aaa.txt | parallel -j3500 ssh -i /tmp/aaa.pem -o StrictHostKeyChecking=no centos@{} sudo kubeadm join 172.16.1.x:6443 --token we70in.mvy0yu0hnxb6kxip --discovery-token-ca-cert-hash sha256:13cf52534ab14ee1f4dc561de746e95bc7684f2a0355cb82eebdbd5b1e9f3634
+```
+
+It takes about 20-30 minutes.
+
+
+5. after that, first-containers.yaml can be created with replica: 3000, and ping between containers can be checked.
+ To see BUM behavior, vn1 also can be used with containers with 3k replicas.
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/8-leaves-contrail-config.txt#L99
+
+vRouter installation takes about 20 minutes.
+Container creation might take longer, such as up to 1hr, since IP assignment for each container takes some time .. :(
 
 ## multi kube-master deployment
 
