@@ -1231,7 +1231,27 @@ index 3e48812..832b476 100644
  #define METADATA_IP_ADDR ntohl(inet_addr("169.254.169.254"))
 ```
 
-#### vlan-base interop
+
+### static XMPP assignment
+contrail-controller:
+
+```
+diff --git a/src/vnsw/agent/cmn/agent.cc b/src/vnsw/agent/cmn/agent.cc
+index 607f384..71d27d8 100644
+--- a/src/vnsw/agent/cmn/agent.cc
++++ b/src/vnsw/agent/cmn/agent.cc
+@@ -469,7 +469,7 @@ void Agent::CopyFilteredParams() {
+     if (new_chksum != controller_chksum_) {
+         controller_chksum_ = new_chksum;
+         controller_list_ = params_->controller_server_list();
+-        std::random_shuffle(controller_list_.begin(), controller_list_.end());
++        std::random_shuffle(controller_list_.begin(), controller_list_.end()); // commented out for static XMPP assignment
+     }
+ 
+     // Dns
+```
+
+#### vlan-based EVPN T2 interop
 ```
 diff --git a/src/bgp/evpn/evpn_route.cc b/src/bgp/evpn/evpn_route.cc
 index 36412b2..a830b5c 100644
