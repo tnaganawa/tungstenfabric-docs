@@ -3404,8 +3404,8 @@ So to discuss backward compatibility, there are three topics to be investigated.
   - if no backward compatibility is available, kernel also needs to be updated, so it means traffic need to be moved to other nodes
   - when vrouter.ko has different in-kernal API, it can't be loaded by kernel, and vhost0 and vrouter-agent can't be created
 
-Since kernel update is unavoidable for various reason,
-one possible plan is to firstly choose one kernel version, and choose one vrouter-agent / vrouter.ko which supports that kernel, and check if vrouter-agent which is used currently, can be work with that version of control.
+Since kernel update is unavoidable for various reasons,
+one possible plan is to firstly choose one new kernel version, and choose one vrouter-agent / vrouter.ko which supports that kernel, and check if vrouter-agent which is used currently, can work with that version of control.
  - If it worked well, please use in-place update, and if it won't work for some reason, or rollback operation is required, then ISSU is used
 
 ## L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration
