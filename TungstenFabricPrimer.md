@@ -3383,6 +3383,30 @@ round-trip min/avg/max = 0.857/1.319/1.781 ms
  -> ping between vRouters is ok
 ```
 
+### Backward compatibility
+
+Since there are several methods to update cluster (in-place and ISSU, ifdown vhost0 or not), which method is needed is an important subject.
+
+Before discussing the detail of this, let me describe the behavior of vrouter-agent up / down, and ifup vhost0 / ifdown vhost0.
+
+When vrouter-agent is updated, one assumption is that both of vrouter-agent container, and vhost0 is re-created.
+
+Actually, this is not the case, since vhost0 is tightly coupled with vrouter.ko, and it needs to be deleted at the same time with vrouter.ko is unloaded from the kernel.
+So from operational point of view, ifdown vhost0 is needed, if not only vrouter-agent but also vrouter.ko need to be updated. (ifdown vhost0 also will do rmmod vrouter internally)
+
+So to discuss backward compatibility, there are three topics to be investigated.
+ 1. controller to vrouter-agent compatibility
+  - if no backward compatibility is available, ISSU is needed
+ 2. vrouter-agent to vrouter.ko compatibility
+  - if no backward compatibility is available, ifdown vhost0 is needed, which causes minimal 5-10 sec traffic loss, so it practically means traffic need to be moved to other nodes, with such as live migration
+   - Since vrouter-agent uses netlink to sync data with vrouter.ko, schema change could leads to unexpected behavior of vrouter-agent (such as segmentation fault of vrouter-agent at Ksync logic)
+ 3. vrouter.ko to kernel compatiblity
+  - if no backward compatibility is available, kernel also needs to be updated, so it means traffic need to be moved to other nodes
+  - when vrouter.ko has different in-kernal API, it can't be loaded by kernel, and vhost0 and vrouter-agent can't be created
+
+Since kernel update is unavoidable for various reason,
+one possible plan is to firstly choose one kernel version, and choose one vrouter-agent / vrouter.ko which supports that kernel, and check if vrouter-agent which is used currently, can be work with that version of control.
+ - If it worked well, please use in-place update, and if it won't work for some reason, or rollback operation is required, then ISSU is used
 
 ## L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration
 Before delving into this important subject, I'll firstly describe the encapsulation and control plane protocol I prefer, in two cases, which are DataCenter and NFVI.
