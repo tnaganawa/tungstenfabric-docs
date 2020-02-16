@@ -503,7 +503,7 @@ It takes about 20-30 minutes.
 (/tmp/aaa.pem is the secret key for GCP)
 sudo yum -y install epel-release
 sudo yum -y install parallel
-ulimit -n 8192
+sudo su - -c "ulimit -n 8192; su - centos"
 cat aaa.txt | parallel -j3500 scp -i /tmp/aaa.pem -o StrictHostKeyChecking=no install-k8s-packages.sh centos@{}:/tmp
 cat aaa.txt | parallel -j3500 ssh -i /tmp/aaa.pem -o StrictHostKeyChecking=no centos@{} chmod 755 /tmp/install-k8s-packages.sh
 cat aaa.txt | parallel -j3500 ssh -i /tmp/aaa.pem -o StrictHostKeyChecking=no centos@{} sudo /tmp/install-k8s-packages.sh
