@@ -3404,9 +3404,24 @@ So to discuss backward compatibility, there are three topics to be investigated.
   - if no backward compatibility is available, kernel also needs to be updated, so it means traffic need to be moved to other nodes
   - when vrouter.ko has different in-kernal API, it can't be loaded by kernel, and vhost0 and vrouter-agent can't be created
 
-Since kernel update is unavoidable for various reasons,
+For 2 and 3, since kernel update is unavoidable for various reasons,
 one possible plan is to firstly choose one new kernel version, and choose one vrouter-agent / vrouter.ko which supports that kernel, and check if vrouter-agent which is used currently, can work with that version of control.
  - If it worked well, please use in-place update, and if it won't work for some reason, or rollback operation is required, then ISSU is used
+
+For 1, since ifmap maintains white_list for each version when importing config-api definition,
+ - void IFMapGraphWalker::AddNodesToWhitelist(): https://github.com/Juniper/contrail-controller/blob/master/src/ifmap/ifmap_graph_walker.cc#L349
+
+as far as I tried, it seems to have decent backward compatibility. (Since routing info update is similar to BGP, it also mostly should work well)
+
+To verify this, I tried this setup with modules in different version, and it seems still working well.  
+ I-1. config 2002-latest, control 2002-latest, vrouter 5.0-latest, openstack queens  
+ I-2. config 2002-latest, control 5.0-latest, vrouter 5.0-latest, openstack queens  
+ II-1. config 2002-latest, control 2002-latest, vrouter r5.1, kubernetes 1.12
+
+Note: Unfortunately, this combination won't work well (cni can't get port info from vrouter-agent), I suppose this is caused by cni version change (0.2.0->0.3.1) between 5.0.x and 5.1.  
+ II-2. config 2002-latest, control 2002-latest, vrouter 5.0-latest, kubernetes 1.12
+
+So even if kernel and vRouter version don't need to be changed soon, it might be a good habit to update config / control slightly more frequently, for possible bug fix.
 
 ## L3VPN / EVPN (T2/T5, VXLAN/MPLS) integration
 Before delving into this important subject, I'll firstly describe the encapsulation and control plane protocol I prefer, in two cases, which are DataCenter and NFVI.
