@@ -449,7 +449,7 @@ In GCP, VPC can be created with several subnets, so control plane nodes have bee
 By default, not all the instances can have global ip, so Cloud NAT need to be defined for vRouter nodes, to access the internet. (I assigned global IPs to control plane nodes, since number of nodes won't be that much)
 
 All the nodes are created by instance-group, with auto-scaling disabled, and fixed number assigned.
-All the nodes are preemptive enabled for lower cost ($0.01/1hr (n1-standard-1) for vRouter, and $0.15/1hr (n1-standard-64) for control plane nodes)
+All the nodes are preemptive enabled for lower cost ($0.01/1hr (n1-standard-1) for vRouter, and $0.64/1hr (n1-standard-64) for control plane nodes)
 
 Overall procedure is decribed as follows.
 1. Setup control/config x 5, analytics x 3, kube-master x 1 with this procedure.
