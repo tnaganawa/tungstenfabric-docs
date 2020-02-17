@@ -287,6 +287,7 @@ If everything is ok, you can try this command, to see the status of Tungsten Fab
 ```
 pip install lxml prettytable
 git clone https://github.com/vcheny/contrail-introspect-cli.git
+## or curl -O https://raw.githubusercontent.com/vcheny/contrail-introspect-cli/master/ist.py
 ./contrail-introspect-cli/ist.py ctr status
 ./contrail-introspect-cli/ist.py ctr nei ## similar to 'show bgp summary'
 ./contrail-introspect-cli/ist.py ctr route summary ## similar to 'show route summary'
