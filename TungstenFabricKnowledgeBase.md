@@ -442,7 +442,7 @@ make KERNELDIR=/lib/modules/3.10.0-1062.el7.x86_64/build clean
 Since GCP allowed me to start up to 5k nodes :), this procedure is described primarily for this platform.
  - Having said that, the same procedure also can be used with AWS
 
-First target was 3k vRouter nodes, but as far as I tried, it is not the maximum, and more might be done with more control nodes or CPU/MEM are added.
+First target was 2k vRouter nodes, but as far as I tried, it is not the maximum, and more might be done with more control nodes or CPU/MEM are added.
 
 In GCP, VPC can be created with several subnets, so control plane nodes have been assigned 172.16.1.0/24, and vRouter nodes have 10.0.0.0/9. (default subnets has /12, and up to 4k nodes can be used)
 
@@ -496,7 +496,8 @@ gcloud --format="value(networkInterfaces[0].networkIP)" compute instances list
 aws ec2 describe-instances --query 'Reservations[*].Instances[*].PrivateIpAddress' --output text | tr '\t' '\n' 
 ```
 
-It takes about 20-30 minutes.
+It takes about 10-20 minutes.
+
 
 4. Install kubernetes on vRouter nodes, and wait for vRouter nodes are installed by that.
 ```
@@ -504,23 +505,275 @@ It takes about 20-30 minutes.
 sudo yum -y install epel-release
 sudo yum -y install parallel
 sudo su - -c "ulimit -n 8192; su - centos"
-cat aaa.txt | parallel -j3500 scp -i /tmp/aaa.pem -o StrictHostKeyChecking=no install-k8s-packages.sh centos@{}:/tmp
-cat aaa.txt | parallel -j3500 ssh -i /tmp/aaa.pem -o StrictHostKeyChecking=no centos@{} chmod 755 /tmp/install-k8s-packages.sh
-cat aaa.txt | parallel -j3500 ssh -i /tmp/aaa.pem -o StrictHostKeyChecking=no centos@{} sudo /tmp/install-k8s-packages.sh
+cat all.txt | parallel -j3500 scp -i /tmp/aaa.pem -o StrictHostKeyChecking=no install-k8s-packages.sh centos@{}:/tmp
+cat all.txt | parallel -j3500 ssh -i /tmp/aaa.pem -o StrictHostKeyChecking=no centos@{} chmod 755 /tmp/install-k8s-packages.sh
+cat all.txt | parallel -j3500 ssh -i /tmp/aaa.pem -o StrictHostKeyChecking=no centos@{} sudo /tmp/install-k8s-packages.sh
 
 ### this command needs to be up to 200 parallel execution, since without that, it leads to timeout of kubeadm join
-cat aaa.txt | parallel -j200 ssh -i /tmp/aaa.pem -o StrictHostKeyChecking=no centos@{} sudo kubeadm join 172.16.1.x:6443 --token we70in.mvy0yu0hnxb6kxip --discovery-token-ca-cert-hash sha256:13cf52534ab14ee1f4dc561de746e95bc7684f2a0355cb82eebdbd5b1e9f3634
+cat all.txt | parallel -j200 ssh -i /tmp/aaa.pem -o StrictHostKeyChecking=no centos@{} sudo kubeadm join 172.16.1.x:6443 --token we70in.mvy0yu0hnxb6kxip --discovery-token-ca-cert-hash sha256:13cf52534ab14ee1f4dc561de746e95bc7684f2a0355cb82eebdbd5b1e9f3634
 ```
 
-It takes about 30-40 minutes.
+kubeadm join takes about 20-30 minutes.
+vRouter installation takes about 40-50 minutes. (based on Cloud NAT performance, to add docker registry in VPC would improve docker pull time).
 
 
-5. after that, first-containers.yaml can be created with replica: 3000, and ping between containers can be checked.
- To see BUM behavior, vn1 also can be used with containers with 3k replicas.
+5. after that, first-containers.yaml can be created with replica: 2000, and ping between containers can be checked.
+ To see BUM behavior, vn1 also can be used with containers with 2k replicas.
  - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/8-leaves-contrail-config.txt#L99
 
-vRouter installation takes about 20 minutes.
-Container creation might take longer, such as up to 1hr, since IP assignment for each container takes some time .. :(
+Container creation will take up to 15-20 minutes.
+
+
+```
+[config results]
+
+2200 instances are created, and 2188 kube workers are available.
+(some are restarted and not available, since those instance are preemptive VM)
+
+[centos@instance-group-1-srwq ~]$ kubectl get node | wc -l
+2188
+[centos@instance-group-1-srwq ~]$ 
+
+When vRouters are installed, some more nodes are rebooted, and 2140 vRouters become available.
+
+Every 10.0s: kubectl get pod --all-namespaces | grep contrail | grep Running | wc -l     Sun Feb 16 17:25:16 2020
+2140
+
+After start creating 2k containers, 15 minutes is needed before 2k containers are up.
+
+Every 5.0s: kubectl get pod -n myns11 | grep Running | wc -l                                                             Sun Feb 16 17:43:06 2020
+1927
+
+
+ping between containers works fine:
+
+$ kubectl get pod -n myns11
+(snip)
+vn11-deployment-68565f967b-zxgl4   1/1     Running             0          15m   10.0.6.0     instance-group-3-bqv4   <none>           <none>
+vn11-deployment-68565f967b-zz2f8   1/1     Running             0          15m   10.0.6.16    instance-group-2-ffdq   <none>           <none>
+vn11-deployment-68565f967b-zz8fk   1/1     Running             0          16m   10.0.1.61    instance-group-4-cpb8   <none>           <none>
+vn11-deployment-68565f967b-zzkdk   1/1     Running             0          16m   10.0.2.244   instance-group-3-pkrq   <none>           <none>
+vn11-deployment-68565f967b-zzqb7   0/1     ContainerCreating   0          15m   <none>       instance-group-4-f5nw   <none>           <none>
+vn11-deployment-68565f967b-zzt52   1/1     Running             0          15m   10.0.5.175   instance-group-3-slkw   <none>           <none>
+vn11-deployment-68565f967b-zztd6   1/1     Running             0          15m   10.0.7.154   instance-group-4-skzk   <none>           <none>
+
+[centos@instance-group-1-srwq ~]$ kubectl exec -it -n myns11 vn11-deployment-68565f967b-zzkdk sh
+/ # 
+/ # 
+/ # ip -o a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+36: eth0@if37: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue \    link/ether 02:fd:53:2d:ea:50 brd ff:ff:ff:ff:ff:ff
+36: eth0    inet 10.0.2.244/12 scope global eth0\       valid_lft forever preferred_lft forever
+36: eth0    inet6 fe80::e416:e7ff:fed3:9cc5/64 scope link \       valid_lft forever preferred_lft forever
+/ # ping 10.0.1.61
+PING 10.0.1.61 (10.0.1.61): 56 data bytes
+64 bytes from 10.0.1.61: seq=0 ttl=64 time=3.635 ms
+64 bytes from 10.0.1.61: seq=1 ttl=64 time=0.474 ms
+^C
+--- 10.0.1.61 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.474/2.054/3.635 ms
+/ #
+
+There are some XMPP flap .. it might be caused by CPU spike by config-api, or some effect of preemptive VM.
+It needs to be investigated further with separating config and control.
+(most of other 2k vRouter nodes won't experience XMPP flap though)
+
+(venv) [centos@instance-group-1-h26k ~]$ ./contrail-introspect-cli/ist.py ctr nei -t XMPP -c flap_count | grep -v -w 0
++------------+
+| flap_count |
++------------+
+| 1          |
+| 1          |
+| 1          |
+| 1          |
+| 1          |
+| 1          |
+| 1          |
+| 1          |
+| 1          |
+| 1          |
+| 1          |
+| 1          |
+| 1          |
+| 1          |
++------------+
+(venv) [centos@instance-group-1-h26k ~]$ 
+
+
+[BUM tree]
+
+Send two multicast packets.
+
+/ # ping 224.0.0.1
+PING 224.0.0.1 (224.0.0.1): 56 data bytes
+^C
+--- 224.0.0.1 ping statistics ---
+2 packets transmitted, 0 packets received, 100% packet loss
+/ # 
+/ # ip -o a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000\    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+36: eth0@if37: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue \    link/ether 02:fd:53:2d:ea:50 brd ff:ff:ff:ff:ff:ff
+36: eth0    inet 10.0.2.244/12 scope global eth0\       valid_lft forever preferred_lft forever
+36: eth0    inet6 fe80::e416:e7ff:fed3:9cc5/64 scope link \       valid_lft forever preferred_lft forever
+/ # 
+
+That container is on this node.
+
+(venv) [centos@instance-group-1-h26k ~]$ ping instance-group-3-pkrq
+PING instance-group-3-pkrq.asia-northeast1-b.c.stellar-perigee-161412.internal (10.0.3.211) 56(84) bytes of data.
+64 bytes from instance-group-3-pkrq.asia-northeast1-b.c.stellar-perigee-161412.internal (10.0.3.211): icmp_seq=1 ttl=63 time=1.46 ms
+
+
+It sends overlay packet to some other endpoints (not all 2k nodes),
+
+[root@instance-group-3-pkrq ~]# tcpdump -nn -i eth0 udp
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
+17:48:51.501718 IP 10.0.3.211.57333 > 10.0.0.212.6635: UDP, length 142
+17:48:52.501900 IP 10.0.3.211.57333 > 10.0.0.212.6635: UDP, length 142
+
+and it eventually reach other containers, going through Edge Replicate tree.
+
+[root@instance-group-4-cpb8 ~]# tcpdump -nn -i eth0 udp
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes
+17:48:51.517306 IP 10.0.1.198.58095 > 10.0.5.244.6635: UDP, length 142
+17:48:52.504484 IP 10.0.1.198.58095 > 10.0.5.244.6635: UDP, length 142
+
+
+
+
+[resource usage]
+
+controller:
+CPU usage is moderate and bound by contrail-control process.
+If more vRouter nodes need to be added, more controller nodes can be added.
+ - separating config and control also should help to reach further stability
+
+top - 17:45:28 up  2:21,  2 users,  load average: 7.35, 12.16, 16.33
+Tasks: 577 total,   1 running, 576 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 14.9 us,  4.2 sy,  0.0 ni, 80.8 id,  0.0 wa,  0.0 hi,  0.1 si,  0.0 st
+KiB Mem : 24745379+total, 22992752+free, 13091060 used,  4435200 buff/cache
+KiB Swap:        0 total,        0 free,        0 used. 23311113+avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+23930 1999      20   0 9871.3m   5.5g  14896 S  1013  2.3   1029:04 contrail-contro
+23998 1999      20   0 5778768 317660  12364 S 289.1  0.1 320:18.42 contrail-dns                        
+13434 polkitd   20   0   33.6g 163288   4968 S   3.3  0.1  32:04.85 beam.smp                                
+26696 1999      20   0  829768 184940   6628 S   2.3  0.1   0:22.14 node                                 
+ 9838 polkitd   20   0   25.4g   2.1g  15276 S   1.3  0.9  45:18.75 java                                     
+ 1012 root      20   0       0      0      0 S   0.3  0.0   0:00.26 kworker/18:1                       
+ 6293 root      20   0 3388824  50576  12600 S   0.3  0.0   0:34.39 docker-containe                                                 
+ 9912 centos    20   0   38.0g 417304  12572 S   0.3  0.2   0:25.30 java                                                 
+16621 1999      20   0  735328 377212   7252 S   0.3  0.2  23:27.40 contrail-api                                      
+22289 root      20   0       0      0      0 S   0.3  0.0   0:00.04 kworker/16:2                                          
+24024 root      20   0  259648  41992   5064 S   0.3  0.0   0:28.81 contrail-nodemg                                                  
+48459 centos    20   0  160328   2708   1536 R   0.3  0.0   0:00.33 top                                                             
+61029 root      20   0       0      0      0 S   0.3  0.0   0:00.09 kworker/4:2                                                      
+    1 root      20   0  193680   6780   4180 S   0.0  0.0   0:02.86 systemd                                                        
+    2 root      20   0       0      0      0 S   0.0  0.0   0:00.03 kthreadd         
+
+[centos@instance-group-1-rc34 ~]$ free -h
+              total        used        free      shared  buff/cache   available
+Mem:           235G         12G        219G        9.8M        3.9G        222G
+Swap:            0B          0B          0B
+[centos@instance-group-1-rc34 ~]$ 
+[centos@instance-group-1-rc34 ~]$ df -h .
+/dev/sda1         10G  5.1G  5.0G   51% /
+[centos@instance-group-1-rc34 ~]$ 
+   
+
+
+analytics:
+CPU usage is moderate and bound by contrail-collector process.
+If more vRouter nodes need to be added, more analytics nodes can be added.
+
+top - 17:45:59 up  2:21,  1 user,  load average: 0.84, 2.57, 4.24
+Tasks: 515 total,   1 running, 514 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  3.3 us,  1.3 sy,  0.0 ni, 95.4 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+KiB Mem : 24745379+total, 24193969+free,  3741324 used,  1772760 buff/cache
+KiB Swap:        0 total,        0 free,        0 used. 24246134+avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                       
+ 6334 1999      20   0 7604200 958288  10860 S 327.8  0.4 493:31.11 contrail-collec          
+ 4904 polkitd   20   0  297424 271444   1676 S  14.6  0.1  10:42.34 redis-server           
+ 4110 root      20   0 3462120  95156  34660 S   1.0  0.0   1:21.32 dockerd                     
+    9 root      20   0       0      0      0 S   0.3  0.0   0:04.81 rcu_sched                      
+   29 root      20   0       0      0      0 S   0.3  0.0   0:00.05 ksoftirqd/4           
+ 8553 centos    20   0  160308   2608   1536 R   0.3  0.0   0:00.07 top                
+    1 root      20   0  193564   6656   4180 S   0.0  0.0   0:02.77 systemd                 
+    2 root      20   0       0      0      0 S   0.0  0.0   0:00.03 kthreadd             
+    4 root       0 -20       0      0      0 S   0.0  0.0   0:00.00 kworker/0:0H               
+    5 root      20   0       0      0      0 S   0.0  0.0   0:00.77 kworker/u128:0         
+    6 root      20   0       0      0      0 S   0.0  0.0   0:00.17 ksoftirqd/0     
+    7 root      rt   0       0      0      0 S   0.0  0.0   0:00.38 migration/0    
+
+[centos@instance-group-1-n4c7 ~]$ free -h
+              total        used        free      shared  buff/cache   available
+Mem:           235G        3.6G        230G        8.9M        1.7G        231G
+Swap:            0B          0B          0B
+[centos@instance-group-1-n4c7 ~]$ 
+[centos@instance-group-1-n4c7 ~]$ df -h .
+/dev/sda1         10G  3.1G  6.9G   32% /
+[centos@instance-group-1-n4c7 ~]$ 
+
+
+
+
+kube-master:
+CPU usage is small.
+
+top - 17:46:18 up  2:22,  2 users,  load average: 0.92, 1.32, 2.08
+Tasks: 556 total,   1 running, 555 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  1.2 us,  0.5 sy,  0.0 ni, 98.2 id,  0.1 wa,  0.0 hi,  0.1 si,  0.0 st
+KiB Mem : 24745379+total, 23662128+free,  7557744 used,  3274752 buff/cache
+KiB Swap:        0 total,        0 free,        0 used. 23852964+avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                                                                      
+ 5177 root      20   0 3605852   3.1g  41800 S  78.1  1.3 198:42.92 kube-apiserver                                                               
+ 5222 root      20   0   10.3g 633316 410812 S  55.0  0.3 109:52.52 etcd                                                                         
+ 5198 root      20   0  846948 651668  31284 S   8.3  0.3 169:03.71 kube-controller                                                              
+ 5549 root      20   0 4753664  96528  34260 S   5.0  0.0   4:45.54 kubelet                                                                      
+ 3493 root      20   0 4759508  71864  16040 S   0.7  0.0   1:52.67 dockerd-current                                                              
+ 5197 root      20   0  500800 307056  17724 S   0.7  0.1   6:43.91 kube-scheduler                                                               
+19933 centos    20   0  160340   2648   1528 R   0.7  0.0   0:00.07 top                                                                          
+ 1083 root       0 -20       0      0      0 S   0.3  0.0   0:20.19 kworker/0:1H                                                                 
+35229 root      20   0       0      0      0 S   0.3  0.0   0:15.08 kworker/0:2                                                                  
+    1 root      20   0  193808   6884   4212 S   0.0  0.0   0:03.59 systemd                                                                      
+    2 root      20   0       0      0      0 S   0.0  0.0   0:00.03 kthreadd                                                                     
+    4 root       0 -20       0      0      0 S   0.0  0.0   0:00.00 kworker/0:0H                                                                 
+    5 root      20   0       0      0      0 S   0.0  0.0   0:00.55 kworker/u128:0                                                               
+    6 root      20   0       0      0      0 S   0.0  0.0   0:01.51 ksoftirqd/0      
+
+[centos@instance-group-1-srwq ~]$ free -h
+              total        used        free      shared  buff/cache   available
+Mem:           235G         15G        217G        121M        3.2G        219G
+Swap:            0B          0B          0B
+[centos@instance-group-1-srwq ~]$ 
+
+[centos@instance-group-1-srwq ~]$ df -h /
+/dev/sda1         10G  4.6G  5.5G   46% /
+[centos@instance-group-1-srwq ~]$ 
+
+[centos@instance-group-1-srwq ~]$ free -h
+              total        used        free      shared  buff/cache   available
+Mem:           235G         15G        217G        121M        3.2G        219G
+Swap:            0B          0B          0B
+[centos@instance-group-1-srwq ~]$ 
+
+[centos@instance-group-1-srwq ~]$ df -h /
+/dev/sda1         10G  4.6G  5.5G   46% /
+[centos@instance-group-1-srwq ~]$ 
+
+```
+
+
+
 
 ## multi kube-master deployment
 
