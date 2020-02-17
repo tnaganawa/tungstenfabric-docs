@@ -463,7 +463,7 @@ One point to be added, XMPP_KEEPALIVE_SECONDS determines XMPP scalability, and I
 So after vRouter node failure, it takes 9 seconds for control to recognize it. (by default it is set 10/30)
 I suppose this is a moderate choice for IaaS usecase, but if this value needs to be lower, more CPU would be needed.
 
-For the later use, virtual-network vn1 (10.0.1.0/24, l2/l3) is also created.
+For the later use, virtual-network vn1 (10.1.0.0/12, l2/l3) is also created.
  - https://github.com/tnaganawa/tungctl/blob/master/samples.yaml#L3
 
 2. One kube-master will be set up with this procedure.
