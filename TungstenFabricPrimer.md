@@ -119,10 +119,10 @@ k8s master need to have at least 2 vCPUs and 8GB mem, and 8GB disk. k8s node nee
 
 ```
 ## all the commands are typed at k8s master node
-yum -y remove PyYAML python-requests
-yum -y install git
-easy_install pip
-pip install PyYAML requests ansible==2.7.11
+sudo yum -y remove PyYAML python-requests
+sudo yum -y install git
+sudo easy_install pip
+sudo pip install PyYAML requests ansible==2.7.15
 ssh-keygen
 cd .ssh/
 cat id_rsa.pub >> authorized_keys
@@ -1987,7 +1987,7 @@ docker cp /etc/kolla/kolla-toolbox/admin-openrc.sh kolla_toolbox:/var/tmp
 docker exec -it kolla_toolbox bash
   source /var/tmp/admin-openrc.sh
   cd /var/tmp
-  curl -O http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img
+  curl -O -L http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img
   openstack image create cirros --disk-format qcow2 --public --container-format bare --file cirros-0.4.0-x86_64-disk.img
   openstack flavor create --ram 512 --disk 1 --vcpus 1 m1.tiny
   openstack network create testvn
