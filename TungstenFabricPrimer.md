@@ -2615,6 +2615,25 @@ ist.py vr route -v vrf-id
    curl vrouter-ip:8085/Snh_Inet4UcRouteReq?vrf_index=vrf-id
 ```
 
+Additionally, ifmap information (it is comparable to device configuration for vRouter, such as interface, vrf, virtual-machine, ...) is also useful to see what is configured.
+
+It can be seen by those commands.
+```
+ist.py ctr ifmap table
+   curl control-ip:8083/Snh_IFMapNodeTableListShowReq
+ist.py ctr ifmap table virtual-network
+   curl control-ip:8083/Snh_IFMapTableShowReq?table_name=virtual-network
+
+ist.py ctr ifmap client
+   curl control-ip:8083/Snh_IFMapPerClientLinksShowReq
+ist.py ctr ifmap node
+   curl control-ip:8083/Snh_IFMapLinkTableShowReq
+ist.py ctr ifmap link
+   curl control-ip:8083/Snh_IFMapNodeShowReq
+
+ist.py vr ifmap
+   curl vrouter-ip:8085/Snh_ShowIFMapAgentReq
+```
 
 ### x. some VM-to-VM packets can't reach the other node
  To investigate this, firstly, it needs to be seen that is control plane issue or data plane issue.
