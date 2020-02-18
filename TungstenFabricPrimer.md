@@ -3409,7 +3409,7 @@ Since there are several methods to update cluster (in-place and ISSU, ifdown vho
 
 Before discussing the detail of this, let me describe the behavior of vrouter-agent up / down, and ifup vhost0 / ifdown vhost0.
 
-When vrouter-agent is updated, one assumption is that both of vrouter-agent container, and vhost0 is re-created.
+When vrouter-agent is restarted, one assumption is that both of vrouter-agent container, and vhost0 is re-created.
 
 Actually, this is not the case, since vhost0 is tightly coupled with vrouter.ko, and it needs to be deleted at the same time with vrouter.ko is unloaded from the kernel.
 So from operational point of view, ifdown vhost0 is needed, if not only vrouter-agent but also vrouter.ko need to be updated. (ifdown vhost0 also will do rmmod vrouter internally)
