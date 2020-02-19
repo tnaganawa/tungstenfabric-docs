@@ -2636,6 +2636,30 @@ ist.py vr ifmap
    curl vrouter-ip:8085/Snh_ShowIFMapAgentReq
 ```
 
+Note: When ist.py is used, each target have two common options, uve and trace. Those also might be used for detailed status examination.
+
+```
+ist.py vr uve
+ curl vrouter-ip:8085/Snh_SandeshUVETypesReq
+ist.py vr uve VrouterStatsAgent
+ curl vrouter-ip:8085/Snh_SandeshUVECacheReq?x=VrouterStatsAgent
+
+ist.py ctr trace
+ curl control-ip:8083/Snh_SandeshTraceBufferListRequest
+ist.py ctr trace BgpTraceBuf
+ curl control-ip:8083/Snh_SandeshTraceRequest?x=BgpTraceBuf
+ist.py vr trace
+ curl vrouter-ip:8085/Snh_SandeshTraceBufferListRequest
+ist.py vr trace Flow
+ curl vrouter-ip:8085/Snh_SandeshTraceRequest?x=Flow
+```
+
+
+UVE (User Visible Entity) is a metrics, used by each components of Tungsten Fabric, which mostly seen from analytics/uves API. It can also be seen from introspect of each component directly.
+ - https://tungsten.io/operational-state-in-the-opencontrail-system-uve-user-visible-entities-through-analytics-api/
+
+Trace is a trace log of each component, which is stored in the memory of each process. With this option, this trace memory can be dumped.
+
 ### x. some VM-to-VM packets can't reach the other node
  To investigate this, firstly, it needs to be seen that is control plane issue or data plane issue.
  For control plane issue, those commands will be most useful.
