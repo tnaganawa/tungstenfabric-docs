@@ -102,6 +102,338 @@ https://github.com/Juniper/contrail-vrouter/blob/master/include/vr_packet.h#L195
  */
 ```
 
+### linux interfaces created by vRouter
+
+Several interfaces are created when vrouter-agent container is firstly started, and it is actually not deleted even if vrouter-agent is stopped.
+
+For what purpose it is used is an interesting subject.
+
+To summarize that, vif interface in vrouter.ko is always tied to corresponding linux netdevice,
+so creating some vrouter interface with such as vif --create, will also create linux netdevice, which can be seen from such as ip link or ls /sys/class/net.
+
+One illustlation comes from 'ip tuntap list'.
+```
+[root@ip-172-31-12-55 ~]# ip -o a
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+2: ens3    inet6 fe80::46c:bff:fec8:dd64/64 scope link \       valid_lft forever preferred_lft forever
+3: docker0    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0\       valid_lft forever preferred_lft forever
+16: vhost0    inet 172.31.12.55/20 brd 172.31.15.255 scope global dynamic vhost0\       valid_lft 3118sec preferred_lft 3118sec
+16: vhost0    inet6 fe80::46c:bff:fec8:dd64/64 scope link \       valid_lft forever preferred_lft forever
+17: pkt0    inet6 fe80::5094:6cff:fefb:42f7/64 scope link \       valid_lft forever preferred_lft forever
+[root@ip-172-31-12-55 ~]# ip tuntap list
+pkt0: tap
+[root@ip-172-31-12-55 ~]#
+```
+, so pkt0 is actually a tap device from linux's point of view.
+
+In a sense, vif command will tigh vrouter interface to some linux netdevice, such as tapxxxx-xxxx, which will be created by such as nova-vif-driver, to make the packet which go through that device to be received by dp-core.
+
+So when such as CNI found a tap device, which is connected to containers, it will send vrouter-api, which internally create vif, with the same name as the tap device, so that the packets which entered tap device will be forwarded to vRouter (dp-core).
+
+
+There are some special devices, which will be created when vrouter-agent is started, namely vhost0, pkt0, pkt1, pkt2, pkt3.
+
+As described before, vhost0 is similar to irb interface of dp-core, so it will receive the packet to the vRouter node itself, after dp-core routing has finished.
+
+Since vrouter-agent container will create /etc/sysconfig/network-scripts/{ifup-vhost,ifdown-vhost} when it starts, it can be directly controlled by ifup / ifdown, which internally type vif --add vhost0, it can be directly created and deleted from command line.
+ - https://github.com/Juniper/contrail-container-builder/blob/master/containers/vrouter/base/network-functions-vrouter-kernel#L41
+
+pkt1, pkt2, pkt3, are interfaces defined in linux_pkt_dev_alloc, in vrouter_linux_init, which is the module_init of vrouter.ko.
+ - https://github.com/Juniper/contrail-vrouter/blob/master/linux/vr_host_interface.c#L2485
+
+```
+linux/vrouter_mod.c
+ module_init(vrouter_linux_init);
+
+static int
+linux_pkt_dev_alloc(void)
+{
+    if (pkt_gro_dev == NULL) {
+        pkt_gro_dev = linux_pkt_dev_init("pkt1", &pkt_gro_dev_setup,
+                                         &pkt_gro_dev_rx_handler);
+        if (pkt_gro_dev == NULL) {
+            vr_module_error(-ENOMEM, __FUNCTION__, __LINE__, 0);
+            return -ENOMEM;
+        }
+    }
+
+    if (pkt_l2_gro_dev == NULL) {
+        pkt_l2_gro_dev = linux_pkt_dev_init("pkt3", &pkt_l2_gro_dev_setup,
+                                         &pkt_gro_dev_rx_handler);
+        if (pkt_l2_gro_dev == NULL) {
+            vr_module_error(-ENOMEM, __FUNCTION__, __LINE__, 0);
+            return -ENOMEM;
+        }
+    }
+
+    if (pkt_rps_dev == NULL) {
+        pkt_rps_dev = linux_pkt_dev_init("pkt2", &pkt_rps_dev_setup,
+                                        &pkt_rps_dev_rx_handler);
+        if (pkt_rps_dev == NULL) {
+            vr_module_error(-ENOMEM, __FUNCTION__, __LINE__, 0);
+            return -ENOMEM;
+        }
+    }
+
+    return 0;
+}
+```
+
+It uses some GRO and RPS feature, which is important to make kernel vRouter's performance better.
+ - They are initialized empty net_device_ops and random ethernet addr.
+
+```
+linux/vr_host_interface.c
+
+
+/*
+ * pkt_rps_dev_ops - netdevice operations on RPS packet device. Currently,
+ * no operations are needed, but an empty structure is required to
+ * register the device.
+ *
+ */
+static struct net_device_ops pkt_rps_dev_ops;
+
+(snip)
+
+/*
+ * pkt_rps_dev_setup - fill in the relevant fields of the RPS packet device
+ */
+static void
+pkt_rps_dev_setup(struct net_device *dev)
+{
+    /*
+     * Initializing the interfaces with basic parameters to setup address
+     * families.
+     */
+    random_ether_addr(dev->dev_addr);
+    dev->addr_len = ETH_ALEN;
+
+    dev->hard_header_len = ETH_HLEN;
+
+    dev->type = ARPHRD_VOID;
+    dev->netdev_ops = &pkt_rps_dev_ops;
+    dev->mtu = 65535;
+
+    return;
+}
+```
+
+pkt0 is slightly different, and it is used to send the packets from dp-core to vrouter-agent.
+
+It is actually created when vrouter-agent is firstly started, by the request from vrouter-agent, to create tap device to communicate with vrouter-agent.
+ - https://github.com/Juniper/contrail-controller/blob/master/src/vnsw/agent/contrail/contrail_agent_init.cc#L89
+ - https://github.com/Juniper/contrail-controller/blob/master/src/vnsw/agent/oper/interface.cc#L626
+ - https://github.com/Juniper/contrail-vrouter/blob/master/dp-core/vr_interface.c#L669
+
+So if packets are sent from dp-core to that interface, vrouter-agent will receive that, to handle that packet internally (arp, dhcp, ... are handled in that way)
+
+
+As one more illustration of this behavior, I'll add ip -o addr, ip link, vif --list result, when modprobe vrouter, ifup vhost0, vrouter-agent start are done.
+
+```
+# docker-compose -f /etc/contrail/vrouter/docker-compose.yaml down
+# ifdown vhost0
+# modprobe vrouter
+
+[root@ip-172-31-12-55 ~]# ip -o a
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+2: ens3    inet 172.31.12.55/20 brd 172.31.15.255 scope global dynamic ens3\       valid_lft 3561sec preferred_lft 3561sec
+2: ens3    inet6 fe80::46c:bff:fec8:dd64/64 scope link \       valid_lft forever preferred_lft forever
+3: docker0    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0\       valid_lft forever preferred_lft forever
+[root@ip-172-31-12-55 ~]# 
+
+[root@ip-172-31-12-55 ~]# ip link
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: ens3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc mq state UP mode DEFAULT group default qlen 1000
+    link/ether 06:6c:0b:c8:dd:64 brd ff:ff:ff:ff:ff:ff
+3: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN mode DEFAULT group default 
+    link/ether 02:42:34:e8:c3:14 brd ff:ff:ff:ff:ff:ff
+9: pkt1: <> mtu 65535 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/void be:f9:01:0e:4d:38 brd 00:00:00:00:00:00
+10: pkt3: <> mtu 65535 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/void 46:f8:5c:cb:79:8e brd 00:00:00:00:00:00
+11: pkt2: <> mtu 65535 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/void a2:b0:40:5c:03:d4 brd 00:00:00:00:00:00
+[root@ip-172-31-12-55 ~]#
+[root@ip-172-31-12-55 ~]# vif --list
+Vrouter Interface Table
+
+Flags: P=Policy, X=Cross Connect, S=Service Chain, Mr=Receive Mirror
+       Mt=Transmit Mirror, Tc=Transmit Checksum Offload, L3=Layer 3, L2=Layer 2
+       D=DHCP, Vp=Vhost Physical, Pr=Promiscuous, Vnt=Native Vlan Tagged
+       Mnp=No MAC Proxy, Dpdk=DPDK PMD Interface, Rfl=Receive Filtering Offload, Mon=Interface is Monitored
+       Uuf=Unknown Unicast Flood, Vof=VLAN insert/strip offload, Df=Drop New Flows, L=MAC Learning Enabled
+       Proxy=MAC Requests Proxied Always, Er=Etree Root, Mn=Mirror without Vlan Tag, HbsL=HBS Left Intf
+       HbsR=HBS Right Intf, Ig=Igmp Trap Enabled
+
+vif0/4350   OS: pkt3
+            Type:Stats HWaddr:00:00:00:00:00:00 IPaddr:0.0.0.0
+            Vrf:65535 Mcast Vrf:65535 Flags:L3L2 QOS:0 Ref:1
+            RX packets:0  bytes:0 errors:0
+            TX packets:0  bytes:0 errors:0
+            Drops:0
+
+vif0/4351   OS: pkt1
+            Type:Stats HWaddr:00:00:00:00:00:00 IPaddr:0.0.0.0
+            Vrf:65535 Mcast Vrf:65535 Flags:L3L2 QOS:0 Ref:1
+            RX packets:0  bytes:0 errors:0
+            TX packets:0  bytes:0 errors:0
+            Drops:0
+
+[root@ip-172-31-12-55 ~]# 
+
+
+# ifup vhost0
+
+[root@ip-172-31-12-55 ~]# ip -o a
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+2: ens3    inet6 fe80::46c:bff:fec8:dd64/64 scope link \       valid_lft forever preferred_lft forever
+3: docker0    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0\       valid_lft forever preferred_lft forever
+12: vhost0    inet 172.31.12.55/20 brd 172.31.15.255 scope global dynamic vhost0\       valid_lft 3594sec preferred_lft 3594sec
+12: vhost0    inet6 fe80::46c:bff:fec8:dd64/64 scope link \       valid_lft forever preferred_lft forever
+[root@ip-172-31-12-55 ~]# 
+[root@ip-172-31-12-55 ~]# 
+[root@ip-172-31-12-55 ~]# ip link
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: ens3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc mq state UP mode DEFAULT group default qlen 1000
+    link/ether 06:6c:0b:c8:dd:64 brd ff:ff:ff:ff:ff:ff
+3: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN mode DEFAULT group default 
+    link/ether 02:42:34:e8:c3:14 brd ff:ff:ff:ff:ff:ff
+9: pkt1: <UP,LOWER_UP> mtu 65535 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/void be:f9:01:0e:4d:38 brd 00:00:00:00:00:00
+10: pkt3: <UP,LOWER_UP> mtu 65535 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/void 46:f8:5c:cb:79:8e brd 00:00:00:00:00:00
+11: pkt2: <UP,LOWER_UP> mtu 65535 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/void a2:b0:40:5c:03:d4 brd 00:00:00:00:00:00
+12: vhost0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc pfifo_fast state UNKNOWN mode DEFAULT group default qlen 1000
+    link/ether 06:6c:0b:c8:dd:64 brd ff:ff:ff:ff:ff:ff
+[root@ip-172-31-12-55 ~]# 
+
+[root@ip-172-31-12-55 ~]# vif --list
+Vrouter Interface Table
+
+Flags: P=Policy, X=Cross Connect, S=Service Chain, Mr=Receive Mirror
+       Mt=Transmit Mirror, Tc=Transmit Checksum Offload, L3=Layer 3, L2=Layer 2
+       D=DHCP, Vp=Vhost Physical, Pr=Promiscuous, Vnt=Native Vlan Tagged
+       Mnp=No MAC Proxy, Dpdk=DPDK PMD Interface, Rfl=Receive Filtering Offload, Mon=Interface is Monitored
+       Uuf=Unknown Unicast Flood, Vof=VLAN insert/strip offload, Df=Drop New Flows, L=MAC Learning Enabled
+       Proxy=MAC Requests Proxied Always, Er=Etree Root, Mn=Mirror without Vlan Tag, HbsL=HBS Left Intf
+       HbsR=HBS Right Intf, Ig=Igmp Trap Enabled
+
+vif0/2      OS: ens3 (Speed 10000, Duplex 1)
+            Type:Physical HWaddr:06:6c:0b:c8:dd:64 IPaddr:0.0.0.0
+            Vrf:0 Mcast Vrf:65535 Flags:XTcL3L2Vp QOS:0 Ref:1
+            RX packets:54  bytes:13325 errors:0
+            TX packets:39  bytes:4452 errors:0
+            Drops:0
+
+vif0/16     OS: vhost0
+            Type:Host HWaddr:06:6c:0b:c8:dd:64 IPaddr:0.0.0.0
+            Vrf:0 Mcast Vrf:65535 Flags:XL3L2 QOS:0 Ref:1
+            RX packets:39  bytes:4452 errors:0
+            TX packets:54  bytes:13325 errors:0
+            Drops:0
+
+vif0/4350   OS: pkt3
+            Type:Stats HWaddr:00:00:00:00:00:00 IPaddr:0.0.0.0
+            Vrf:65535 Mcast Vrf:65535 Flags:L3L2 QOS:0 Ref:1
+            RX packets:0  bytes:0 errors:0
+            TX packets:0  bytes:0 errors:0
+            Drops:0
+
+vif0/4351   OS: pkt1
+            Type:Stats HWaddr:00:00:00:00:00:00 IPaddr:0.0.0.0
+            Vrf:65535 Mcast Vrf:65535 Flags:L3L2 QOS:0 Ref:1
+            RX packets:0  bytes:0 errors:0
+            TX packets:0  bytes:0 errors:0
+            Drops:0
+
+[root@ip-172-31-12-55 ~]# 
+
+# docker-compose -f /etc/contrail/vrouter/docker-compose.yaml up -d
+
+[root@ip-172-31-12-55 ~]# ip -o a
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+2: ens3    inet6 fe80::46c:bff:fec8:dd64/64 scope link \       valid_lft forever preferred_lft forever
+3: docker0    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0\       valid_lft forever preferred_lft forever
+16: vhost0    inet 172.31.12.55/20 brd 172.31.15.255 scope global dynamic vhost0\       valid_lft 3552sec preferred_lft 3552sec
+16: vhost0    inet6 fe80::46c:bff:fec8:dd64/64 scope link \       valid_lft forever preferred_lft forever
+17: pkt0    inet6 fe80::5094:6cff:fefb:42f7/64 scope link \       valid_lft forever preferred_lft forever
+[root@ip-172-31-12-55 ~]# 
+[root@ip-172-31-12-55 ~]# ip link
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: ens3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc mq state UP mode DEFAULT group default qlen 1000
+    link/ether 06:6c:0b:c8:dd:64 brd ff:ff:ff:ff:ff:ff
+3: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN mode DEFAULT group default 
+    link/ether 02:42:34:e8:c3:14 brd ff:ff:ff:ff:ff:ff
+13: pkt1: <UP,LOWER_UP> mtu 65535 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/void 36:72:98:97:9b:31 brd 00:00:00:00:00:00
+14: pkt3: <UP,LOWER_UP> mtu 65535 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/void 92:aa:52:e8:d5:c5 brd 00:00:00:00:00:00
+15: pkt2: <UP,LOWER_UP> mtu 65535 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/void 42:b2:46:73:3d:6c brd 00:00:00:00:00:00
+16: vhost0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc pfifo_fast state UNKNOWN mode DEFAULT group default qlen 1000
+    link/ether 06:6c:0b:c8:dd:64 brd ff:ff:ff:ff:ff:ff
+17: pkt0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UNKNOWN mode DEFAULT group default qlen 1000
+    link/ether 52:94:6c:fb:42:f7 brd ff:ff:ff:ff:ff:ff
+[root@ip-172-31-12-55 ~]# 
+[root@ip-172-31-12-55 ~]# vif --list
+Vrouter Interface Table
+
+Flags: P=Policy, X=Cross Connect, S=Service Chain, Mr=Receive Mirror
+       Mt=Transmit Mirror, Tc=Transmit Checksum Offload, L3=Layer 3, L2=Layer 2
+       D=DHCP, Vp=Vhost Physical, Pr=Promiscuous, Vnt=Native Vlan Tagged
+       Mnp=No MAC Proxy, Dpdk=DPDK PMD Interface, Rfl=Receive Filtering Offload, Mon=Interface is Monitored
+       Uuf=Unknown Unicast Flood, Vof=VLAN insert/strip offload, Df=Drop New Flows, L=MAC Learning Enabled
+       Proxy=MAC Requests Proxied Always, Er=Etree Root, Mn=Mirror without Vlan Tag, HbsL=HBS Left Intf
+       HbsR=HBS Right Intf, Ig=Igmp Trap Enabled
+
+vif0/0      OS: ens3 (Speed 10000, Duplex 1) NH: 4
+            Type:Physical HWaddr:06:6c:0b:c8:dd:64 IPaddr:0.0.0.0
+            Vrf:0 Mcast Vrf:65535 Flags:TcL3L2VpEr QOS:-1 Ref:7
+            RX packets:165  bytes:97837 errors:0
+            TX packets:156  bytes:124911 errors:0
+            Drops:0
+
+vif0/1      OS: vhost0 NH: 5
+            Type:Host HWaddr:06:6c:0b:c8:dd:64 IPaddr:172.31.12.55
+            Vrf:0 Mcast Vrf:65535 Flags:PL3DEr QOS:-1 Ref:8
+            RX packets:159  bytes:125878 errors:0
+            TX packets:192  bytes:98971 errors:0
+            Drops:7
+
+vif0/2      OS: pkt0
+            Type:Agent HWaddr:00:00:5e:00:01:00 IPaddr:0.0.0.0
+            Vrf:65535 Mcast Vrf:65535 Flags:L3Er QOS:-1 Ref:3
+            RX packets:31  bytes:2666 errors:0
+            TX packets:34  bytes:13535 errors:0
+            Drops:0
+
+vif0/4350   OS: pkt3
+            Type:Stats HWaddr:00:00:00:00:00:00 IPaddr:0.0.0.0
+            Vrf:65535 Mcast Vrf:65535 Flags:L3L2 QOS:0 Ref:1
+            RX packets:0  bytes:0 errors:0
+            TX packets:0  bytes:0 errors:0
+            Drops:0
+
+vif0/4351   OS: pkt1
+            Type:Stats HWaddr:00:00:00:00:00:00 IPaddr:0.0.0.0
+            Vrf:65535 Mcast Vrf:65535 Flags:L3L2 QOS:0 Ref:1
+            RX packets:0  bytes:0 errors:0
+            TX packets:0  bytes:0 errors:0
+            Drops:0
+
+[root@ip-172-31-12-55 ~]# 
+```
+
 ## control internal
 ### ifmap-server deprecation
 
