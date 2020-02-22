@@ -43,6 +43,7 @@ Table of Contents
       * [webui](#webui)
       * [backup and restore](#backup-and-restore)
       * [Changing container parameters](#changing-container-parameters)
+      * [Maintain data consistency](#maintain-data-consistency)
    * [Troubleshooting Tips](#troubleshooting-tips)
    * [Appendix](#appendix)
       * [Cluster update](#cluster-update)
@@ -2572,6 +2573,30 @@ If kubeadm and kubernetes yaml is used to install Tungsten Fabric containers, ea
 So you can type this command to edit environment variables, and can delete some Tungsten Fabric pods to recreate the containers. (Since containers are defined as DaemonMap, it will be recreated automatically)
 ```
 kubectl edit configmap -n kube-system env
+```
+
+## Maintain data consistency
+
+Since cassandra doesn't support transaction, and both of zookeeper and casssandra has some data,
+when config-api is used, it is unavoidabale to maintain db consistency in application level.
+- https://github.com/Juniper/contrail-controller/wiki/Database-management-tool-to-check-and-fix-inconsistencies
+
+Let me summarize some failure scenario and management script to fix this.
+
+There are some situations which needs data maintenance.
+ 1. When two objects which have refs and back_refs, are created, but config-api crashed before back_refs are added.
+ 2. Zookeeper maintains list of uuids and indexallocator for some objects, such as ip allocation in each subnet. So when config-api crashed after updating zookeeper, and before updating cassandra, it will cause discrepancy between two dbs.
+
+To fix this situation, config-api has a data maintenance script, db_manage.py.
+ - https://github.com/Juniper/contrail-controller/blob/master/src/config/api-server/vnc_cfg_api_server/db_manage.py
+
+There are mainly three commands, which is expected to be typed periodically.
+```
+docker exec -it config_api_1 /bin/bash
+ cd /usr/lib/python2.7/site-packages/vnc_cfg_api_server
+ python db_manage.py check
+ python db_manage.py --execute clean
+ python db_manage.py --execute heal
 ```
 
 # Troubleshooting Tips
