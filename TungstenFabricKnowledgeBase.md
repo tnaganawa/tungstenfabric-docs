@@ -1957,6 +1957,27 @@ round-trip min/avg/max = 4.587/4.885/5.183 ms
 [root@ip-172-31-1-214 ~]#
 ```
 
+
+```
+contrail-controller
+
+diff --git a/src/vnsw/agent/pkt/flow_mgmt.cc b/src/vnsw/agent/pkt/flow_mgmt.cc
+index c888a26..a1b0189 100644
+--- a/src/vnsw/agent/pkt/flow_mgmt.cc
++++ b/src/vnsw/agent/pkt/flow_mgmt.cc
+@@ -511,6 +511,9 @@ void FlowMgmtManager::LogFlowUnlocked(FlowEntry *flow, const std::string &op) {
+     FlowInfo trace;
+     flow->FillFlowInfo(trace);
+     FLOW_TRACE(Trace, op, trace);
++
++    // Add tc flower logic, based on FlowEntry *flow
++ 
+ }
+ 
+ // Extract all the FlowMgmtKey for a flow
+
+```
+
 #### vRouters on GCE cannot reach other nodes in the same subnet
 
 when vRouter is installed in GCE, it can't reach nodes in the same subnet.
