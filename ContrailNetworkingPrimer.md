@@ -409,12 +409,16 @@ To do this, most straightforward way is to use provision_cluster option of contr
 
 Let me firstly begin with the minimal setup with one node for contrail-command, contrail-controller, appformix.
 
+Note:  
+Recently, appformix-flows module are also added to this suite as sflow collector (counter sample, flow sample and vRouter flow can be visualized).
+When sflow sample rate is high, resouce usage is minimal, so I'll also install appformix-flows to the same node with appformix, for this setup.
+
 ```
 # At mininum, Mem 16GB, Disk: 50GB is required
 
 export docker_registry=hub.juniper.net/contrail
-export container_tag=1910.23
-export node_ip=192.168.122.96
+export container_tag=1912.32
+export node_ip=192.168.122.252
 export hub_username=xxx
 export hub_password=yyy
  - id, pass for hub.juniper.net is needed
@@ -463,6 +467,7 @@ command_servers:
               password: contrail123
 user_command_volumes:
   - /opt/software/appformix:/opt/software/appformix
+  - /opt/software/xflow:/opt/software/xflow
 EOF
 
 
@@ -497,9 +502,16 @@ instances:
       openstack_storage:
       openstack_monitoring:
       appformix_openstack_controller:
-      appformix_controller:
       appformix_compute:
       openstack_compute:
+bms2:
+    provider: bms
+    ip: 192.168.122.251
+    roles:
+      appformix_controller:
+      appformix_bare_host:
+      appformix_flows:
+
 contrail_configuration:
   CLOUD_ORCHESTRATOR: openstack
   RABBITMQ_NODE_PORT: 5673
@@ -522,6 +534,9 @@ kolla_config:
     keystone_admin_password: contrail123
 appformix_configuration:
     appformix_license:  /opt/software/appformix/appformix-openstack-3.1.sig
+xflow_configuration:
+  clickhouse_retention_period_secs: 7200
+  loadbalancer_collector_vip: 192.168.122.250
 EOF
 
 bash install-cc.sh ## it takes about 60 minutes to finish installation
@@ -534,7 +549,9 @@ Note: before typing bash install-cc.sh, please upload those files to /opt/softwa
  appformix-openstack-images-3.1.x.tar.gz
  appformix-platform-images-3.1.x.tar.gz
  appformix-openstack-3.1.sig
-
+Besides, these two files can be uploaded to /opt/software/xflow
+ appformix-flows-1.0.x.tar.gz
+ appformix-flows-ansible-1.0.x.tar.gz
 
 To see the installation status, those two commands can be used
 # docker logs -f contrail_command_deployer ## for command installation
