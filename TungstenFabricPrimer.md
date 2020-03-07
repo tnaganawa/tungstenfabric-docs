@@ -4505,10 +4505,15 @@ bms1:
   roles:
     vrouter:
       AGENT_MODE: dpdk
-      CPU_CORE_MASK: “0xf” ## coremask for forwarding core (Note: this means 0-3, but please don't include first core in numa to reach optimal performance :( )
+      CPU_CORE_MASK: “0xe” ## coremask for forwarding core (Note: please don't include first core in numa to reach optimal performance :( )
+      SERVICE_CORE_MASK: “0x1” ## this is for non-forwarding thread, so isolcpu for this core is not needed
+      DPDK_CTRL_THREAD_MASK: “0x1” ## same as SERVICE_CORE_MASK
       DPDK_UIO_DRIVER: uio_pci_generic ## uio driver name
       HUGE_PAGES: 16000 ## number of 2MB hugepages, it can be smaller
 ```
+
+Note: SERVICE_CORE_MASK and DPDK_CTRL_THREAD_MASK can be used from R2003 and later.
+https://github.com/Juniper/contrail-specs/blob/master/full_cpu_partitioning_support.md
 
 When AGENT_MODE: dpdk is set, ansible-deployer will install some containers such as vrouter-dpdk, which is a process to run PMD against physical NIC, so in that case, forwarding from vRouter to physical NIC will be based on DPDK.
 
