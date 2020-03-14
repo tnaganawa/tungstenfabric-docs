@@ -739,6 +739,26 @@ Then it will receive IP by dhcp, do tftp to get kernel and boot, and do some tas
 
 ## Contrail Healthbot
 
+Currently, appformix doesn't support routing protocol monitoring, route table size monitoring and so on.
+
+Although it is not fully integrated, one of the most natural choise is to install healthbot as its companion.
+ - https://www.juniper.net/us/en/products-services/sdn/contrail/contrail-healthbot/
+
+Since it natively supports EVPN/VXLAN monitoring with per device-group heatmap view, it is not a difficult task to implement this feature, with several fabircs implemented by fabric-manager.
+ - https://www.youtube.com/watch?v=B20qjChoKfg
+
+To set up this, those guides can be followed.
+ - https://www.juniper.net/documentation/en_US/healthbot/topics/concept/healthbot-getting-started.html
+
+```
+Practically, those two commands are all that are needed.
+# yum -y install healthbot-x.x.x.noarch.rpm
+# healthbot setup
+# healthbot start
+
+Then, https://healthbot-node-ip:8080 will give healthbot webui.
+```
+
 ## Contrail multicloud
 
 ### container deployment
