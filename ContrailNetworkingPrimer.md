@@ -312,6 +312,17 @@ So if this specific feature won't work well, please add temporarily static arp t
 Since vQFX's > show chassis mac-addresses and > show lldp local-information show different value, LLDP based underlay setting won't work well when vQFX is used. (When combined with physical QFX, it works well)
 So please set underlay routing manually when vQFX is used.
 
+> 3. BMS to VM l2 vxlan won't work well, since vRouter won't do arp proxy for EVPN BMS mac
+
+For 18.4R2 and later (including 18.4R2-S2), vQFX won't respond to arp from other EVPN peers, since it should be handled by arp proxy of its peers.
+Having said that, vRouter currently won't do arp proxy in that case ..
+ - This behaivor might be changed in future release
+
+To make this work, 
+```
+set vlans vlan-name no-arp-suppression
+```
+need to be added to each bridge-domain.
 
 ### Integration with fabric automation and vRouters
 
