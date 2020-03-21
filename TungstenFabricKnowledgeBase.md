@@ -2108,3 +2108,47 @@ index 28e5637..075bb17 100644
          if (ecmp_load_balance.is_source_ip_set()) {
 
 ```
+
+#### specify vlan-id when transparent service-chain is used
+
+https://github.com/Juniper/contrail-controller/blob/R1907/src/config/schema-transformer/config_db.py#L3060
+```
+# diff -u config_db.py.orig config_db.py
+--- config_db.py.orig 2019-08-04 10:54:22.993291899 +0000
++++ config_db.py 2019-08-04 13:05:23.665843100 +0000
+@@ -3059,6 +3062,21 @@
+                                     service_ri1, service_ri2):
+         vlan = self._object_db.allocate_service_chain_vlan(vm_info['vm_uuid'],
+                                                            self.name)
++        ####
++        ## vlan-id is embedded in service-instance name
++        ## servicename---vm_uuid---vlanid
++        ####
++        for servicename in self.service_list:
++          left_interface_uuid = vm_info['left']['vmi'].name.split (':')[-1]
++          if (servicename.find(left_interface_uuid ) > -1):
++            vlan = servicename.split(':')[-1].split('---')[-1]
++
+         self.add_pbf_rule(vm_info['left']['vmi'], service_ri1,
+                           v4_address, v6_address, vlan)
+         self.add_pbf_rule(vm_info['right']['vmi'], service_ri2,
+@@ -3911,6 +3929,22 @@
+                 vlan = self._object_db.allocate_service_chain_vlan(
+                     vm_pt.uuid, service_chain.name)
+
++
++                ###
++                # begin: added
++                ###
++                for servicename in service_chain.service_list:
++                  if (servicename.find(self.name.split(':')[-1]) > -1):
++                    vlan = servicename.split(':')[-1].split('---')[-1]
++                ###
++                # end: added
++                ###
++
+                 service_chain.add_pbf_rule(self, service_ri, v4_address,
+                                            v6_address, vlan)
+             #end for service_chain
+```
+
