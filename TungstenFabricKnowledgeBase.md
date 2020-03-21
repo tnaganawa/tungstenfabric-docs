@@ -2089,3 +2089,22 @@ index 0dcabab..4b30299 100644
  VNC_VCENTER_DEFAULT_SG_FQN = [VNC_ROOT_DOMAIN, VNC_VCENTER_PROJECT, VNC_VCENTER_DEFAULT_SG]
 ```
 
+#### use same ECMP hash on all compute nodes for possible symmetric ECMP in packet-mode
+https://review.opencontrail.org/c/Juniper/contrail-controller/+/32223
+
+```
+diff --git a/src/vnsw/agent/pkt/pkt_handler.cc b/src/vnsw/agent/pkt/pkt_handler.cc
+index 28e5637..075bb17 100644
+--- a/src/vnsw/agent/pkt/pkt_handler.cc
++++ b/src/vnsw/agent/pkt/pkt_handler.cc
+@@ -1304,7 +1304,7 @@ std::size_t PktInfo::hash(const Agent *agent,
+     // We need to ensure that hash computed in Compute-1 and Compute-2 are
+     // different. We also want to have same hash on agent restarts. So, include
+     // vhost-ip also to compute hash
+-    boost::hash_combine(seed, agent->router_id().to_ulong());
++    ////// boost::hash_combine(seed, agent->router_id().to_ulong());
+ 
+     if (family == Address::INET) {
+         if (ecmp_load_balance.is_source_ip_set()) {
+
+```
