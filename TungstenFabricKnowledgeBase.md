@@ -2152,3 +2152,21 @@ https://github.com/Juniper/contrail-controller/blob/R1907/src/config/schema-tran
              #end for service_chain
 ```
 
+
+#### support older kernel for CentOS
+
+Juniper/contrail-packages
+
+````
+diff --git a/kernel_version.info b/kernel_version.info
+index 8d38f34..d5e711b 100644
+--- a/kernel_version.info
++++ b/kernel_version.info
+@@ -1,2 +1,3 @@
++3.10.0-862.2.3.el7.x86_64
+ 3.10.0-1062.4.1.el7.x86_64
+-3.10.0-1062.9.1.el7.x86_64
+\ No newline at end of file
++3.10.0-1062.9.1.el7.x86_64
+````
+
