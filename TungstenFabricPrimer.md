@@ -4545,6 +4545,8 @@ From vRouter side, this point might need to be taken care of.
  1. vRouter will use core load-balance based on 5-tuple, so for optimal performance, number of flows might need to be increased
   - https://www.openvswitch.org/support/ovscon2018/6/0940-yang.pptx
 
+Note: When vrouter-dpdk is used, to use untagged packet might lead to some more throughput (it means to provision vrouter-dpdk without --vlan_tci)
+
 ## Service Mesh
 istio is working well, multicluster could be interesting subject
  - https://www.youtube.com/watch?v=VSNc9qd2poA
