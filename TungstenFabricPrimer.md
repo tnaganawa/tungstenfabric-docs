@@ -115,6 +115,7 @@ So I picked one combination which I think mostly always works and stable enough 
 To try this, you need two servers, one is for k8s master, and the other is for k8s node.
 k8s master need to have at least 2 vCPUs and 8GB mem, and 8GB disk. k8s node needs 1 vCPU and 4GB mem, 8GB disk.
  - I personally always use ami-3185744e (CentOS7.5, login-id: centos) in ap-northeast-1 region, with t2.large size
+  - Note: from R1910 and later, ami-06a46da680048c8ae or 3.10.0-1062.el7.x86_64 can be used instead
  - Since in my impression, openstack and vCenter integration with Tungsten Fabric is much more complex than one with kubernetes, I recommend firstly try this setup, even if you don't need container support
  - For installation, internet connection is required
 
