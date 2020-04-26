@@ -2913,6 +2913,9 @@ provider: bms-maint
 except the one which will be updated, will be one possible workaround.
  - As far as I tried, this procedure makes it possible to update nodes one-by-one, although I don't know it will always work well ..
 
+Note: From R2005, ziu.yaml is added for this purpose, at least for control plane, to update them one-by-one.
+ - https://github.com/Juniper/contrail-ansible-deployer/blob/master/README_ziu.md
+
 ### ISSU
 
 ISSU can be used even if container formats are largely different, like 4.x to 5.x case, since it creates a new cluster of controllers, and copy the data inside.
