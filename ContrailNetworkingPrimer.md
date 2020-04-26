@@ -9,7 +9,7 @@ Table of Contents
       * [vQFX limitation](#vqfx-limitation)
       * [Integration with fabric automation and vRouters](#integration-with-fabric-automation-and-vrouters)
       * [Multi fabric setup](#multi-fabric-setup)
-      * [PNF integration](#pnf-integration)
+      * [PNF integration and External Access](#pnf-integration-and-external-access)
       * [Appformix integration](#appformix-integration)
       * [Ironic integration](#ironic-integration-wip)
    * [Contrail Healthbot](#contrail-healthbot)
@@ -398,18 +398,34 @@ I'll attach BMS to BMS and BMS to VM ping result for L2, L3 traffic, for referen
 
 So it is not too difficult to configure multiple fabrics and vRouters under that, even if l2 extension between fabrics is a requirement.
 
-### PNF integration
+### PNF integration and External Access
 
-Let me briefly describe the several approach of PNF integration with contrail networking.
+Let me describe the several approach of PNF integration with contrail networking.
 
 Although Contrail Command has its own PNF integration based on service-appliance-set in Tungsten Fabric, it can also be configured based on logical-route and virtual-port-group.
 
-Since latest fabric automation supports virtual-port-group and logical-router to setup PNF access to virtual-network, those setting also could be possible.
-- vm1 (belong to vn1, and get floating-ip from public-vn) - vn1 - public-vn (external is checked, and connected to lr1) - lr1 (vxlan-routing, extended to qfx, connected to vn1, vn-pnf-left) - vn-pnf-left - pnf1 - vn-pnf-right - lr2 (connected to vn-pnf-right, extended to qfx) - border-router
+Since fabric automation supports virtual-port-group and logical-router to setup PNF access to virtual-network, those setting also could be possible.
 
-From vRouter side, it just means lr1 is extended to QFX and can send traffic to the underlay through this, and from fabric automation side, it just connected lr1 and lr2 to pnf1 and lr2 to border-leaf, based on some routing protocol (ospf or bgp might be a choice, both pnf and QFX VRFs need to be manually configured).
+From R2003, it begins to support unicast BGP to external router and unmanaged PNF and allows similar setup without manual config.
+ - https://www.juniper.net/documentation/en_US/contrail20/topics/topic-map/connect-third-party-device-cc.html
 
-So with contrail command, vRouter's vm can be integrated with PNF, although some manual config is still needed.
+So .., this allows several setup for firewall and external routers.
+ - https://www.juniper.net/documentation/en_US/day-one-books/TW_DCDeployment.v2.pdf
+ - https://www.juniper.net/documentation/en_US/release-independent/solutions/topics/topic-map/service-chaining.html
+
+Since CRB Spine or ERB leaf also can do l3 routing, there are several configuration option. Each has its pros and cons, so it can be chosen based on your environment.
+ 1. all the l3 rouitng are done in fabric device, and connect that to external router with unicast BGP
+  - 1-1. same as 1, but create two VRFs for North-South firewall
+ 2. with two VRFs for l3 routing with parts of l2 vni connected to each, and firewall device between them, for East-West firewall
+ 3. all l3 routing will be done by external router (bridged overlay): one way to configure this is to create VRF only on MX, with MX as ERB leaf
+ 4. all l3 routing will be done by firewall (firewall for all l3): one way to configure this is to assign a logical-router to  L2VNI, and connect each logical-router with PNF with vlan tag
+
+Since vRouter can share VXLAN L3VRF with fabric device, each option can be combined with vRouter.
+
+Note:
+One more possible options is to add vxlan VNF service-chain, instead of PNF.
+It can be used with 1-1, 2 scenario, although I haven't yet seen it can work with 4, since it requires vlan subinterface ..
+
 
 ### Appformix integration
 
