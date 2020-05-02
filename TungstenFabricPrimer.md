@@ -2902,19 +2902,21 @@ One caveat is, since this command restarts all the nodes mostly simultaneously, 
 Additionally, removing other nodes from instances.yaml won't work, since one node's update require some parameters of other nodes.
  - For example, vRouter update needs controls' ip, that is deduced from control role nodes in instances.yaml
 
-To overcome this, since ansible-deployer chooses hosts to be modified based on 
-```
-provider: bms
-```
-parameter, changing them to such as
-```
-provider: bms-maint
-```
-except the one which will be updated, will be one possible workaround.
- - As far as I tried, this procedure makes it possible to update nodes one-by-one, although I don't know it will always work well ..
-
-Note: From R2005, ziu.yaml is added for this purpose, at least for control plane, to update them one-by-one.
+To overcome this, from R2005, ziu.yaml is added for this purpose, at least for control plane, to update them one-by-one.
  - https://github.com/Juniper/contrail-ansible-deployer/blob/master/README_ziu.md
+
+```
+cd contrail-ansible-deployer
+git pull
+vi config/instances.yaml
+(update CONTRAIL_CONTAINER_TAG)
+ansible-playbook -e orchestrator=xxx -i inventory/ playbooks/ziu.yml
+ansible-playbook -e orchestrator=xxx -i inventory/ playbooks/install_contrail.yml
+```
+
+As far as I tried, it will do serial update and restart of control processes, so no packet drop is seen, when control plane update is performed.
+ - During install_contrail.yaml, control process restart is skipped, since they are already updated
+ - some packet drop is still seen when vrouter-agent restart is performed, so if it is possible, workload migration is recommended
 
 ### ISSU
 
