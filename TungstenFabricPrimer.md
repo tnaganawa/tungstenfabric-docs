@@ -2600,6 +2600,19 @@ docker exec -it config_api_1 /bin/bash
  python db_manage.py --execute heal
 ```
 
+Internally, cassandra also has some maintence job to keep consistency (it will be automatically executed by nodemgr)
+To check cassandra's status and data consistency manually, those command can be used. (port-number is 7200 for analytics-database, 7201 for config-database)
+```
+# docker exec -it config_database_cassandra_1 bash
+  # nodetool -p port-number info
+  # nodetool -p port-number status
+  # nodetool -p port-number repair --full
+```
+
+Other useful command is described there.
+ - https://review.opencontrail.org/c/tungstenfabric/tf-analytics/+/58836
+
+
 # Troubleshooting Tips
 
 When using vRouter, there could be some situations routing won't work well as expected.
