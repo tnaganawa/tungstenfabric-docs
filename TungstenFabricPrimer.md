@@ -2699,6 +2699,9 @@ UVE (User Visible Entity) is a metrics, used by each components of Tungsten Fabr
 
 Trace is a trace log of each component, which is stored in the memory of each process. With this option, this trace memory can be dumped.
 
+Logs from various components, mostly docker logs of each container or logs under /var/log/contrail, also will be useful.
+To change log level higher to see more detail, LOG_LEVEL=SYS_DEBUG parameter can be used.
+
 ### x. some VM-to-VM packets can't reach the other node
  To investigate this, firstly, it needs to be seen that is control plane issue or data plane issue.
  For control plane issue, those commands will be most useful.
@@ -2718,6 +2721,7 @@ Trace is a trace log of each component, which is stored in the memory of each pr
  When packet reached the destination vRouter, check 
 ```
  # flow -l
+ # flow -l --show-evicted ### this can be used to see flow for drop packets
 ```
  to see if it is dropped by flow action.
   - For example, action: D(Policy), D(SG) indicates it is dropped by network-policy or security-group
