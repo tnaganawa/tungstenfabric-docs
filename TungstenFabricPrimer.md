@@ -2883,6 +2883,38 @@ docker-compose -f /etc/contrail/analytics_database/docker-compose.yaml down
 docker-compose -f /etc/contrail/analytics_database/docker-compose.yaml up -d
 ```
 
+### x. Scanned over 100001 tombstones during query
+
+If this error is seen in cassandra log (/var/log/cassandra/system.log in cassandra containers), some of cassandra KEYSPACE is not working well (most likely config_db_uuid keyspace, which contain all the uuid of config objects), so in turn, config-api also might not work well.
+
+From cassandra's perspective, it has some configuration to set maximum number of tombstone in specific keyspace (tombstone_failure_threshold, by default 100000), and if that is above this threshold, it will abort that query.
+ - tombstone is a flag to indicate that data is deleted from that keyspace. It will remain to be there after data deletion during gc_grace_seconds (by default, 10 days). So practically, if 100000 objects is deleted in 10 days, config-database stop responding ..
+
+If it is seen,
+```
+# docker exec -it config_database_cassandra_1 bash
+# cqlsh config-db-ip 9041
+  cql> ALTER TABLE config_db_uuid WITH gc_grace_seconds = 0;
+  cql> ALTER TABLE config_db_uuid WITH gc_grace_seconds = 864000;
+```
+will forcefully delete all tombstones.
+ - One drawback is that if this is typed at the same time with data deletion, that delete operation will not be propagated to other cassandra nodes successfully ..
+
+### x. No configuration for self in vRouter NodeStatus
+
+In some cases, 'No configuration for self' message is seen in contrail-status of vRouter or control process.
+
+It indicates those processes can't find node definition for them in config-database, so they cannot download ifmap info for them.
+
+To check node definition, this command can be used.
+```
+# contrail-api-cli ls -l virtual-router ## for vRouter
+# contrail-api-cli ls -l bgp-router ## for control
+```
+
+Most likely cause is name of each object is a bit different from hostname, such as hostname: node1, but objects: node1.local.
+
+For vRouter, to set this name manually, VROUTER_HOSTNAME parameter can be used, so setting this value to the one in config-database would resolve this issue.
 
 # Appendix
 
