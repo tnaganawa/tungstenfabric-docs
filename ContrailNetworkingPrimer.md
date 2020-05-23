@@ -788,6 +788,9 @@ Then, https://healthbot-node-ip:8080 will give healthbot webui.
 
 ## Contrail multicloud
 
+Some usecases is described in this channel.
+ - https://www.youtube.com/channel/UCXUny7HKBdyakn3-UOdkhsw
+ 
 ### container deployment
 ### baremetal instance deployment
 
