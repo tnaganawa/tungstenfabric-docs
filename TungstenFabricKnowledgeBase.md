@@ -1212,12 +1212,47 @@ When installed on public cloud, vRouter needs to have floating-ip from underlay 
 Fortunately, since 4.1, tungsten fabric supports gatewayless feature, so it won't have much difficulty to serve floating-ip from that virtual-network (idea is to attach another IP with ENI, and make it the source of floating-ip, to make the service on vRouter accessible from the outside world)
  - https://github.com/Juniper/contrail-specs/blob/master/gateway-less-forwarding.md
 
+Note: I personally prefer to make service-network gatewayless, when kubernetes is used (external-ip will not be used for this setup). If some hypervisor with baremetal instance is used, floating-ip with some gatewayless subnet is still the pereferred option.
+
 From vRouter to the outside world, Distribute SNAT feature would do the trick.
  - https://github.com/Juniper/contrail-specs/blob/master/distributed-snat.md
  - SNAT with floating-ip also would work well
 
 Additionally, it would be also possible to define two separate load balancers on vRouters to reach the same application, to make it accessble from two different avaibility zones, which potentially ensure higher availablity.
- - to be investigated
+
+To set up this, several things need to be configured.
+ 1. vRouter has one gatewayless subnet whose subnet range is not included in VPC subnet.
+ 2. one instance route will be configured in route table, which will forward gatewayless subnet to one of vRouter node.
+ 3. ELB will be set up with IP address of gatewayless IP. (When ip is specified, 'Other IP address' need to be configured for 'Subnet')
+ 4. Since in this case, security-group didn't automatically allow ELB's address, VPC's CIDR need to be manually allowed for health check from ELB to work well.
+
+One limitation is vRouter's gatewayless can forward packets to other vRouter only when destination vRouter is in the same L2 subnet with the vRouter which originally received the packet.
+ - if that is in the different subnet, vRouter will forward that packet to VROUTER_GATEWAY, which in turn, send that packet to vRouter to form a loop ..
+
+Since AWS subnet cannot contain same subnet, to make this setup AZ HA, two load-balancers to the same application need to be configured, with two different gatewayless subnet for each AZ.
+
+Since ELB can forward packet to two vRouter load-balancers, it can be AZ HA with the help of ELB.
+
+vRouter CNI AWS EKS is another possible integration scenario.
+ - https://www.youtube.com/channel/UCXUny7HKBdyakn3-UOdkhsw
+
+To setup this, firstly EKS will be configured with some IAM user from web console.
+ - Since kubectl can be used with that IAM user which create that kubernetes cluster, root access for web console is not recommended.
+
+Then, these commands remove VPC CNI from each worker node.
+```
+(laptop)
+# kubectl delete ds -n kube-system aws-node
+(EKS worker node)
+# mv -i /etc/cni/net.d/10-aws.conflist /tmp/
+```
+
+After that, the same procedure with this URL can be used to install vRouter CNI.
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#kubeadm
+
+Note: 
+Although by default vrouter.ko from dockerhub container cannot be loaded in amazon linux 2 kernel, this procedure can  be used to create vrouter.ko for that kernel.
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricKnowledgeBase.md#how-to-build-tungsten-fabric
 
 ## erm-vpn
 When erm-vpn is enabled, vrouter send multicast traffic to up to 4 nodes, to avoid ingress replication to all the nodes.
