@@ -769,6 +769,15 @@ cd /root/contrail/vrouter
 make KERNELDIR=/lib/modules/3.10.0-1062.el7.x86_64/build clean
 ```
 
+Note: When kernel-devel package from other distrubution (I tried one from centos 8 and amazon linux 2) is installed, it can also be specified as kernel-dir.
+
+For example, this command created vrouter.ko for centos 8.2.
+ - it can be manually loaded by insmod command.
+```
+# rpm -ivh --nodeps kernel-devel-4.18.0-147.8.1.el8_1.x86_64.rpm
+# scons --opt=production --kernel-dir=/usr/src/kernels/4.18.0-147.8.1.el8_1.x86_64/ build-kmodule
+```
+
 ## vRouter scale test procedure
 
 Since GCP allowed me to start up to 5k nodes :), this procedure is described primarily for this platform.
