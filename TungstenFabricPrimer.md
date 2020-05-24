@@ -2678,6 +2678,20 @@ To check cassandra's status and data consistency manually, those command can be 
 Other useful command is described there.
  - https://review.opencontrail.org/c/tungstenfabric/tf-analytics/+/58836
 
+## IndexAllocator
+
+Although it might add some more complexity to this discussion, some of objects which require lock (such as IP address allocation from each subnet), uses IndexAllocator, which is internally a bitarray (in-memory array) in each config-api.
+ - https://github.com/Juniper/contrail-controller/blob/master/src/config/common/cfgm_common/zkclient.py#L65
+
+When IndexAllocator is created, it uses ls /somepath in zookeeper and fill the memory, and increment that and create znode when it receves another similar request.
+
+One possible situation is that, for some reason, zookeeper needs to be modified manually.
+ - such as to free IP address, which is not deleted successfully
+ - https://bugs.launchpad.net/opencontrail/+bug/1365824
+
+In this case, since config-api has in-memory db, it might be required to restart all config-api process, to sync that with manually modified znode.
+
+This behavior might be changed in future release.
 
 # Troubleshooting Tips
 
