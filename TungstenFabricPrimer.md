@@ -40,6 +40,7 @@ Table of Contents
    * [Day 2 operation](#day-2-operation)
       * [ist.py](#istpy)
       * [contrail-api-cli](#contrail-api-cli)
+      * [REST API](#rest-api)
       * [webui](#webui)
       * [backup and restore](#backup-and-restore)
       * [Changing container parameters](#changing-container-parameters)
@@ -2489,6 +2490,71 @@ with open (filename, 'w') as f:
 
 So with this command, you can edit Tungsten Fabric json programmatically, without deep knowledge on Tungsten Fabric API.
 Since many objects are created by such as neutron API, it might be the way to use them firstly, and update them with Tungsten Fabric specific parameters (route-target is one example) by this tool.
+
+## REST API
+
+Internally, contrail-api-cli uses REST API served by config-api, which does various CRUD operation based on HTTP method and URL specified.
+ - When keystone authentication is enabled, each command needs -H 'x-auth-token: token-id', in which token-id is a keystone token, and it can be created by such as 'openstack token issue' command
+
+When this command can be used, it returns similar result with 'contrail-api-cli ls'.
+```
+curl config-api-ip:8082
+```
+
+After object name such as virtual-network is identified, this command will dump all the uuids in that object.
+ - detail=True optionally dump all the json definitions
+```
+curl config-api-ip:8082/virtual-networks 
+curl config-api-ip:8082/virtual-networks\?detail=True
+```
+
+When uuid is identified, json for that uuid would be retrieved by this command. (similar to contrail-api-cli cat)
+```
+curl config-api-ip:8082/virtual-network/xxxx-xxxx-xxxx-xxxx
+```
+
+To modify json definition, PUT command can be used. (contrail-api-cli edit also uses this)
+```
+curl -X PUT -H "Content-Type: application/json" -d@jsonfile config-api-ip:8082/virtual-network/xxxx-xxxx-xxxx-xxxx
+```
+
+POST and DELETE can be used to create and delete objects.
+```
+curl -X POST -H "Content-Type: application/json" -d@jsonfile config-api-ip:8082/virtual-networks
+curl -X DELETE config-api-ip:8082/virtual-network/xxxx-xxxx-xxxx-xxxx
+```
+
+So if object name is known, it is also possible to get and modify config database through REST API.
+
+Unfortunately, not so many docs are available for each internal object, so to see which object has what behavior, perhaps to check these source files would be the easiest way ..
+ - https://github.com/Juniper/contrail-api-client/blob/master/schema/vnc_cfg.xsd
+ - https://github.com/Juniper/contrail-controller/tree/master/src/config/api-server/vnc_cfg_api_server/resources
+
+For illustration purpose, some objects which are frequently touched will be described.
+```
+(same meaning with the one in webui)
+virtual-network
+logical-router
+network-policy
+service-instance
+physical-router
+service-appliance: definition for load-balancer (historically, some PNF implementation also uses this object)
+load-balancer
+global-system-config
+global-vrouter-config
+
+(slightly different meaning)
+virtual-router: same as Configure > Infrastructure > Nodes > vRouter nodes
+bgp-router: same as Configure > Infrastructure > BGP router. It seems also used as control's definition for ifmap objects, so if some of control is removed from this objects, it shows 'No configuration for self' error, and stop working.
+instance-ip: ip for each ports (that is separate object internally)
+virtual-machine-interface: same as Configure > Networking > Ports
+project: same as Configure > Infrastructure > Projects. When openstack is used, plugin will copy all the projects in keystone to this. When kubernetes is used, kube-manager will create this object based on kubenetes namespaces.
+domain: similar to project. When openstack is used, it will be copied from keystone. When kubernetes is used, default-domain will be used.
+
+(not seen in webui)
+virtual-machine: internal object for virtual-machine. When vRouter API is called by CNI or nova-vif-driver, this object will have a link to virtual-router, and ifmap object for this virtual-machine will be downloaded from control process
+access-contol-list: vRouter's ACL entry, which will be calculated by schema-transformer from security-group definition
+```
 
 ## webui
 
