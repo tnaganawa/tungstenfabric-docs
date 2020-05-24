@@ -1207,9 +1207,11 @@ If coredns received ip, nested installation is working fine.
 
 ## Tungsten fabric deployment on public cloud
 
+### gatewayless and snat
+
 When installed on public cloud, vRouter needs to have floating-ip from underlay IP, since no hardware which serve MPLS over IP or VXLAN is avalaible ..
 
-Fortunately, since 4.1, tungsten fabric supports gatewayless feature, so it won't have much difficulty to serve floating-ip from that virtual-network (idea is to attach another IP with ENI, and make it the source of floating-ip, to make the service on vRouter accessible from the outside world)
+Having said that, since tungsten fabric supports gatewayless feature, it won't have much difficulty to serve floating-ip from that virtual-network (idea is to attach another IP with ENI, and make it the source of floating-ip, to make the service on vRouter accessible from the outside world)
  - https://github.com/Juniper/contrail-specs/blob/master/gateway-less-forwarding.md
 
 Note: I personally prefer to make service-network gatewayless, when kubernetes is used (external-ip will not be used for this setup). If some hypervisor with baremetal instance is used, floating-ip with some gatewayless subnet is still the pereferred option.
@@ -1217,6 +1219,8 @@ Note: I personally prefer to make service-network gatewayless, when kubernetes i
 From vRouter to the outside world, Distribute SNAT feature would do the trick.
  - https://github.com/Juniper/contrail-specs/blob/master/distributed-snat.md
  - SNAT with floating-ip also would work well
+
+### AZ high availability
 
 Additionally, it would be also possible to define two separate load balancers on vRouters to reach the same application, to make it accessble from two different avaibility zones, which potentially ensure higher availablity.
 
@@ -1232,6 +1236,8 @@ One limitation is vRouter's gatewayless can forward packets to other vRouter onl
 Since AWS subnet cannot contain same subnet, to make this setup AZ HA, two load-balancers to the same application need to be configured, with two different gatewayless subnet for each AZ.
 
 Since ELB can forward packet to two vRouter load-balancers, it can be AZ HA with the help of ELB.
+
+### EKS integration
 
 vRouter CNI AWS EKS is another possible integration scenario.
  - https://www.youtube.com/channel/UCXUny7HKBdyakn3-UOdkhsw
@@ -1253,6 +1259,36 @@ After that, the same procedure with this URL can be used to install vRouter CNI.
 Note: 
 Although by default vrouter.ko from dockerhub container cannot be loaded in amazon linux 2 kernel, this procedure can  be used to create vrouter.ko for that kernel.
  - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricKnowledgeBase.md#how-to-build-tungsten-fabric
+
+### CNI MTU setting
+
+One note, when vRouter is installed in public cloud instances, some MTU issue might be seen.
+
+Most of the issue will be fixed when physical interface MTU is changed, but when packets from containers is fragmented, CNI's MTU setting might need to be changed.
+
+```
+vi /etc/cni/net.d/10-contrail.conf
+{
+    "cniVersion": "0.3.1",
+    "contrail" : {
+        "meta-plugin"   : "$KUBERNETES_CNI_META_PLUGIN",
+        "vrouter-ip"    : "127.0.0.1",
+        "vrouter-port"  : $VROUTER_PORT,
+        "config-dir"    : "/var/lib/contrail/ports/vm",
+        "poll-timeout"  : 5,
+        "poll-retries"  : 15,
++       "mtu"  : 1300,
+        "log-file"      : "$LOG_DIR/cni/opencontrail.log",
+        "log-level"     : "4"
+    },
+    "name": "contrail-k8s-cni",
+    "type": "contrail-k8s-cni"
+}
+```
+
+https://github.com/Juniper/contrail-container-builder/blob/master/containers/kubernetes/cni-init/entrypoint.sh#L34
+https://github.com/Juniper/contrail-controller/blob/master/src/container/cni/contrail/cni.go#L33
+
 
 ## erm-vpn
 When erm-vpn is enabled, vrouter send multicast traffic to up to 4 nodes, to avoid ingress replication to all the nodes.
