@@ -7,6 +7,7 @@ Table of Contents
       * [vRouter internal](#vrouter-internal)
       * [control internal](#control-internal)
       * [config internal](#config-internal)
+      * [config database internal](#config-database-internal)
       * [analytics internal](#analytics-internal)
       * [some configuration knobs which are not documented well](#some-configuration-knobs-which-are-not-documented-well)
          * [forwarding mode](#forwarding-mode)
@@ -507,6 +508,34 @@ For example, if virtual-machine-interface is updated,
 ```
 
 it will also evaluate virtual-machine, port-tuple, virtual-network, and bgp-as-a-service, if it has a reference with the virtual-machine-interface, which is originally updated.
+
+## config database internal
+
+### to read config_db_uuid keyspace contents
+
+When cassandra contents are seen by cqlsh (for example cql> select * from config_db_uuid.obj_fq_name_table;), it returns some output which is not human-readable.
+
+Key is that config-api internally uses pycassa's ColumnFamily (https://github.com/pycassa/pycassa#basic-usage), which is similar to ORM mapper for cassandra.
+ - https://github.com/Juniper/contrail-controller/blob/master/src/config/common/cfgm_common/cassandra_driver_thrift.py#L251-L259
+
+```
+    def _cassandra_init_conn_pools(self):
+(snip)
+            for cf_name in cf_dict:
+                cf_kwargs = cf_dict[cf_name].get('cf_args', {})
+                self._cf_dict[cf_name] = ColumnFamily(
+                    pool,
+                    cf_name,
+                    read_consistency_level=ConsistencyLevel.QUORUM,
+                    write_consistency_level=ConsistencyLevel.QUORUM,
+                    dict_class=dict,
+                    **cf_kwargs)
+```
+
+To read this, json file created by backup / restore procedure is convinient,
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#backup-and-restore
+
+although that result is mostly similar to config-api's HTTP GET output ..
 
 
 ## analytics internal
