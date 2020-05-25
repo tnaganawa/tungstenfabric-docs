@@ -2678,7 +2678,7 @@ To check cassandra's status and data consistency manually, those command can be 
 Other useful command is described there.
  - https://review.opencontrail.org/c/tungstenfabric/tf-analytics/+/58836
 
-## IndexAllocator
+### IndexAllocator
 
 Although it might add some more complexity to this discussion, some of objects which require lock (such as IP address allocation from each subnet), uses IndexAllocator, which is internally a bitarray (in-memory array) in each config-api.
  - https://github.com/Juniper/contrail-controller/blob/master/src/config/common/cfgm_common/zkclient.py#L65
