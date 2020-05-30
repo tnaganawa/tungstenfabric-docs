@@ -1966,6 +1966,10 @@ index 36412b2..a830b5c 100644
 
 #### 'enable_nova: no' can be configurable
 
+(Implemented)
+
+https://review.opencontrail.org/c/Juniper/contrail-kolla-ansible/+/58908
+
 ```
 git clone -b contrail/queens https://github.com/Juniper/contrail-kolla-ansible
 
@@ -1988,6 +1992,9 @@ index e603207..c700d88 100644
 https://review.opencontrail.org/c/Juniper/contrail-specs/+/55761
 
 #### kubernetes multi master setup
+
+(Implemented)
+
 1. https://review.opencontrail.org/c/Juniper/contrail-controller/+/55758
 1. https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#k8sk8s
 
@@ -2109,6 +2116,8 @@ index f4f49f4..01e1349 100755
 ```
 
 #### when it will be used with multus
+
+(Implemented)
 
 After this commit, vRouter works fine with multus-cni (it dynamically identify if it was directly called, or it was called by some meta plugin).
  - https://review.opencontrail.org/c/Juniper/contrail-controller/+/58387
