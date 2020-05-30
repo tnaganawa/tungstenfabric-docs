@@ -538,6 +538,38 @@ To read this, json file created by backup / restore procedure is convinient,
 although that result is mostly similar to config-api's HTTP GET output ..
 
 
+### zookeeper usage in tungsten fabric config database
+
+Since it is not easy to calculate the next integer by cassandra, tungsten fabric uses zookeeper for that purpose.
+https://stackoverflow.com/questions/53702288/is-increment-integer-in-cassandra-possible-in-some-cases
+
+Data for that is in various zookeeper path. To investigate, those command can be used.
+
+```
+docker exec -it config_database_zookeeper_1 bash
+  ./bin/zkCli.sh -server config-database-ip
+
+[zk: 172.31.12.209(CONNECTED) 0] ls /
+[analytics-discovery-, api-server-election, device-manager, fq-name-to-uuid, id, schema-transformer, svc-monitor, zookeeper]
+[zk: 172.31.12.209(CONNECTED) 1] ls /id
+[bgp, security-groups, tags, virtual-networks]
+[zk: 172.31.12.209(CONNECTED) 2] ls /id/bgp
+[route-targets]
+[zk: 172.31.12.209(CONNECTED) 3] ls /id/bgp/route-targets
+[type0]
+[zk: 172.31.12.209(CONNECTED) 4] ls /id/bgp/route-targets/type0
+[0008000000, 0008000001, 0008000002, 0008000003, 0008000004, 0008000005, 0008000006]
+[zk: 172.31.12.209(CONNECTED) 5] 
+
+[zk: 172.31.12.209(CONNECTED) 11] get /id/bgp/route-targets/type0/0008000000
+default-domain:default-project:default-virtual-network:default-virtual-network
+[zk: 172.31.12.209(CONNECTED) 12] 
+```
+
+Backup script also can be used to dump all the Zookeeper data.
+https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#backup-and-restore
+
+
 ## analytics internal
 ### redis, cassandra and kafka
 Analytics has several backend databases, most notabliy, redis and cassandra, and optionally kafka, if alarmgen is also installed.
