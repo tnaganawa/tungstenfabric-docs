@@ -1281,7 +1281,7 @@ From vRouter to the outside world, Distribute SNAT feature would do the trick.
  - https://github.com/Juniper/contrail-specs/blob/master/distributed-snat.md
  - SNAT with floating-ip also would work well
 
-### AZ high availability
+### AZ high availability WIP
 
 Additionally, it would be also possible to define two separate load balancers on vRouters to reach the same application, to make it accessble from two different avaibility zones, which potentially ensure higher availablity.
 
