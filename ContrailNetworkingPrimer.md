@@ -531,7 +531,7 @@ instances:
       appformix_openstack_controller:
       appformix_compute:
       openstack_compute:
-bms2:
+  bms2:
     provider: bms
     ip: 192.168.122.251
     roles:
