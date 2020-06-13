@@ -40,11 +40,6 @@ It covers several topics including all the features of Tungsten Fabric webui, an
 To install that, you can firstly set up Tungsten Fabric controller, in some way described in this doc. (tungstenfabirc, r5.1 might work well, although latest module of monthly relase (R1907-latest, R1908-latest, ..) might be recommended)
 https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#2-tungstenfabric-up-and-running
 
- - Note: to make fabric automation without openstack, you might need this knob: https://review.opencontrail.org/c/Juniper/contrail-controller/+/51846
- ```
-   DEVICE_MANAGER__KEYSTONE__admin_password: contrail123
-   API__KEYSTONE__admin_password: contrail123
- ```
 
 After that, you can import those controllers based on these two files (all of kubernetes, openstack, vCenter will work well with contrail-command)
  - Note: for kubernetes or vCenter, you need this knob: auth_type: basic-auth (for openstack this knob is not needed)
@@ -444,7 +439,7 @@ When sflow sample rate is high, resouce usage is minimal, so I'll also install a
 # At mininum, Mem 16GB, Disk: 50GB is required
 
 export docker_registry=hub.juniper.net/contrail
-export container_tag=1912.32
+export container_tag=2005.62
 export node_ip=192.168.122.252
 export hub_username=xxx
 export hub_password=yyy
@@ -492,9 +487,6 @@ command_servers:
             insecure: true
             client:
               password: contrail123
-user_command_volumes:
-  - /opt/software/appformix:/opt/software/appformix
-  - /opt/software/xflow:/opt/software/xflow
 EOF
 
 
@@ -547,8 +539,6 @@ contrail_configuration:
   KEYSTONE_AUTH_URL_VERSION: /v3
   CONTRAIL_CONTAINER_TAG: "${container_tag}"
   JVM_EXTRA_OPTS: -Xms128m -Xmx1g
-  COLLECTOR_PORT: 18086
-  ANALYTICS_API_INTROSPECT_LISTEN_PORT: 18090
 kolla_config:
   kolla_globals:
     enable_haproxy: no
@@ -560,7 +550,6 @@ kolla_config:
   kolla_passwords:
     keystone_admin_password: contrail123
 appformix_configuration:
-    appformix_license:  /opt/software/appformix/appformix-openstack-3.1.sig
 xflow_configuration:
   clickhouse_retention_period_secs: 7200
   loadbalancer_collector_vip: 192.168.122.250
@@ -569,42 +558,15 @@ EOF
 bash install-cc.sh ## it takes about 60 minutes to finish installation
 
 
-Note: before typing bash install-cc.sh, please upload those files to /opt/software/appformix
- appformix-3.1.x.tar.gz
- appformix-dependencies-images-3.1.x.tar.gz
- appformix-network_device-images-3.1.x.tar.gz
- appformix-openstack-images-3.1.x.tar.gz
- appformix-platform-images-3.1.x.tar.gz
- appformix-openstack-3.1.sig
-Besides, these two files can be uploaded to /opt/software/xflow
- appformix-flows-1.0.x.tar.gz
- appformix-flows-ansible-1.0.x.tar.gz
-
 To see the installation status, those two commands can be used
 # docker logs -f contrail_command_deployer ## for command installation
 # tail -f /var/log/contrail/deploy.log     ## for contrail cluster installation
+# docker exec -t contrail-player_xxxxx tail -f /var/log/ansible.log ## to see detailed ansible-player log during contrail cluster installation
 ```
 
 After that, contrail-command should show some additional views such as 'Topology View', 'Overlay / Underlay correlation', in a similar sense with contrail-webui.
 ![TopologyView](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/CommandTopologyView.png)
 
-Note: Since analytics-api introspect port is changed from 8090 to 18090, contrail-status won't work well in this setup.
-To workaround this, please try this procedure.
-```
-1. create contrail-status container to be modified
- # vi /usr/bin/contrail-status
- remove '--rm' from docker run option
- # contrail-status
-2. modify port definition file
- # docker cp contrail-status:/usr/lib/python2.7/site-packages/sandesh_common/vns/constants.py .
- # sed -i 's/8090/18090/' constants.py
- # docker cp constants.py contrail-status:/usr/lib/python2.7/site-packages/sandesh_common/vns/constants.py
-3. replace docker run command by docker start command
- # vi /usr/bin/contrail-status
- replace docker run command by this: docker start -a contrail-status
-X. type contrail-staus and check if it works as expected
- # contrail-status 
-```
 ### Ironic integration WIP
 Contrail has some feature to integrate with ironic, based mainly on fabric-manager.
 
