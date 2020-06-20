@@ -2300,3 +2300,21 @@ index 8d38f34..d5e711b 100644
 +3.10.0-1062.9.1.el7.x86_64
 ````
 
+#### configurable minimum route target id
+
+```
+diff --git a/src/config/common/cfgm_common/__init__.py b/src/config/common/cfgm_common/__init__.py
+index 088b03b..dd484ab 100644
+--- a/src/config/common/cfgm_common/__init__.py
++++ b/src/config/common/cfgm_common/__init__.py
+@@ -18,7 +18,7 @@ DCI_VN_FQ_NAME = ['default-domain', 'default-project', 'dci-network']
+ DCI_IPAM_FQ_NAME = ['default-domain', 'default-project', 'default-dci-lo0-network-ipam']
+ OVERLAY_LOOPBACK_FQ_PREFIX = ['default-domain', 'default-project']
+ 
+-_BGP_RTGT_MIN_ID_TYPE0 = 8000000
++_BGP_RTGT_MIN_ID_TYPE0 = 8100000
+ _BGP_RTGT_MIN_ID_TYPE1_2 = 8000
+ SGID_MIN_ALLOC = 8000000
+ VNID_MIN_ALLOC = 1
+```
+
