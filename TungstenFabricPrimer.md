@@ -125,7 +125,7 @@ k8s master need to have at least 2 vCPUs and 8GB mem, and 8GB disk. k8s node nee
 sudo yum -y remove PyYAML python-requests
 sudo yum -y install git
 sudo easy_install pip
-sudo pip install PyYAML requests ansible==2.7.15
+sudo pip install PyYAML requests ansible\<2.8
 ssh-keygen
 cd .ssh/
 cat id_rsa.pub >> authorized_keys
