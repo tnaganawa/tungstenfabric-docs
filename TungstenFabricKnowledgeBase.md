@@ -2625,7 +2625,7 @@ index 088b03b..dd484ab 100644
 ```
 
 
-#### vRouter build with linux 5.0 kernel fail
+#### vRouter build with linux 5.x kernel fail
 
 https://review.opencontrail.org/c/Juniper/contrail-vrouter/+/57506
 
