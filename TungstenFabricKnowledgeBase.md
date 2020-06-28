@@ -1863,6 +1863,311 @@ virtual-network/2b0469cf-921f-4369-93a7-2d73350c82e7  default-domain:default-pro
 
 ```
 
+## CentOS 8 installation procedure
+
+```
+centos8.2
+ansible-deployer is used
+
+only python3 is used (no python2)
+ - ansible 2.8.x is required
+
+1 x for tf-controller and kube-master, 1 vRouter
+
+(all nodes)
+yum install python3 chrony
+alternatives --set python /usr/bin/python3
+
+(vRouter nodes)
+yum install network-scripts
+ - this is required, since vRouter currently doesn't support NetworkManager
+
+(ansible node)
+sudo yum -y install git
+sudo pip3 install PyYAML requests ansible\<2.9
+
+tungtenfabric, latest is used as container tag (if vrouter.ko didn't work, please use rhel8.2 tag for vrouter-kernel-init container, https://hub.docker.com/layers/tungstenfabric/contrail-vrouter-kernel-init/rhel8.2/images/sha256-d5744b608fe28e4ceedc3668e26827ef4008309c38d3026a85eebc9a4bd0e078)
+
+provider_config:
+  bms:
+   ssh_user: root
+   ssh_public_key: /root/.ssh/id_rsa.pub
+   ssh_private_key: /root/.ssh/id_rsa
+   domainsuffix: local
+instances:
+  bms1:
+   provider: bms
+   roles:
+      config_database:
+      config:
+      control:
+      analytics:
+      analytics_database:
+      webui:
+      k8s_master:
+      kubemanager:
+   ip: 172.31.14.47 ## k8s master's ip
+  bms2:
+   provider: bms
+   roles:
+     vrouter:
+     k8s_node:
+   ip: 172.31.41.236 ## k8s node's ip
+contrail_configuration:
+  CONTRAIL_CONTAINER_TAG: latest
+  KUBERNETES_CLUSTER_PROJECT: {}
+  JVM_EXTRA_OPTS: "-Xms128m -Xmx1g"
+global_configuration:
+  CONTAINER_REGISTRY: tungstenfabric
+
+
+ansible-playbook -e orchestrator=kubernetes -i inventory/ playbooks/configure_instances.yml
+ - it takes about 10 minutes
+ansible-playbook -e orchestrator=kubernetes -i inventory/ playbooks/install_k8s.yml
+ - it takes about 5 minutes
+ansible-playbook -e orchestrator=kubernetes -i inventory/ playbooks/install_contrail.yml
+ - it takes about 20 minutes
+
+
+- setup chrony.conf manually to make this output has * character
+ chronyc -n sources
+
+
+[root@ip-172-31-7-20 ~]# contrail-status 
+Pod              Service         Original Name                          Original Version  State    Id            Status         
+                 redis           contrail-external-redis                nightly-master    running  24f53ceab904  Up 14 minutes  
+analytics        api             contrail-analytics-api                 nightly-master    running  fc149ef39805  Up 8 minutes   
+analytics        collector       contrail-analytics-collector           nightly-master    running  8efa1cb83e0a  Up 8 minutes   
+analytics        nodemgr         contrail-nodemgr                       nightly-master    running  28c9c62fa104  Up 8 minutes   
+analytics        provisioner     contrail-provisioner                   nightly-master    running  219bd1c2dbdb  Up 8 minutes   
+config           api             contrail-controller-config-api         nightly-master    running  f633fdf47eab  Up 11 minutes  
+config           device-manager  contrail-controller-config-devicemgr   nightly-master    running  badce06585d9  Up 11 minutes  
+config           dnsmasq         contrail-controller-config-dnsmasq     nightly-master    running  415f7264efc4  Up 11 minutes  
+config           nodemgr         contrail-nodemgr                       nightly-master    running  1254133b41f8  Up 11 minutes  
+config           provisioner     contrail-provisioner                   nightly-master    running  d9025a573c26  Up 11 minutes  
+config           schema          contrail-controller-config-schema      nightly-master    running  56833e8b4418  Up 11 minutes  
+config           stats           contrail-controller-config-stats       nightly-master    running  4409c7ca762d  Up 11 minutes  
+config           svc-monitor     contrail-controller-config-svcmonitor  nightly-master    running  c2e7fb135a14  Up 11 minutes  
+config-database  cassandra       contrail-external-cassandra            nightly-master    running  5c9900370ff4  Up 12 minutes  
+config-database  nodemgr         contrail-nodemgr                       nightly-master    running  b4fba3a8d274  Up 12 minutes  
+config-database  provisioner     contrail-provisioner                   nightly-master    running  ab513e8dae95  Up 11 minutes  
+config-database  rabbitmq        contrail-external-rabbitmq             nightly-master    running  f5f4db002f59  Up 12 minutes  
+config-database  zookeeper       contrail-external-zookeeper            nightly-master    running  52b0a406de26  Up 12 minutes  
+control          control         contrail-controller-control-control    nightly-master    running  4b127a720fd0  Up 9 minutes   
+control          dns             contrail-controller-control-dns        nightly-master    running  3853b49cc334  Up 9 minutes   
+control          named           contrail-controller-control-named      nightly-master    running  cd27dca70232  Up 9 minutes   
+control          nodemgr         contrail-nodemgr                       nightly-master    running  a9b4c63a5579  Up 9 minutes   
+control          provisioner     contrail-provisioner                   nightly-master    running  889bfb48f1cb  Up 9 minutes   
+database         cassandra       contrail-external-cassandra            nightly-master    running  077bf86be714  Up 8 minutes   
+database         nodemgr         contrail-nodemgr                       nightly-master    running  e767cc9e75df  Up 8 minutes   
+database         provisioner     contrail-provisioner                   nightly-master    running  f8dc9993b6f3  Up 8 minutes   
+database         query-engine    contrail-analytics-query-engine        nightly-master    running  facbb4a6a7f2  Up 8 minutes   
+kubernetes       kube-manager    contrail-kubernetes-kube-manager       nightly-master    running  90b2d33be774  Up 7 minutes   
+webui            job             contrail-controller-webui-job          nightly-master    running  8db0224db56e  Up 10 minutes  
+webui            web             contrail-controller-webui-web          nightly-master    running  00b680cdfb51  Up 10 minutes  
+
+== Contrail control ==
+control: active
+nodemgr: active
+named: active
+dns: active
+
+== Contrail config-database ==
+nodemgr: initializing (Disk for DB is too low. )
+zookeeper: active
+rabbitmq: active
+cassandra: active
+
+== Contrail kubernetes ==
+kube-manager: active
+
+== Contrail database ==
+nodemgr: initializing (Disk for DB is too low. )
+query-engine: active
+cassandra: active
+
+== Contrail analytics ==
+nodemgr: active
+api: active
+collector: active
+
+== Contrail webui ==
+web: active
+job: active
+
+== Contrail config ==
+svc-monitor: active
+nodemgr: active
+device-manager: active
+api: active
+schema: active
+
+[root@ip-172-31-7-20 ~]# 
+
+
+
+[root@ip-172-31-2-120 ~]# contrail-status 
+Pod      Service      Original Name           Original Version  State    Id            Status         
+         rsyslogd                             nightly-master    running  74d005445632  Up 24 minutes  
+vrouter  agent        contrail-vrouter-agent  nightly-master    running  d72ddaa41dd9  Up 35 seconds  
+vrouter  nodemgr      contrail-nodemgr        nightly-master    running  48cf35435b13  Up 34 seconds  
+vrouter  provisioner  contrail-provisioner    nightly-master    running  2a130d1531e1  Up 34 seconds  
+
+WARNING: container with original name '' have Pod or Service empty. Pod: '' / Service: 'rsyslogd'. Please pass NODE_TYPE with pod name to container's env
+
+vrouter kernel module is PRESENT
+== Contrail vrouter ==
+nodemgr: initializing (NTP state unsynchronized. )
+agent: active
+
+[root@ip-172-31-2-120 ~]# 
+
+[root@ip-172-31-2-120 ~]# python ist.py vr intf
++-------+----------------+--------+-------------------+---------------+---------------+---------+--------------------------------------+
+| index | name           | active | mac_addr          | ip_addr       | mdata_ip_addr | vm_name | vn_name                              |
++-------+----------------+--------+-------------------+---------------+---------------+---------+--------------------------------------+
+| 1     | crypt0         | Active | n/a               | n/a           | n/a           | n/a     | n/a                                  |
+| 0     | eth0           | Active | n/a               | n/a           | n/a           | n/a     | n/a                                  |
+| 2     | vhost0         | Active | 06:60:e9:78:16:f8 | 172.31.2.120  | 169.254.0.2   | n/a     | default-domain:default-project:ip-   |
+|       |                |        |                   |               |               |         | fabric                               |
+| 4     | tapeth0-87f2ec | Active | 02:c4:b6:7a:10:b9 | 10.47.255.252 | 169.254.0.4   | n/a     | default-                             |
+|       |                |        |                   |               |               |         | domain:k8s-default:k8s-default-pod-  |
+|       |                |        |                   |               |               |         | network                              |
+| 5     | tapeth0-87f1ee | Active | 02:c5:83:a1:de:b9 | 10.47.255.251 | 169.254.0.5   | n/a     | default-                             |
+|       |                |        |                   |               |               |         | domain:k8s-default:k8s-default-pod-  |
+|       |                |        |                   |               |               |         | network                              |
+| 3     | pkt0           | Active | n/a               | n/a           | n/a           | n/a     | n/a                                  |
++-------+----------------+--------+-------------------+---------------+---------------+---------+--------------------------------------+
+[root@ip-172-31-2-120 ~]# python ist.py vr vrf
++--------------------------------------+---------+---------+---------+-----------+----------+--------------------------------------+
+| name                                 | ucindex | mcindex | brindex | evpnindex | vxlan_id | vn                                   |
++--------------------------------------+---------+---------+---------+-----------+----------+--------------------------------------+
+| default-domain:default-project:ip-   | 0       | 0       | 0       | 0         | 0        | N/A                                  |
+| fabric:__default__                   |         |         |         |           |          |                                      |
+| default-domain:default-project:ip-   | 1       | 1       | 1       | 1         | 2        | default-domain:default-project:ip-   |
+| fabric:ip-fabric                     |         |         |         |           |          | fabric                               |
+| default-                             | 2       | 2       | 2       | 2         | 7        | default-                             |
+| domain:k8s-default:k8s-default-pod-  |         |         |         |           |          | domain:k8s-default:k8s-default-pod-  |
+| network:k8s-default-pod-network      |         |         |         |           |          | network                              |
+| default-                             | 3       | 3       | 3       | 3         | 8        | default-                             |
+| domain:k8s-default:k8s-default-      |         |         |         |           |          | domain:k8s-default:k8s-default-      |
+| service-network:k8s-default-service- |         |         |         |           |          | service-network                      |
+| network                              |         |         |         |           |          |                                      |
++--------------------------------------+---------+---------+---------+-----------+----------+--------------------------------------+
+[root@ip-172-31-2-120 ~]# 
+
+[root@ip-172-31-7-20 ~]# kubectl get pod -o wide
+NAME                                 READY   STATUS    RESTARTS   AGE   IP              NODE                                              NOMINATED NODE   READINESS GATES
+cirros-deployment-86885fbf85-7z78k   1/1     Running   0          13s   10.47.255.250   ip-172-31-2-120.ap-northeast-1.compute.internal   <none>           <none>
+cirros-deployment-86885fbf85-tjkwn   1/1     Running   0          13s   10.47.255.249   ip-172-31-2-120.ap-northeast-1.compute.internal   <none>           <none>
+[root@ip-172-31-7-20 ~]# 
+[root@ip-172-31-7-20 ~]# 
+[root@ip-172-31-7-20 ~]# kubectl exec -it cirros-deployment-86885fbf85-7z78k sh
+/ # ip -o a
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+17: eth0    inet 10.47.255.250/12 scope global eth0\       valid_lft forever preferred_lft forever
+/ # ping 10.47.255.249
+PING 10.47.255.249 (10.47.255.249): 56 data bytes
+64 bytes from 10.47.255.249: seq=0 ttl=63 time=0.657 ms
+64 bytes from 10.47.255.249: seq=1 ttl=63 time=0.073 ms
+^C
+--- 10.47.255.249 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.073/0.365/0.657 ms
+/ # 
+
+
+ - to make chrony works fine after vRouter installtion, chrony server might need to be restarted
+
+[root@ip-172-31-4-206 ~]#  chronyc -n sources
+210 Number of sources = 5
+MS Name/IP address         Stratum Poll Reach LastRx Last sample               
+===============================================================================
+^? 169.254.169.123               3   4     0   906  -8687ns[  -12us] +/-  428us
+^? 129.250.35.250                2   7     0  1002   +429us[ +428us] +/-   73ms
+^? 167.179.96.146                2   7     0   937   +665us[ +662us] +/- 2859us
+^? 194.0.5.123                   2   6     0  1129   +477us[ +473us] +/-   44ms
+^? 103.202.216.35                3   6     0   933  +9662ns[+6618ns] +/-  145ms
+[root@ip-172-31-4-206 ~]# 
+[root@ip-172-31-4-206 ~]# 
+[root@ip-172-31-4-206 ~]# service chronyd status
+Redirecting to /bin/systemctl status chronyd.service
+● chronyd.service - NTP client/server
+   Loaded: loaded (/usr/lib/systemd/system/chronyd.service; enabled; vendor preset: enabled)
+   Active: active (running) since Sun 2020-06-28 16:00:34 UTC; 33min ago
+     Docs: man:chronyd(8)
+           man:chrony.conf(5)
+ Main PID: 727 (chronyd)
+    Tasks: 1 (limit: 49683)
+   Memory: 2.1M
+   CGroup: /system.slice/chronyd.service
+           └─727 /usr/sbin/chronyd
+
+Jun 28 16:00:33 localhost.localdomain chronyd[727]: Using right/UTC timezone to obtain leap second data
+Jun 28 16:00:34 localhost.localdomain systemd[1]: Started NTP client/server.
+Jun 28 16:00:42 localhost.localdomain chronyd[727]: Selected source 169.254.169.123
+Jun 28 16:00:42 localhost.localdomain chronyd[727]: System clock TAI offset set to 37 seconds
+Jun 28 16:19:33 ip-172-31-4-206.ap-northeast-1.compute.internal chronyd[727]: Source 167.179.96.146 offline
+Jun 28 16:19:33 ip-172-31-4-206.ap-northeast-1.compute.internal chronyd[727]: Source 103.202.216.35 offline
+Jun 28 16:19:33 ip-172-31-4-206.ap-northeast-1.compute.internal chronyd[727]: Source 129.250.35.250 offline
+Jun 28 16:19:33 ip-172-31-4-206.ap-northeast-1.compute.internal chronyd[727]: Source 194.0.5.123 offline
+Jun 28 16:19:33 ip-172-31-4-206.ap-northeast-1.compute.internal chronyd[727]: Source 169.254.169.123 offline
+Jun 28 16:19:33 ip-172-31-4-206.ap-northeast-1.compute.internal chronyd[727]: Can't synchronise: no selectable sources
+[root@ip-172-31-4-206 ~]# service chronyd restart
+Redirecting to /bin/systemctl restart chronyd.service
+[root@ip-172-31-4-206 ~]# 
+[root@ip-172-31-4-206 ~]# 
+[root@ip-172-31-4-206 ~]# service chronyd status
+Redirecting to /bin/systemctl status chronyd.service
+● chronyd.service - NTP client/server
+   Loaded: loaded (/usr/lib/systemd/system/chronyd.service; enabled; vendor preset: enabled)
+   Active: active (running) since Sun 2020-06-28 16:34:41 UTC; 2s ago
+     Docs: man:chronyd(8)
+           man:chrony.conf(5)
+  Process: 25252 ExecStartPost=/usr/libexec/chrony-helper update-daemon (code=exited, status=0/SUCCESS)
+  Process: 25247 ExecStart=/usr/sbin/chronyd $OPTIONS (code=exited, status=0/SUCCESS)
+ Main PID: 25250 (chronyd)
+    Tasks: 1 (limit: 49683)
+   Memory: 1.0M
+   CGroup: /system.slice/chronyd.service
+           └─25250 /usr/sbin/chronyd
+
+Jun 28 16:34:41 ip-172-31-4-206.ap-northeast-1.compute.internal systemd[1]: Starting NTP client/server...
+Jun 28 16:34:41 ip-172-31-4-206.ap-northeast-1.compute.internal chronyd[25250]: chronyd version 3.5 starting (+CMDMON +NTP +REFCLOCK +RTC +PRIVDROP +SCFILTER +SIGND>
+Jun 28 16:34:41 ip-172-31-4-206.ap-northeast-1.compute.internal chronyd[25250]: Frequency 35.298 +/- 0.039 ppm read from /var/lib/chrony/drift
+Jun 28 16:34:41 ip-172-31-4-206.ap-northeast-1.compute.internal chronyd[25250]: Using right/UTC timezone to obtain leap second data
+Jun 28 16:34:41 ip-172-31-4-206.ap-northeast-1.compute.internal systemd[1]: Started NTP client/server.
+[root@ip-172-31-4-206 ~]#  chronyc -n sources
+210 Number of sources = 5
+MS Name/IP address         Stratum Poll Reach LastRx Last sample               
+===============================================================================
+^* 169.254.169.123               3   4    17     4  -2369ns[  -27us] +/-  451us
+^- 94.154.96.7                   2   6    17     5    +30ms[  +30ms] +/-  148ms
+^- 185.51.192.34                 2   6    17     3  -2951us[-2951us] +/-  150ms
+^- 188.125.64.6                  2   6    17     3  +9526us[+9526us] +/-  143ms
+^- 216.218.254.202               1   6    17     5    +15ms[  +15ms] +/-   72ms
+[root@ip-172-31-4-206 ~]# 
+
+
+[root@ip-172-31-4-206 ~]# contrail-status 
+Pod      Service      Original Name           Original Version  State    Id            Status         
+         rsyslogd                             nightly-master    running  5fc76e57c156  Up 16 minutes  
+vrouter  agent        contrail-vrouter-agent  nightly-master    running  bce023d8e6e0  Up 5 minutes   
+vrouter  nodemgr      contrail-nodemgr        nightly-master    running  9439a304cbcf  Up 5 minutes   
+vrouter  provisioner  contrail-provisioner    nightly-master    running  1531b1403e49  Up 5 minutes   
+
+WARNING: container with original name '' have Pod or Service empty. Pod: '' / Service: 'rsyslogd'. Please pass NODE_TYPE with pod name to container's env
+
+vrouter kernel module is PRESENT
+== Contrail vrouter ==
+nodemgr: active
+agent: active
+
+[root@ip-172-31-4-206 ~]# 
+```
+
+
+
 ## Random tungsten fabric patch (not tested)
 #### static schedule for svc-monitor logic to choose available vRouters
 ```
