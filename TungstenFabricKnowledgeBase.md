@@ -2318,3 +2318,8 @@ index 088b03b..dd484ab 100644
  VNID_MIN_ALLOC = 1
 ```
 
+
+#### vRouter build with linux 5.0 kernel fail
+
+https://review.opencontrail.org/c/Juniper/contrail-vrouter/+/57506
+
