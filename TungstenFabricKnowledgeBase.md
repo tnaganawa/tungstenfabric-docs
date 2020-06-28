@@ -22,6 +22,7 @@ Table of Contents
       * [Tungsten fabric deployment on public cloud](#tungsten-fabric-deployment-on-public-cloud)
       * [erm-vpn](#erm-vpn)
       * [vRouter ml2 plugin](#vrouter-ml2-plugin)
+      * [CentOS 8 installation procedure](#centos-8-installation-procedure)
       * [Random tungsten fabric patch (not tested)](#random-tungsten-fabric-patch-not-tested)
 
 
