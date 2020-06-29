@@ -2526,6 +2526,10 @@ index 0dcabab..4b30299 100644
 ```
 
 #### use same ECMP hash on all compute nodes for possible symmetric ECMP in packet-mode
+
+(Implemented)
+ - https://review.opencontrail.org/c/Juniper/contrail-controller/+/57643
+
 https://review.opencontrail.org/c/Juniper/contrail-controller/+/32223
 
 ```
