@@ -10,7 +10,6 @@ Table of Contents
       * [Integration with fabric automation and vRouters](#integration-with-fabric-automation-and-vrouters)
       * [Multi fabric setup](#multi-fabric-setup)
       * [PNF integration and External Access](#pnf-integration-and-external-access)
-      * [Appformix integration](#appformix-integration)
       * [Ironic integration](#ironic-integration-wip)
    * [Contrail Healthbot](#contrail-healthbot)
    * [Contrail multicloud](#contrail-multicloud)
@@ -422,151 +421,6 @@ One more possible options is to add vxlan VNF service-chain, instead of PNF.
 It can be used with 1-1, 2 scenario, although I haven't yet seen it can work with 4, since it requires vlan subinterface ..
 
 
-### Appformix integration
-
-Since most of the analytics features of contrail-command is implemented in appformix module, installation of that module is also needed to enable visualization features.
-
-To do this, most straightforward way is to use provision_cluster option of contrail-command-deployer.
- - It installs contrail command and contrail cluster with instances.yaml simultaneously
-
-Let me firstly begin with the minimal setup with one node for contrail-command, contrail-controller, appformix.
-
-Note:  
-Recently, appformix-flows module are also added to this suite as sflow collector (counter sample, flow sample and vRouter flow can be visualized).
-When sflow sample rate is high, resouce usage is minimal, so I'll also install appformix-flows to the same node with appformix, for this setup.
-
-```
-# At mininum, Mem 16GB, Disk: 50GB is required
-
-export docker_registry=hub.juniper.net/contrail
-export container_tag=2005.62
-export node_ip=192.168.122.252
-export hub_username=xxx
-export hub_password=yyy
- - id, pass for hub.juniper.net is needed
-
-cat > install-cc.sh << EOF
-systemctl stop firewalld; systemctl disable firewalld
-yum install -y yum-utils device-mapper-persistent-data lvm2
-yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-yum install -y docker-ce-18.03.1.ce
-systemctl start docker
-docker login ${docker_registry}
-docker pull ${docker_registry}/contrail-command-deployer:${container_tag}
-docker run -td --net host -e orchestrator=openstack -e action=provision_cluster -v /root/command_servers.yml:/command_servers.yml -v /root/instances.yaml:/instances.yml --privileged --name contrail_command_deployer ${docker_registry}/contrail-command-deployer:${container_tag}
-EOF
-
-
-cat > command_servers.yml << EOF
----
-command_servers:
-    server1:
-        ip: ${node_ip}
-        connection: ssh
-        ssh_user: root
-        ssh_pass: root
-        sudo_pass: root
-        ntpserver: 0.centos.pool.ntp.org
-
-        registry_insecure: false
-        container_registry: ${docker_registry}
-        container_tag: ${container_tag}
-        config_dir: /etc/contrail
-
-        contrail_config:
-            database:
-                type: postgres
-                dialect: postgres
-                password: contrail123
-            keystone:
-                assignment:
-                    data:
-                      users:
-                        admin:
-                          password: contrail123
-            insecure: true
-            client:
-              password: contrail123
-EOF
-
-
-cat > instances.yaml << EOF
-global_configuration:
-  CONTAINER_REGISTRY: ${docker_registry}
-  REGISTRY_PRIVATE_INSECURE: false
-  CONTAINER_REGISTRY_USERNAME: ${hub_username}
-  CONTAINER_REGISTRY_PASSWORD: ${hub_password}
-provider_config:
-  bms:
-    ssh_user: root
-    ssh_pwd: root
-    ntpserver: 0.centos.pool.ntp.org
-    domainsuffix: local
-instances:
-  bms1:
-    ip: ${node_ip}
-    ssh_user: root
-    ssh_pwd: root
-    provider: bms
-    roles:
-      config:
-      config_database:
-      control:
-      webui:
-      analytics:
-      analytics_database:
-      analytics_snmp:
-      openstack_control:
-      openstack_network:
-      openstack_storage:
-      openstack_monitoring:
-      appformix_openstack_controller:
-      appformix_compute:
-      openstack_compute:
-  bms2:  ### from R2005, this should be the same as the hostname of this node
-    provider: bms
-    ip: 192.168.122.251
-    roles:
-      appformix_controller:
-      appformix_bare_host:
-      appformix_flows:
-
-contrail_configuration:
-  CLOUD_ORCHESTRATOR: openstack
-  RABBITMQ_NODE_PORT: 5673
-  ENCAP_PRIORITY: VXLAN,MPLSoGRE,MPLSoUDP
-  AUTH_MODE: keystone
-  KEYSTONE_AUTH_URL_VERSION: /v3
-  CONTRAIL_CONTAINER_TAG: "${container_tag}"
-  JVM_EXTRA_OPTS: -Xms128m -Xmx1g
-kolla_config:
-  kolla_globals:
-    enable_haproxy: no
-    enable_ironic: no
-    enable_cinder: no
-    enable_heat: no
-    enable_glance: no
-    enable_barbican: no
-  kolla_passwords:
-    keystone_admin_password: contrail123
-appformix_configuration:
-xflow_configuration:
-  clickhouse_retention_period_secs: 7200
-  loadbalancer_collector_vip: 192.168.122.250
-EOF
-
-bash install-cc.sh ## it takes about 60 minutes to finish installation
-
-
-To see the installation status, those two commands can be used
-# docker logs -f contrail_command_deployer ## for command installation
-# tail -f /var/log/contrail/deploy.log     ## for contrail cluster installation
-# docker exec -t contrail-player_xxxxx tail -f /var/log/ansible.log ## to see detailed ansible-player log during contrail cluster installation
-```
-
-After that, contrail-command should show some additional views such as 'Topology View', 'Overlay / Underlay correlation', in a similar sense with contrail-webui.
-![TopologyView](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/CommandTopologyView.png)
-
 ### Ironic integration WIP
 Contrail has some feature to integrate with ironic, based mainly on fabric-manager.
 
@@ -768,6 +622,148 @@ Some usecases is described in this channel.
 ### baremetal instance deployment
 
 ## Contrail Insights
+
+Since most of the analytics features of contrail-command is implemented in contrail-insights module (appformix / appformix-flows internally), installation of that module is also needed to enable visualization features.
+
+To do this, most straightforward way is to use provision_cluster option of contrail-command-deployer.
+ - It installs contrail command and contrail cluster with instances.yaml simultaneously
+
+Let me firstly begin with the minimal setup with two nodes for contrail-command, contrail-controller, appformix, appformix-flows.
+
+```
+# At mininum, Mem 16GB, Disk: 50GB is required
+
+export docker_registry=hub.juniper.net/contrail
+export container_tag=2005.62
+export node_ip=192.168.122.252
+export hub_username=xxx
+export hub_password=yyy
+ - id, pass for hub.juniper.net is needed
+
+cat > install-cc.sh << EOF
+systemctl stop firewalld; systemctl disable firewalld
+yum install -y yum-utils device-mapper-persistent-data lvm2
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+yum install -y docker-ce-18.03.1.ce
+systemctl start docker
+docker login ${docker_registry}
+docker pull ${docker_registry}/contrail-command-deployer:${container_tag}
+docker run -td --net host -e orchestrator=openstack -e action=provision_cluster -v /root/command_servers.yml:/command_servers.yml -v /root/instances.yaml:/instances.yml --privileged --name contrail_command_deployer ${docker_registry}/contrail-command-deployer:${container_tag}
+EOF
+
+
+cat > command_servers.yml << EOF
+---
+command_servers:
+    server1:
+        ip: ${node_ip}
+        connection: ssh
+        ssh_user: root
+        ssh_pass: root
+        sudo_pass: root
+        ntpserver: 0.centos.pool.ntp.org
+
+        registry_insecure: false
+        container_registry: ${docker_registry}
+        container_tag: ${container_tag}
+        config_dir: /etc/contrail
+
+        contrail_config:
+            database:
+                type: postgres
+                dialect: postgres
+                password: contrail123
+            keystone:
+                assignment:
+                    data:
+                      users:
+                        admin:
+                          password: contrail123
+            insecure: true
+            client:
+              password: contrail123
+EOF
+
+
+cat > instances.yaml << EOF
+global_configuration:
+  CONTAINER_REGISTRY: ${docker_registry}
+  REGISTRY_PRIVATE_INSECURE: false
+  CONTAINER_REGISTRY_USERNAME: ${hub_username}
+  CONTAINER_REGISTRY_PASSWORD: ${hub_password}
+provider_config:
+  bms:
+    ssh_user: root
+    ssh_pwd: root
+    ntpserver: 0.centos.pool.ntp.org
+    domainsuffix: local
+instances:
+  controller1:
+    ip: ${node_ip}
+    ssh_user: root
+    ssh_pwd: root
+    provider: bms
+    roles:
+      config:
+      config_database:
+      control:
+      webui:
+      analytics:
+      analytics_database:
+      analytics_snmp:
+      openstack_control:
+      openstack_network:
+      openstack_storage:
+      openstack_monitoring:
+      appformix_openstack_controller:
+      appformix_compute:
+      openstack_compute:
+  insights1:  ### from R2005, this should be the same as the hostname of this node
+    provider: bms
+    ip: 192.168.122.251
+    roles:
+      appformix_controller:
+      appformix_bare_host:
+      appformix_flows:
+
+contrail_configuration:
+  CLOUD_ORCHESTRATOR: openstack
+  RABBITMQ_NODE_PORT: 5673
+  ENCAP_PRIORITY: VXLAN,MPLSoGRE,MPLSoUDP
+  AUTH_MODE: keystone
+  KEYSTONE_AUTH_URL_VERSION: /v3
+  CONTRAIL_CONTAINER_TAG: "${container_tag}"
+  JVM_EXTRA_OPTS: -Xms128m -Xmx1g
+kolla_config:
+  kolla_globals:
+    enable_haproxy: no
+    enable_ironic: no
+    enable_cinder: no
+    enable_heat: no
+    enable_glance: no
+    enable_barbican: no
+  kolla_passwords:
+    keystone_admin_password: contrail123
+appformix_configuration:
+xflow_configuration:
+  clickhouse_retention_period_secs: 7200
+  loadbalancer_collector_vip: 192.168.122.250
+EOF
+
+bash install-cc.sh ## it takes about 60 minutes to finish installation
+
+
+To see the installation status, those two commands can be used
+# docker logs -f contrail_command_deployer ## for command installation
+# tail -f /var/log/contrail/deploy.log     ## for contrail cluster installation
+# docker exec -t contrail-player_xxxxx tail -f /var/log/ansible.log ## to see detailed ansible-player log during contrail cluster installation
+```
+
+After that, contrail-command should show some additional views such as 'Topology View', 'Overlay / Underlay correlation', in a similar sense with contrail-webui.
+![TopologyView](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/CommandTopologyView.png)
+
+
+
 ## Contrail SD-WAN
 
 ## Troubleshooting Tips
