@@ -7,6 +7,7 @@ Table of Contents
       * [vQFX setting](#vqfx-setting)
       * [LACP against linux bridge](#lacp-against-linux-bridge)
       * [vQFX limitation](#vqfx-limitation)
+      * [Onboard devices](#onboard-devices)
       * [Integration with fabric automation and vRouters](#integration-with-fabric-automation-and-vrouters)
       * [Multi fabric setup](#multi-fabric-setup)
       * [PNF integration and External Access](#pnf-integration-and-external-access)
@@ -115,8 +116,8 @@ Main theme of this feature is to automate EVPN / VXLAN setting, which can be cum
 
 Adding to the features in youtube, recent version of Fabric automation also supports those features.
  - Edge Routing / Bridging: https://www.juniper.net/documentation/en_US/release-independent/solutions/topics/task/configuration/edge-routed-overlay-cloud-dc-configuring.html
- - Hitless upgrade
- - PNF integration
+ - Hitless upgrade / Maintenance mode
+ - PNF integration and external access
 
 Note: This site has good amount of info about r5.1 fabric feature
  - https://github.com/tonyliu0592/contrail/wiki/Solution-Guide-Contrail-Fabric-Management
@@ -317,6 +318,44 @@ To make this work,
 set vlans vlan-name no-arp-suppression
 ```
 need to be added to each bridge-domain.
+
+
+### Onboard devices
+
+To onboard each device, fabric-manager has two different methods, greenfield onboarding and brownfield onboarding.
+
+Greenfield onboarding uses ZTP feature of each device, with DHCP and TFTP. By its nature, it is most suited when fabric-manager is used for out-of-band management, and most likey used for fabric-only purpose.
+ - when devices are onboarded with this method, underlay bgp will be configured by fabric-manager, so features such as maintenance mode is also available.
+
+When brownfield onboarding is used, it only configure overlay bgp, and VN or VPG when overlay objects are configured.
+ - it can most likely be used when in-band management is needed, such as vRouter integration case, or dhcp ZTP is not available for some reason
+
+
+One (hidden) way to mix these two features is to enable manage_underlay knob in brownfield onboard logic.
+
+```
+
+
+
+https://github.com/Juniper/contrail-controller/blob/master/src/config/fabric-ansible/ansible-playbooks/filter_plugins/fabric.py#L494-L495
+
+    def onboard_brownfield_fabric(self, job_ctx):
+(snip)
+                'manage_underlay':
+                    job_ctx.get('job_input').get('manage_underlay', False),
+```
+
+When this knob is enabled, fabric-manager will do lldp-based underlay discovery even if brownfield onboarding is used.
+
+So if fabric-manager can reach loopback ip of each device, it can configure underlay bgp and use all the features of fabric-manager, even if dhcp ZTP is not available.
+
+Note:
+One possible way to bootstrap devices without assigning subnets to each interface is to use unnumbered ospf for fabric-manager to reach loopback ip of each device.
+
+```
+
+```
+
 
 ### Integration with fabric automation and vRouters
 
