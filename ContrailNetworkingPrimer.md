@@ -726,6 +726,17 @@ Then it will receive IP by dhcp, do tftp to get kernel and boot, and do some tas
 
 ### contrail-vcenter-fabric-manager
 
+This feature is to sync dv-portgroup info in vCenter to VN/VPG info of fabric-manager.
+ - https://github.com/tungstenfabric/tf-specs/blob/master/contrail-vcenter-fabric-manager.md
+
+To fascilitate this, lldp need to be enabled on ESXi and ToR, to identify physical-interfaces which is connected to each ESXi.
+
+When dv-portgroup is created, it will be synced to config-database, to create virtual-network with the name with dv-portgroup (uuid is the same as the one for dv-portgroup in vCenter database)
+
+When some VM is created on an ESXi, VPG will be automatically created on the physical-interface which that ESXi is connected.
+
+Since it only creates L2 access from fabric-manager perspective, it can be connected to logical-routers, to supply direct l3 routing in QFX, or some l3 routing through PNF.
+
 ## Contrail Healthbot
 
 Currently, appformix doesn't support routing protocol monitoring, route table size monitoring and so on.
