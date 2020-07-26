@@ -12,10 +12,10 @@ Table of Contents
       * [PNF integration and External Access](#pnf-integration-and-external-access)
       * [Ironic integration](#ironic-integration-wip)
    * [Contrail Healthbot](#contrail-healthbot)
+   * [Contrail Insights](#contrail-insights)
    * [Contrail multicloud](#contrail-multicloud)
       * [container deployment](#container-deployment)
       * [baremetal instance deployment](#baremetal-instance-deployment)
-   * [Contrail Insights](#contrail-insights)
    * [Contrail SD-WAN](#contrail-sd-wan)
    * [Troubleshooting Tips](#troubleshooting-tips)
 
@@ -613,14 +613,6 @@ Practically, those two commands are all that are needed.
 Then, https://healthbot-node-ip:8080 will give healthbot webui.
 ```
 
-## Contrail multicloud
-
-Some usecases is described in this channel.
- - https://www.youtube.com/channel/UCXUny7HKBdyakn3-UOdkhsw
- 
-### container deployment
-### baremetal instance deployment
-
 ## Contrail Insights
 
 Since most of the analytics features of contrail-command is implemented in contrail-insights module (appformix / appformix-flows internally), installation of that module is also needed to enable visualization features.
@@ -762,6 +754,14 @@ To see the installation status, those two commands can be used
 After that, contrail-command should show some additional views such as 'Topology View', 'Overlay / Underlay correlation', in a similar sense with contrail-webui.
 ![TopologyView](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/CommandTopologyView.png)
 
+
+## Contrail multicloud
+
+Some usecases is described in this channel.
+ - https://www.youtube.com/channel/UCXUny7HKBdyakn3-UOdkhsw
+ 
+### container deployment
+### baremetal instance deployment
 
 
 ## Contrail SD-WAN
