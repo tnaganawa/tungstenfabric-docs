@@ -334,8 +334,19 @@ When brownfield onboarding is used, it only configure overlay bgp, and VN or VPG
 One (hidden) way to mix these two features is to enable manage_underlay knob in brownfield onboard logic.
 
 ```
+##
+# enable manage-underlay for brownfield onboarding
+##
 
+cat > patch-fabric-py << EOF
+sed -i "s/manage_underlay...False/manage_underlay', True/" /opt/contrail/fabric_ansible_playbooks/filter_plugins/fabric.py
+EOF
+chmod +x patch-fabric-py
+docker cp patch-fabric-py config_devicemgr_1:/tmp
+docker exec -t config_devicemgr_1 bash /tmp/patch-fabric-py
+docker restart config_devicemgr_1
 
+--
 
 https://github.com/Juniper/contrail-controller/blob/master/src/config/fabric-ansible/ansible-playbooks/filter_plugins/fabric.py#L494-L495
 
@@ -351,9 +362,19 @@ So if fabric-manager can reach loopback ip of each device, it can configure unde
 
 Note:
 One possible way to bootstrap devices without assigning subnets to each interface is to use unnumbered ospf for fabric-manager to reach loopback ip of each device.
-
+ - after brownfield onboarding finished, groups temp-underlay can be removed
 ```
-
+set system root-authentication encrypted-password "xxxx"
+set system services ssh root-login allow
+set system services netconf ssh
+set system host-name xxxx
+set interfaces lo0 unit 0 family inet address x.x.x.x/32
+set routing-options autonomous-system 64512
+set protocols lldp interface all
+set protocols lldp interface em0 disable
+set groups temp-underlay interfaces <xe-*> unit 0 family inet unnumbered-address lo0.0
+set groups temp-underlay protocols ospf area 0.0.0.0 interface xe-<*> interface-type p2p
+set apply-groups temp-underlay-for-bootstrap
 ```
 
 
