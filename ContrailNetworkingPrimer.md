@@ -328,7 +328,7 @@ Greenfield onboarding uses ZTP feature of each device, with DHCP and TFTP. By it
  - when devices are onboarded with this method, underlay bgp will be configured by fabric-manager, so features such as maintenance mode is also available.
 
 When brownfield onboarding is used, it only configures overlay bgp, and VN or VPG when overlay objects are configured.
- - it can most likely be used when in-band management is needed, such as vRouter integration case, or dhcp ZTP is not available for some reason
+ - it can most likely be used when in-band management is needed, such as vRouter integration case, or DHCP ZTP is not available for some reason
 
 
 One (hidden) way to mix these two features is to enable manage_underlay knob in brownfield onboard logic.
