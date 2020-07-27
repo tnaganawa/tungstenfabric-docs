@@ -374,7 +374,7 @@ set protocols lldp interface all
 set protocols lldp interface em0 disable
 set groups temp-underlay interfaces <xe-*> unit 0 family inet unnumbered-address lo0.0
 set groups temp-underlay protocols ospf area 0.0.0.0 interface xe-<*> interface-type p2p
-set apply-groups temp-underlay-for-bootstrap
+set apply-groups temp-underlay
 ```
 
 
