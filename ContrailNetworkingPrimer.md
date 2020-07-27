@@ -8,9 +8,9 @@ Table of Contents
       * [LACP against linux bridge](#lacp-against-linux-bridge)
       * [vQFX limitation](#vqfx-limitation)
       * [Onboard devices](#onboard-devices)
-      * [Integration with fabric automation and vRouters](#integration-with-fabric-automation-and-vrouters)
-      * [Multi fabric setup](#multi-fabric-setup)
       * [PNF integration and External Access](#pnf-integration-and-external-access)
+      * [Multi fabric setup](#multi-fabric-setup)
+      * [Integration with fabric automation and vRouters](#integration-with-fabric-automation-and-vrouters)
       * [Ironic integration](#ironic-integration-wip)
    * [Contrail Healthbot](#contrail-healthbot)
    * [Contrail Insights](#contrail-insights)
@@ -377,35 +377,35 @@ set groups temp-underlay protocols ospf area 0.0.0.0 interface xe-<*> interface-
 set apply-groups temp-underlay
 ```
 
+### PNF integration and External Access
 
-### Integration with fabric automation and vRouters
+Let me describe the several approach of PNF integration with contrail networking.
 
-Since vRouter uses vxlan internally, ironically, it needs some trick to put them under QFXes which is configured by fabric automation, since by default it will configure overlay vni for each virtual-port-group.
+Although Contrail Command has its own PNF integration based on service-appliance-set in Tungsten Fabric, it can also be configured based on logical-route and virtual-port-group.
 
-To workaround this, esi-lag without overlay can be used for Tungsten Fabric nodes, such as control, vRouter, and contrail-command itself.
-https://www.juniper.net/documentation/en_US/junos/topics/example/example-evpn-vxlan-lacp-configuring-qfx-series.html
+Since fabric automation supports virtual-port-group and logical-router to setup PNF access to virtual-network, those setting also could be possible.
 
-To try this, you can firstly set up management switch, and connect all the Tungsten Fabric nodes to them and install all the nodes, before data plane access is not availble.
- - Note: when Tripleo is used, you might need to disable ping check to make installation work
- - When config-database needs HA, some manual config might needed before fabric automation is installed
+From R2003, it begins to support unicast BGP to external router and unmanaged PNF and allows similar setup without manual config.
+ - https://www.juniper.net/documentation/en_US/contrail20/topics/topic-map/connect-third-party-device-cc.html
 
-After that, you can configure 'underlay' VN in contrail command, with subnets which can be assigned to tungsten fabric nodes, and do brownfield onboard, and configure virtual-port-group on the QFX ports, which has tungsten fabric nodes connected.
- - Note: to make that work, please don't connect logical-router to underaly VN, since in that case, irb will be inside a VRF, and it can't contact to the underlay subnet
+So .., this allows several setup for firewall and external routers.
+ - https://www.juniper.net/documentation/en_US/day-one-books/TW_DCDeployment.v2.pdf
+ - https://www.juniper.net/documentation/en_US/release-independent/solutions/topics/topic-map/service-chaining.html
 
-After that, each tungsten fabric nodes can ping to vQFX loopback ips, which is set by contrail fabric autmation, and contrail fabric are fully UP.
- - To reach loopback ip from tungsten fabric nodes, some underlay routing protocol might be needed
+Since CRB Spine or ERB leaf also can do l3 routing, there are several configuration option. Each has its pros and cons, so it can be chosen based on your environment.
+ 1. all the l3 rouitng are done in fabric device, and connect that to external router with unicast BGP
+  - 1-1. same as 1, but create two VRFs for North-South firewall
+ 2. with two VRFs for l3 routing with parts of l2 vni connected to each, and firewall device between them, for East-West firewall
+ 3. all l3 routing will be done by external router (bridged overlay): one way to configure this is to create VRF only on MX, with MX as ERB leaf
+ 4. all l3 routing will be done by firewall (firewall for all l3): one way to configure this is to assign a logical-router to  L2VNI, and connect each logical-router with PNF with vlan tag
 
-
-As an example, I tried two spines and 8 leaves setup, and set them up with (mostly) fabric automation features.
-![8-leaves](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/vRouter-ESI-LAG-BMS-diagram.png)
-
-Detailed configuration and ping results are attached.
- - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/8-leaves-vqfx-config.txt
- - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/8-leaves-contrail-config.txt
- - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/8-leaves-ping-result.txt
+Since vRouter can share VXLAN L3VRF with fabric device, each option can be combined with vRouter.
 
 Note:
-Some configuration such as irb for vRouters, and bgp export policy for EVPN route needs to be written manually.
+One more possible options is to add vxlan VNF service-chain, instead of PNF.
+It can be used with 1-1, 2 scenario, although I haven't yet seen it can work with 4, since it requires vlan subinterface ..
+
+
 
 ### Multi fabric setup
 
@@ -452,33 +452,34 @@ I'll attach BMS to BMS and BMS to VM ping result for L2, L3 traffic, for referen
 
 So it is not too difficult to configure multiple fabrics and vRouters under that, even if l2 extension between fabrics is a requirement.
 
-### PNF integration and External Access
+### Integration with fabric automation and vRouters
 
-Let me describe the several approach of PNF integration with contrail networking.
+Since vRouter uses vxlan internally, ironically, it needs some trick to put them under QFXes which is configured by fabric automation, since by default it will configure overlay vni for each virtual-port-group.
 
-Although Contrail Command has its own PNF integration based on service-appliance-set in Tungsten Fabric, it can also be configured based on logical-route and virtual-port-group.
+To workaround this, esi-lag without overlay can be used for Tungsten Fabric nodes, such as control, vRouter, and contrail-command itself.
+https://www.juniper.net/documentation/en_US/junos/topics/example/example-evpn-vxlan-lacp-configuring-qfx-series.html
 
-Since fabric automation supports virtual-port-group and logical-router to setup PNF access to virtual-network, those setting also could be possible.
+To try this, you can firstly set up management switch, and connect all the Tungsten Fabric nodes to them and install all the nodes, before data plane access is not availble.
+ - Note: when Tripleo is used, you might need to disable ping check to make installation work
+ - When config-database needs HA, some manual config might needed before fabric automation is installed
 
-From R2003, it begins to support unicast BGP to external router and unmanaged PNF and allows similar setup without manual config.
- - https://www.juniper.net/documentation/en_US/contrail20/topics/topic-map/connect-third-party-device-cc.html
+After that, you can configure 'underlay' VN in contrail command, with subnets which can be assigned to tungsten fabric nodes, and do brownfield onboard, and configure virtual-port-group on the QFX ports, which has tungsten fabric nodes connected.
+ - Note: to make that work, please don't connect logical-router to underaly VN, since in that case, irb will be inside a VRF, and it can't contact to the underlay subnet
 
-So .., this allows several setup for firewall and external routers.
- - https://www.juniper.net/documentation/en_US/day-one-books/TW_DCDeployment.v2.pdf
- - https://www.juniper.net/documentation/en_US/release-independent/solutions/topics/topic-map/service-chaining.html
+After that, each tungsten fabric nodes can ping to vQFX loopback ips, which is set by contrail fabric autmation, and contrail fabric are fully UP.
+ - To reach loopback ip from tungsten fabric nodes, some underlay routing protocol might be needed
 
-Since CRB Spine or ERB leaf also can do l3 routing, there are several configuration option. Each has its pros and cons, so it can be chosen based on your environment.
- 1. all the l3 rouitng are done in fabric device, and connect that to external router with unicast BGP
-  - 1-1. same as 1, but create two VRFs for North-South firewall
- 2. with two VRFs for l3 routing with parts of l2 vni connected to each, and firewall device between them, for East-West firewall
- 3. all l3 routing will be done by external router (bridged overlay): one way to configure this is to create VRF only on MX, with MX as ERB leaf
- 4. all l3 routing will be done by firewall (firewall for all l3): one way to configure this is to assign a logical-router to  L2VNI, and connect each logical-router with PNF with vlan tag
 
-Since vRouter can share VXLAN L3VRF with fabric device, each option can be combined with vRouter.
+As an example, I tried two spines and 8 leaves setup, and set them up with (mostly) fabric automation features.
+![8-leaves](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/vRouter-ESI-LAG-BMS-diagram.png)
+
+Detailed configuration and ping results are attached.
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/8-leaves-vqfx-config.txt
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/8-leaves-contrail-config.txt
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/8-leaves-ping-result.txt
 
 Note:
-One more possible options is to add vxlan VNF service-chain, instead of PNF.
-It can be used with 1-1, 2 scenario, although I haven't yet seen it can work with 4, since it requires vlan subinterface ..
+Some configuration such as irb for vRouters, and bgp export policy for EVPN route needs to be written manually.
 
 
 ### Ironic integration WIP
