@@ -4421,6 +4421,14 @@ Since zookeeper has no such knob, the only way I'm aware of is to update weight,
 
 When number of DCs are over two, this won't be an issue.
 
+One possible reason to have the second DC is to cover Disaster Recovery scenario.
+
+Although Tungsten Fabric cannot cover this directly, since it needs quorum in their backend databases, interestingly, ISSU script can be used for this purpose, since this script will copy all the data with changing contoller's hostname and IP address.
+ - since module update is not required in this case, container_tag can be the same with the orignal cluster's
+
+So .., setting up second Tungsten Fabric cluster, and doing issu-pre-sync such as once per day, could be a possible choice, if RTO is managable for that environmnent.
+
+
 
 ## Multi orchestrator
 
