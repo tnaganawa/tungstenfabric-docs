@@ -8,6 +8,8 @@ Table of Contents
       * [LACP against linux bridge](#lacp-against-linux-bridge)
       * [vQFX limitation](#vqfx-limitation)
       * [Onboard devices](#onboard-devices)
+         * [Onboard MX](#onboard-mx)
+         * [Greenfield onboarding with DHCP relay](#greenfield-onboarding-with-dhcp-relay)
       * [PNF integration and External Access](#pnf-integration-and-external-access)
       * [Multi fabric setup](#multi-fabric-setup)
       * [Integration with fabric automation and vRouters](#integration-with-fabric-automation-and-vrouters)
@@ -376,6 +378,54 @@ set groups temp-underlay interfaces <xe-*> unit 0 family inet unnumbered-address
 set groups temp-underlay protocols ospf area 0.0.0.0 interface xe-<*> interface-type p2p
 set apply-groups temp-underlay
 ```
+
+#### Onboard MX
+
+From R2003, MX series can be also onboarded in fabric-manager.
+
+To try this in a virtual lab, these virt-install commands can be used.
+ - the procedure is similar to this URL: https://codingpackets.com/blog/juniper-vmx-19-1r1-6-vagrant-libvirt-box-install/
+ - 18.4R3-S4 is used, and evaluation license is needed to make some feature such as unmanaged PNF work: https://www.juniper.net/us/en/dm/free-vmx-trial/
+
+```
+cp vmx/images/junos-vmx-x86-64-18.4R3-S4.2.qcow2 vcp-hda.qcow2
+cp vmx/images/vmxhdd.img vcp-hdb.qcow2
+cp vmx/images/metadata-usb-re.img vcp-hdc.img
+cp vmx/images/vFPC-20200528.img vfp-hda.img
+
+# VCP
+virt-install \
+    --name vmx171-vcp \
+    --memory 1024 \
+    --vcpus=1 \
+    --import \
+    --disk path=/home/vmx/vmx171/vcp-hda.qcow2,size=16,bus=ide,format=qcow2 \
+    --disk path=/home/vmx/vmx171/vcp-hdb.qcow2,size=1,bus=ide,format=qcow2 \
+    --disk path=/home/vmx/vmx171/vcp-hdc.img,size=1,bus=ide,format=raw \
+    --network=network:default,model=virtio \
+    --network=network:vmx-int,model=virtio \
+    --graphics none
+
+# VFP
+virt-install \
+    --name vmx171-vfp \
+    --memory 4096 \
+    --vcpus=3 \
+    --import \
+    --disk path=/home/vmx/vmx171/vfp-hda.img,size=16,bus=ide,format=raw \
+    --network=network:default,model=virtio \
+    --network=network:vmx-int,model=virtio \
+    --network=network:181_185,model=virtio \
+    --network=network:182_185,model=virtio \
+    --network=network:185_bms1,model=virtio \
+    --network=network:185_bms2,model=virtio \
+    --graphics none
+```
+
+After adding this in a topology, brownfield onboarding (with or without lldp discovery), and VPG and logical-router creation should work fine.
+
+#### Greenfield onboarding with DHCP relay
+
 
 ### PNF integration and External Access
 
