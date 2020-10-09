@@ -2633,6 +2633,8 @@ index 088b03b..dd484ab 100644
 
 
 #### vRouter build with linux 5.x kernel fail
+(Implemented)
+https://review.opencontrail.org/c/tungstenfabric/tf-vrouter/+/60771
 
-https://review.opencontrail.org/c/Juniper/contrail-vrouter/+/57506
+// https://review.opencontrail.org/c/Juniper/contrail-vrouter/+/57506
 
