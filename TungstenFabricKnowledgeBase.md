@@ -453,6 +453,25 @@ It also associates some specific virtual-machine objects to that virtual-router,
 After that, that virtual-router will start to serve bgp route for that virtual-machine.
 
 
+### application-policy-set and security-group
+
+vRouter supports application tag and security-group without using iptables.
+
+To do this, it maintains flow identication logic, which is similar to some stateful firewall implementation, in vrouter-agent.
+ - the key is that it is not maintained in vrouter.ko
+
+When vrouter.ko sees the packets whose 5-tuple doesn't have an entry in its table (flow table, which is a hash table inside vrouter.ko), it will send 5-tuple of that packet to vrouter-agent, through pkt0 tap.
+ - https://github.com/Juniper/contrail-controller/wiki/Flow-processing
+
+Since vrouter-agent have all the info about routing and security-policy, when it received that packet, it will identify the next-hop and flow action, to return the packet to vrouter.ko and vrouter.ko will create a flow 
+entry.
+ - https://github.com/tungstenfabric/tf-controller/blob/master/src/vnsw/agent/pkt/flow_entry.cc#L2482-L2512
+
+When identifying flow action after route lookup, vrouter-agent will check all the bgp enhanced community associated to that prefix, to determine flow action for this packet.
+
+Since each vRouter receives all the prefix from other vRouters with its associated bgp enhanced community, each vRouter can determine if it can allow / drop that packets when it firstly enters one of vRouters.
+
+
 ## control internal
 ### ifmap-server deprecation
 
