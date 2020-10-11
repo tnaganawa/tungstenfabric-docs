@@ -4314,6 +4314,14 @@ Note: if l3-only forwarding is specified, even in intra-VRF forwarding, L3VPN is
 
 ### Bridging
 
+For bridging between Tungsten Fabric clusters, ERM-VPN is used instead of EVPN.
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricKnowledgeBase.md#erm-vpn
+
+Since this bgp family creates BUM tree between several control processes, the behavior won't change even if they are between several clusters.
+
+One note, if VXLAN is used as l2 dataplane (To specify this, ENCAP_PRIORITY can be used), to set the same route-target to two virtual-networks is not sufficent, and two virtual-networks need to have the same VNI.
+ - for MPLS over IP, to set the same route-target will correctly create a BUM tree
+
 ### security-group
 
 Tungsten Fabric also have some extended community to convey security-group id.
