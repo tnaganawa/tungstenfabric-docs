@@ -510,6 +510,19 @@ For example, if virtual-machine-interface is updated,
 
 it will also evaluate virtual-machine, port-tuple, virtual-network, and bgp-as-a-service, if it has a reference with the virtual-machine-interface, which is originally updated.
 
+### number of config push by device-manager
+
+device-manager pushes device configuration, when some config-database objects are updated.
+
+One interesting question is that when objects are updated several times, how many config push will occur.
+
+To maintain this state, device-manager uses a queue (size=1).
+ - https://github.com/tungstenfabric/tf-controller/blob/master/src/config/device-manager/device_manager/db.py#L538
+
+So config objects are updated several times, device-manager starts pushing device configuration based on the first AMQP message, and the second AMQP messages will be stored in that queue, the all the other messages are dropped from that queue.
+
+So even if several config object updates occurred in a short period, device config push will occur only two times.
+
 ## config database internal
 
 ### to read config_db_uuid keyspace contents
@@ -623,7 +636,15 @@ def RedisLuaBuild(env, scr_name):
   env.Depends('redis_processor_vizd.cc','%s_lua.cpp' % scr_name)
 ```
 
+### ContrailConfig UVE
 
+In analytics UVE, ContrailConfig is created to show the configuration which is maintained in config-database.
+ - this value can be used for some alarms, which are to see configuration is the same with the value sent from such as vRouter, to check the sanity of that installation.
+
+Although most of UVEs are sent from such as vRouter itself, ContrailConfig is sent from config-api to analytics.
+ - https://github.com/tungstenfabric/tf-controller/blob/master/src/config/api-server/vnc_cfg_api_server/vnc_db.py#L1806-L1811
+
+So this value should be in the UVE entry, even if vrouter-agent is not running.
 
 ## some configuration knobs which are not documented well
 
