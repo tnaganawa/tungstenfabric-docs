@@ -2581,16 +2581,33 @@ Although config-api supports complete Rest API to cover Tungsten Fabric configur
 
 To cover those scenario, webui implements its own Rest API, which handles some high level operation in its nodejs logic.
 
-For CRUD operatoin, those url can be used. (payload can be extracted with developer tools of web browser)
+For CRUD operatoin, those url can be used. (json payload can be extracted with Developer Tools of each web browser)
+ - For openstack authentication, keystone token (-H 'x-auth-token: xxxx-xxxx-xxxx') can be used.
 
-1. GET
 
-2. CREATE / UPDATE
+1. GET  
 
-3. DELETE
+2-1. CREATE  
+```
+$ curl -k -X POST -H 'x-auth-token: xxxxx' -H 'content-type: application/json' -d @vn1.json https://(webui-ip):8143/api/tenants/config/create-config-object
 
-For example, to create a virtual-network, this command can be used.
- - For authentication, keystone token (-H 'x-auth-token: xxxx-xxxx-xxxx') can be used.
+$ cat vn1.json
+{"virtual-network": {"network_ipam_refs": [{"to": ["default-domain", "default-project", "default-network-ipam"], "attr": {"ipam_subnets": [{"subnet": {"ip_prefix": "10.0.1.0", "ip_prefix_len": 24}}]}}], "fq_name": ["default-domain", "admin", "vn1"], "parent_type": "project"}}
+```
+
+2-2. UPDATE  
+```
+$ curl -k -X POST -H 'x-auth-token: xxxxx' -H 'content-type: application/json' -d @vn1-updated.json https://(webui-ip):8143/api/tenants/config/update-config-object
+
+$ cat vn1-updated.json
+{"virtual-network": {"network_ipam_refs": [{"to": ["default-domain", "default-project", "default-network-ipam"], "attr": {"ipam_subnets": [{"subnet": {"ip_prefix": "10.0.1.0", "ip_prefix_len": 24}}]}}], "fq_name": ["default-domain", "admin", "vn1"], "parent_type": "project", "uuid": "xxxx-xxxx-xxxx-xxxx"}}
+```
+
+
+3. DELETE  
+```
+curl -k -X POST -H 'x-auth-token: xxxxx' -H 'content-type: application/json' -d '[{"type": "virtual-network", "deleteIDs": ["xxxx-xxxx-xxxx-xxxx"]}]' https://(webui-ip):8143/api/tenants/config/delete
+```
 
 Note:  
 In this API, uuid is sometimes needed instead of fq_name. To convert fq_name to uuid (or vice versa), this url can be used.
