@@ -42,6 +42,7 @@ Table of Contents
       * [contrail-api-cli](#contrail-api-cli)
       * [REST API](#rest-api)
       * [webui](#webui)
+      * [Web API](#web-api)
       * [backup and restore](#backup-and-restore)
       * [Changing container parameters](#changing-container-parameters)
       * [Maintain data consistency](#maintain-data-consistency)
@@ -2572,6 +2573,35 @@ Each module has those features.
  4. Query: This module will query analyticsdb's contents. It shows the same information with the commands such as contrail-logs, contrail-flows, contrail-sessions, ... (https://github.com/Juniper/contrail-controller/wiki/Contrail-utility-scripts-for-getting-logs,-stats-and-flows-from-analytics) If analyticsdb is not installed, this module will be greyed out.
 
 Although this webui is highly useful to grasp the current state of Tungsten Fabric, its response could be a bit slow if number of nodes are large (such as over 2,000). In that case, CLI based approach will be a bit more relevant.
+
+## Web API
+
+Although config-api supports complete Rest API to cover Tungsten Fabric configuration, for some high level operation such as to create a logical-router or a service-instance, one Rest API is not sufficient, and several configuration needs to be created or updated simultaneously.
+ - creating logical-router, one virtual-machine-interface also needs to be created and attached to the virtual-network connected, and service-instance creation also includes port-tuple creation, and it needs to be attached to that service-instance
+
+To cover those scenario, webui implements its own Rest API, which handles some high level operation in its nodejs logic.
+
+For CRUD operatoin, those url can be used. (payload can be extracted with developer tools of web browser)
+
+1. GET
+
+2. CREATE / UPDATE
+
+3. DELETE
+
+For example, to create a virtual-network, this command can be used.
+ - For authentication, keystone token (-H 'x-auth-token: xxxx-xxxx-xxxx') can be used.
+
+Note:  
+In this API, uuid is sometimes needed instead of fq_name. To convert fq_name to uuid (or vice versa), this url can be used.
+
+```
+fqname to uuid:
+curl -X POST -H 'content-type: application/json' -d '{"type": "virtual_network", "fq_name": ["default-domain", "admin", "vn1"]}' http://config-api-ip:8082/fqname-to-id
+
+uuid to fqname:
+curl -X POST -H 'content-type: application/json' -d '{"uuid": "xxxx-xxxx-xxxx-xxxx"}' http://config-api-ip:8082/id-to-fqname
+```
 
 ## backup and restore
 
