@@ -436,6 +436,23 @@ vif0/4351   OS: pkt1
 [root@ip-172-31-12-55 ~]# 
 ```
 
+### vRouter API
+
+When an orchestrator (openstack or kubernetes) specifies a compute node which will serve specific virtual-machine, it will serve information of that node through nova-api or kube-apiserver, and vrouter-agent will create its vif based on that information.
+
+To do that, vrouter-agent has vRouter API (TCP/9091), and nova-vif-driver and vRouter CNI will call this, based on the information served by an orcherstrator and config-api.
+ - https://github.com/tungstenfabric/tf-controller/blob/master/src/vnsw/agent/port_ipc/rest_server.cc
+ - https://github.com/tungstenfabric/tf-nova-vif-driver/
+ - https://github.com/tungstenfabric/tf-controller/blob/master/src/container/cni/contrail/vrouter.go#L29
+
+When this API is called, it will create tap device and vif device, to forward packets from VMs to dp-core.
+
+It also associates some specific virtual-machine objects to that virtual-router, and ifmap objects associated to that virtual-machine will be downloaded to that virtual-router. 
+ - https://github.com/tungstenfabric/tf-controller/blob/master/src/ifmap/README.md
+
+After that, that virtual-router will start to serve bgp route for that virtual-machine.
+
+
 ## control internal
 ### ifmap-server deprecation
 
