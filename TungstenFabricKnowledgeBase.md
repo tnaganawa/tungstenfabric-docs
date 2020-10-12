@@ -469,6 +469,257 @@ entry.
 
 When identifying flow action after route lookup, vrouter-agent will check all the bgp enhanced community associated to that prefix, to determine flow action for this packet.
 
+```
+For example, when deny policy is configured between label=vm1 and label=vm1-1, vRouter will receive this ACL.
+ - src_type: tags and dst_type: tags clarifies that it is for fw-policy between tags, and 6, 7 is the tag IDs for label=vm1 and label=vm1-1
+
+
+# ./ist.py vr acl 0534aa3f-2b64-4b97-ac16-fa908bdffefd
++--------------------------------------+--------------------------------------+-------------+
+| uuid                                 | name                                 | dynamic_acl |
++--------------------------------------+--------------------------------------+-------------+
+| 0534aa3f-2b64-4b97-ac16-fa908bdffefd | default-policy-management:fw-policy1 | false       |
++--------------------------------------+--------------------------------------+-------------+
+
+# ./ist.py vr acl 0534aa3f-2b64-4b97-ac16-fa908bdffefd -f text
+AclSandeshData
+  uuid: 0534aa3f-2b64-4b97-ac16-fa908bdffefd
+  dynamic_acl: false
+  entries
+      AclEntrySandeshData
+        ace_id: 0
+        rule_type: Terminal
+        src: 6
+        dst: 7
+        src_port_l
+            SandeshRange
+              min: 0
+              max: 65535
+        dst_port_l
+            SandeshRange
+              min: 0
+              max: 65535
+        proto_l
+            SandeshRange
+              min: 1
+              max: 1
+        action_l
+            ActionStr
+              action: deny
+        src_type: tags
+        dst_type: tags
+        uuid: 45e2f437-87f2-4457-9ff5-610a0cd0458d
+      AclEntrySandeshData
+        ace_id: 0
+        rule_type: Terminal
+        src: 7
+        dst: 6
+        src_port_l
+            SandeshRange
+              min: 0
+              max: 65535
+        dst_port_l
+            SandeshRange
+              min: 0
+              max: 65535
+        proto_l
+            SandeshRange
+              min: 1
+              max: 1
+        action_l
+            ActionStr
+              action: deny
+        src_type: tags
+        dst_type: tags
+        uuid: 45e2f437-87f2-4457-9ff5-610a0cd0458d
+	(snip)
+  name: default-policy-management:fw-policy1
+
+
+
+Those ACLs are assigned to the virtual-machine-interface which label=vm1 is associated to.
+  - vmi_tag_list and policy_set_acl_list describe the detail
+
+
+# ./ist.py vr intf tap4b603c36-2c
++-------+----------------+--------+-------------------+---------------+---------------+---------+-----------------------------+
+| index | name           | active | mac_addr          | ip_addr       | mdata_ip_addr | vm_name | vn_name                     |
++-------+----------------+--------+-------------------+---------------+---------------+---------+-----------------------------+
+| 4     | tap4b603c36-2c | Active | 02:4b:60:3c:36:2c | 192.168.100.3 | 169.254.0.4   | vm1     | default-domain:admin:testvn |
++-------+----------------+--------+-------------------+---------------+---------------+---------+-----------------------------+
+
+# ./ist.py vr intf tap4b603c36-2c -f text
+ItfSandeshData
+  index: 4
+  name: tap4b603c36-2c
+  uuid: 4b603c36-2cb7-44a7-8d06-81009876eee6
+  vrf_name: default-domain:admin:testvn:testvn
+  active: Active
+  ipv4_active: Active
+  l2_active: L2 Active
+  ip6_active: Ipv6 Inactive < no-ipv6-addr  >
+  health_check_active: Active
+  dhcp_service: Enable
+  dns_service: Enable
+  type: vport
+  label: 23
+  l2_label: 27
+  vxlan_id: 9
+  vn_name: default-domain:admin:testvn
+  vm_uuid: b678a2aa-8a81-49cb-974a-bc2457e07685
+  vm_name: vm1
+  ip_addr: 192.168.100.3
+  mac_addr: 02:4b:60:3c:36:2c
+  policy: Enable
+  fip_list
+  mdata_ip_addr: 169.254.0.4
+  service_vlan_list
+  os_ifindex: 11
+  fabric_port: NotFabricPort
+  alloc_linklocal_ip: LL-Enable
+  analyzer_name
+  config_name: default-domain:admin:4b603c36-2cb7-44a7-8d06-81009876eee6
+  sg_uuid_list
+      VmIntfSgUuid
+        sg_uuid: 178b6839-f732-4dc8-913e-98e44a6c70a4
+  static_route_list
+  vm_project_uuid: 07778a3d-0c46-4c4b-9054-462c23122b98
+  admin_state: Enabled
+  flow_key_idx: 24
+  allowed_address_pair_list
+  ip6_addr: ::
+  local_preference: 0
+  tx_vlan_id: -1
+  rx_vlan_id: -1
+  parent_interface
+  subnet: --NA--
+  sub_type: Tap
+  vrf_assign_acl_uuid: --NA--
+  vmi_type: Virtual Machine
+  transport: Ethernet
+  logical_interface_uuid: 00000000-0000-0000-0000-000000000000
+  flood_unknown_unicast: false
+  physical_device
+  physical_interface
+  fixed_ip4_list
+      192.168.100.3
+  fixed_ip6_list
+  fat_flow_list
+  metadata_ip_active: Active
+  service_health_check_ip: 0.0.0.0
+  alias_ip_list
+  drop_new_flows: false
+  bridge_domain_list
+  vmi_tag_list
+      VmiTagData
+        name: label=vm1
+        id: 6
+        application_policy_set_list
+  policy_set_acl_list
+      0534aa3f-2b64-4b97-ac16-fa908bdffefd
+  slo_list
+  vhostuser_mode: 0
+  si_other_end_vmi: 00000000-0000-0000-0000-000000000000
+  cfg_igmp_enable: false
+  igmp_enabled: false
+  max_flows: 0
+  policy_set_fwaas_list
+  bond_interface_list
+
+
+
+The prefix to that virtual-machine-interface also has that tag as an enhanced coummunity.
+ - tag_list identifies the value associated to that prefix.
+
+
+# ./ist.py vr vrf testvn
++------------------------------------+---------+---------+---------+-----------+----------+-----------------------------+
+| name                               | ucindex | mcindex | brindex | evpnindex | vxlan_id | vn                          |
++------------------------------------+---------+---------+---------+-----------+----------+-----------------------------+
+| default-domain:admin:testvn:testvn | 5       | 5       | 5       | 5         | 9        | default-domain:admin:testvn |
++------------------------------------+---------+---------+---------+-----------+----------+-----------------------------+
+
+# ./ist.py vr route -v 5 192.168.100.3
+0.0.0.0/0
+    [192.168.122.52] pref:200
+     to 2:d:44:5d:b4:14 via veth5bc41975-f, assigned_label:33, nh_index:38 , nh_type:interface, nh_policy:enabled, active_label:33, vxlan_id:0
+    [192.168.122.53] pref:200
+     to 2:d:44:5d:b4:14 via veth5bc41975-f, assigned_label:33, nh_index:38 , nh_type:interface, nh_policy:enabled, active_label:33, vxlan_id:0
+192.168.100.0/24
+    [Local] pref:100
+     nh_index:1 , nh_type:discard, nh_policy:disabled, active_label:-1, vxlan_id:0
+192.168.100.3/32
+    [192.168.122.52] pref:200
+     to 2:4b:60:3c:36:2c via tap4b603c36-2c, assigned_label:23, nh_index:24 , nh_type:interface, nh_policy:enabled, active_label:23, vxlan_id:0
+    [192.168.122.53] pref:200
+     to 2:4b:60:3c:36:2c via tap4b603c36-2c, assigned_label:23, nh_index:24 , nh_type:interface, nh_policy:enabled, active_label:23, vxlan_id:0
+    [LocalVmPort] pref:200
+     to 2:4b:60:3c:36:2c via tap4b603c36-2c, assigned_label:23, nh_index:24 , nh_type:interface, nh_policy:enabled, active_label:23, vxlan_id:0
+    [INET-EVPN] pref:100
+     nh_index:0 , nh_type:None, nh_policy:, active_label:-1, vxlan_id:0
+
+
+# ./ist.py vr route -v 5 192.168.100.3 -r
+  (snip)
+RouteUcSandeshData
+  src_ip: 192.168.100.3
+  src_plen: 32
+  src_vrf: default-domain:admin:testvn:testvn
+  path_list
+      PathSandeshData
+        nh
+          NhSandeshData
+            type: interface
+            ref_count: 8
+            valid: true
+            policy: enabled
+            itf: tap4b603c36-2c
+            mac: 2:4b:60:3c:36:2c
+            mcast: disabled
+            nh_index: 24
+            vxlan_flag: false
+            intf_flags: 1
+            isid: 0
+            learning_enabled: false
+            etree_leaf: false
+            layer2_control_word: false
+            crypt_all_traffic: false
+            crypt_path_available: false
+            crypt_interface
+        label: 23
+        vxlan_id: 0
+        peer: 192.168.122.52
+        dest_vn_list
+            default-domain:admin:testvn
+        unresolved: false
+        sg_list
+            8000002
+        supported_tunnel_type: MPLSoGRE MPLSoUDP
+        active_tunnel_type: MPLSoUDP
+        stale: false
+        path_preference_data
+          PathPreferenceSandeshData
+            sequence: 1
+            preference: 200
+            ecmp: false
+        active_label: 23
+        ecmp_hashing_fields: l3-source-address,l3-destination-address,l4-protocol,l4-source-port,l4-destination-port,
+        communities
+        peer_sequence_number: 1
+        etree_leaf: false
+        layer2_control_word: false
+        tag_list
+            6
+        inactive: false
+        evpn_dest_vn_list
+     (snip)
+  ipam_subnet_route: false
+  ipam_host_route: true
+  proxy_arp: false
+  multicast: false
+  intf_route_type: interface
+```
+
 Since each vRouter receives all the prefix from other vRouters with its associated bgp enhanced community, each vRouter can determine if it can allow / drop that packets when it firstly enters one of vRouters.
 
 
