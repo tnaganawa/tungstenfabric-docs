@@ -2579,13 +2579,21 @@ Although this webui is highly useful to grasp the current state of Tungsten Fabr
 Although config-api supports complete Rest API to cover Tungsten Fabric configuration, for some high level operation such as to create a logical-router or a service-instance, one Rest API is not sufficient, and several configuration needs to be created or updated simultaneously.
  - creating logical-router, one virtual-machine-interface also needs to be created and attached to the virtual-network connected, and service-instance creation also includes port-tuple creation, and it needs to be attached to that service-instance
 
-To cover those scenario, webui implements its own Rest API, which handles some high level operation in its nodejs logic.
+To cover those scenario, webui implements its own HTTP API, which handles some high level operation in its nodejs logic.
 
 For CRUD operatoin, those url can be used. (json payload can be extracted with Developer Tools of each web browser)
  - For openstack authentication, keystone token (-H 'x-auth-token: xxxx-xxxx-xxxx') can be used.
 
 
 1. GET  
+```
+list objects:
+curl -k -X POST -H 'x-auth-token: xxxxx' -H "content-type: application/json" -d '{"data":[{"type":"virtual-networks"}]}' https://(webui-ip):8143/api/tenants/config/get-config-list
+
+get the detail of one specific object:
+curl -k -X POST -H 'x-auth-token: xxxxx' -H 'content-type: application/json' -d '{"data": [{"type": "virtual-network", "uuid": ["xxxx-xxxx-xxxx-xxxx"]}]}' https://(webui-ip):8143/api/tenants/config/get-config-objects
+```
+
 
 2-1. CREATE  
 ```
