@@ -2175,7 +2175,7 @@ virtual-network/2b0469cf-921f-4369-93a7-2d73350c82e7  default-domain:default-pro
 ## CentOS 8 installation procedure
 
 ```
-centos8.2
+centos8.2 (ami-089a156ea4f52a0a3 is used)
 ansible-deployer is used
 
 only python3 is used (no python2)
