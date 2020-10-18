@@ -2557,6 +2557,29 @@ virtual-machine: internal object for virtual-machine. When vRouter API is called
 access-contol-list: vRouter's ACL entry, which will be calculated by schema-transformer from security-group definition
 ```
 
+## ansible
+
+I recently start working on Tungsten Fabric ansible module.
+ - https://github.com/tnaganawa/ansible-collections-tungstenfabric
+
+Although it is not exhaustive (yet), it can create /update / delete several tenant objects, such as virtual-network, logical-router, network-policy, service-instance, and could update global-system-config and global-vrouter-config.
+ - Since it internally directly uses Rest API, it can also configure some features which cannot be configured from webui, such as vxlan-routing logical-router, and potentialy application-policy-set per virtual-machine or nh-reachability.
+
+I'm adding features and test targets now, so hopefully it can soon cover most of frequently used knobs.
+
+```
+Usage example:
+
+Create virtual-network:
+# ansible -m tungstenfabric.networking.virtual_network localhost -a 'name=vn1 controller_ip=x.x.x.x state=present'
+
+Update virtual-network:
+# ansible -m tungstenfabric.networking.virtual_network localhost -a 'name=vn1 controller_ip=x.x.x.x state=present subnet=10.0.1.0 subnet_prefix=24 rpf=disable'
+
+Delete virtual-network:
+# ansible -m tungstenfabric.networking.virtual_network localhost -a 'name=vn1 controller_ip=x.x.x.x state=absent'
+```
+
 ## webui
 
 Although there are several good CLI tools available today, historically, most of all the operation is done through Tungsten Fabric webui.
@@ -2627,6 +2650,7 @@ curl -X POST -H 'content-type: application/json' -d '{"type": "virtual_network",
 uuid to fqname:
 curl -X POST -H 'content-type: application/json' -d '{"uuid": "xxxx-xxxx-xxxx-xxxx"}' http://config-api-ip:8082/id-to-fqname
 ```
+
 
 ## backup and restore
 
