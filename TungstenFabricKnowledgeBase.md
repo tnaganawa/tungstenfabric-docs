@@ -9,6 +9,7 @@ Table of Contents
       * [config internal](#config-internal)
       * [config database internal](#config-database-internal)
       * [analytics internal](#analytics-internal)
+      * [openstack plugin internal](#openstack-plugin-internal)
       * [some configuration knobs which are not documented well](#some-configuration-knobs-which-are-not-documented-well)
          * [forwarding mode](#forwarding-mode)
          * [flood unknown unicast](#flood-unknown-unicast)
@@ -932,6 +933,24 @@ Although most of UVEs are sent from such as vRouter itself, ContrailConfig is se
  - https://github.com/tungstenfabric/tf-controller/blob/master/src/config/api-server/vnc_cfg_api_server/vnc_db.py#L1806-L1811
 
 So this value should be in the UVE entry, even if vrouter-agent is not running.
+
+## openstack plugin internal
+
+Tunsten fabric neutron plugin implements some logic, which neutron-api process will load.
+ - https://github.com/tungstenfabric/tf-neutron-plugin
+
+When it is loaded, it will use special URL of config-api (config-api-ip:8082/neutron/xxx) to create or delete tungsten fabric objects, which is served only when CLOUD_ORCHESTRATOR=openstack is specified.
+ - https://github.com/tungstenfabric/tf-controller/blob/master/src/config/vnc_openstack/vnc_openstack/__init__.py#L1289-L1356
+
+### keystone_sync_on_demand
+
+When neutron-api or config-api is firstly started, it didn't automatically sync openstack project to tungstenfabric config-database.
+ - it will create a project when some objects in that project, such as virtual-network, is created by neutron API.
+
+If automatic project sync is needed for some reason, config-api supports keystone_sync_on_demand knob.
+ - https://github.com/tungstenfabric/tf-controller/blob/master/src/config/vnc_openstack/vnc_openstack/__init__.py#L80-L81
+
+
 
 ## some configuration knobs which are not documented well
 
