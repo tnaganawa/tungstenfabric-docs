@@ -2961,7 +2961,47 @@ index 088b03b..dd484ab 100644
 
 #### vRouter build with linux 5.x kernel fail
 (Implemented)
+
 https://review.opencontrail.org/c/tungstenfabric/tf-vrouter/+/60771
 
 // https://review.opencontrail.org/c/Juniper/contrail-vrouter/+/57506
 
+#### default value of analytics_statistics_ttl
+
+Statistics data use a lot of disk space when analytics cassandra is installed. Data size can be reduced by changing data ttl.
+
+```
+diff --git a/containers/analytics/collector/entrypoint.sh b/containers/analytics/collector/entrypoint.sh
+index 05490cf..d4122e9 100755
+--- a/containers/analytics/collector/entrypoint.sh
++++ b/containers/analytics/collector/entrypoint.sh
+@@ -14,7 +14,7 @@ cat > /etc/contrail/contrail-collector.conf << EOM
+ [DEFAULT]
+ analytics_data_ttl=${ANALYTICS_DATA_TTL:-48}
+ analytics_config_audit_ttl=${ANALYTICS_CONFIG_AUDIT_TTL:-2160}
+-analytics_statistics_ttl=${ANALYTICS_STATISTICS_TTL:-168}
++analytics_statistics_ttl=${ANALYTICS_STATISTICS_TTL:-4}
+ analytics_flow_ttl=${ANALYTICS_FLOW_TTL:-2}
+ partitions=${ANALYTICS_UVE_PARTITIONS:-30}
+ hostip=${hostip}
+```
+
+#### default value of minimum_diskgb
+
+When analyticsdb is not installed, disk size can be smaller.
+
+```
+diff --git a/src/nodemgr/main.py b/src/nodemgr/main.py
+index c193aed..13a06f1 100644
+--- a/src/nodemgr/main.py
++++ b/src/nodemgr/main.py
+@@ -135,7 +135,7 @@ def main(args_str=' '.join(sys.argv[1:])):
+                'db_user': None,
+                'db_password': None,
+                'db_use_ssl': False,
+-               'minimum_diskgb': 256,
++               'minimum_diskgb': 48,
+                'corefile_path': '/var/crashes',
+                'cassandra_repair_interval': 24,
+                'cassandra_repair_logdir': '/var/log/contrail/',
+```
