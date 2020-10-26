@@ -14,6 +14,7 @@ Table of Contents
       * [Multi fabric setup](#multi-fabric-setup)
       * [Integration with fabric automation and vRouters](#integration-with-fabric-automation-and-vrouters)
       * [Ironic integration](#ironic-integration-wip)
+      * [Contrail vCenter fabric manager](#contrail-vcenter-fabric-manager)
    * [Contrail Healthbot](#contrail-healthbot)
    * [Contrail Insights](#contrail-insights)
    * [Contrail multicloud](#contrail-multicloud)
@@ -466,6 +467,8 @@ One way is to use L3DCI feature which it natively supports, to configure EVPN T5
 Having said that, it is also possible to configure l2 traffic between multi fabrics, with some manual configuration on QFX and tungsten fabric config-database.
 
 Overall idea is to set up EVPN peers between RRs in both fabrics, and make each leaf switch send EVPN routes between them.
+ - from R2011, fabric-manager supports similar setup as OTT L2DCI
+ - https://github.com/tungstenfabric/tf-specs/blob/master/R2011/CEM-16330-L2-DCI-OTT.md
 
 #### Implementation
 
