@@ -839,7 +839,11 @@ contrail_configuration:
   AUTH_MODE: keystone
   KEYSTONE_AUTH_URL_VERSION: /v3
   CONTRAIL_CONTAINER_TAG: "${container_tag}"
-  JVM_EXTRA_OPTS: -Xms128m -Xmx1g
+  JVM_EXTRA_OPTS: -Xms128m -Xmx2g
+  ANALYTICS_STATISTICS_TTL: 4
+  CONFIG_DATABASE_NODEMGR__DEFAULTS__minimum_diskGB: 48
+  DATABASE_NODEMGR__DEFAULTS__minimum_diskGB: 48
+
 kolla_config:
   kolla_globals:
     enable_haproxy: no
