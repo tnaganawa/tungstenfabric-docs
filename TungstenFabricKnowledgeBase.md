@@ -454,6 +454,37 @@ It also associates some specific virtual-machine objects to that virtual-router,
 After that, that virtual-router will start to serve bgp route for that virtual-machine.
 
 
+Since vrouter-agent can also receive virtual-machine-interface and instance-ip information from XMPP (as ifmap), it is a bit curious that which is used if those ip address is different.
+ - if vm-uuid and vmi-uuid doesn't exist in config-database, vRouter API for port subscribe seems to fail.
+
+When IP address is specified by vRouter API, generally, that value will overwrite the ip address from ifmap. If it is not desirable, setting '0.0.0.0' in vRouter API will suppress this behavior, and vrouter-agent will use ip address from ifmap. (it might be useful when orchestrator doesn't have much info about ip-address for each port ..)
+ - https://github.com/tungstenfabric/tf-controller/blob/master/src/vnsw/agent/oper/vm_interface_request.cc#L463-L483
+
+```
+    //If nova gives a instance-ip then retain that
+    //ip address as primary ip address
+    //Else choose the ip address to be old
+    //primary ip address as long as its present in
+    //new configuration also
+    Ip4Address ipaddr = data->addr_;
+    if (nova_ip_addr_ != Ip4Address(0)) {
+        ipaddr = nova_ip_addr_;
+    }
+    if (CopyIpAddress(ipaddr)) {
+        ret = true;
+    }
+
+    Ip6Address ip6_addr = data->ip6_addr_;
+    if (nova_ip6_addr_ != Ip6Address()) {
+        ip6_addr = nova_ip6_addr_;
+    }
+
+    if (CopyIp6Address(ip6_addr)) {
+        ret = true;
+    }
+```
+
+
 ### application-policy-set and security-group
 
 vRouter supports application tag and security-group without using iptables.
