@@ -1,0 +1,33 @@
+diff --git a/container/Dockerfile.centos b/container/Dockerfile.centos
+index ab4dfa1..3bcc13a 100644
+--- a/container/Dockerfile.centos
++++ b/container/Dockerfile.centos
+@@ -1,6 +1,6 @@
+ ARG LINUX_DISTR=centos
+ ARG LINUX_DISTR_VER=7
+-FROM $LINUX_DISTR:$LINUX_DISTR_VER
++FROM arm64v8/centos:7
+ 
+ ARG LC_ALL=en_US.UTF-8
+ ARG LANG=en_US.UTF-8
+@@ -24,7 +24,7 @@ COPY *.repo /etc/yum.repos.d/
+ RUN if ! yum info jq ; then yum -y install epel-release ; fi && \
+     yum -y update && \
+     curl --retry 3 --retry-delay 10 https://bootstrap.pypa.io/get-pip.py | python2 - 'pip==20.1' && \
+-    yum -y install python3 iproute \
++    yum -y install python3-devel libxml2-devel libxslt-devel python3 iproute \
+                    autoconf automake createrepo docker-client docker-python gcc gdb git git-review jq libtool \
+                    make python-devel python-lxml rpm-build vim wget yum-utils redhat-lsb-core \
+                    rpmdevtools sudo gcc-c++ net-tools httpd \
+diff --git a/run.sh b/run.sh
+index cb9dbc7..6c74f49 100755
+--- a/run.sh
++++ b/run.sh
+@@ -35,6 +35,7 @@ fi
+ echo tf-dev-env startup
+ echo
+ echo '[ensure python is present]'
++export DISTRO=centos
+ install_prerequisites_$DISTRO
+ 
+ # prepare env

@@ -1,0 +1,312 @@
+diff --git a/SConscript b/SConscript
+index a496ac8..0a6afff 100644
+--- a/SConscript
++++ b/SConscript
+@@ -15,6 +15,7 @@ default_cplusplus_target_list = \
+ env = DefaultEnvironment()
+ 
+ SConscript(dirs=['lib', 'src'])
++#SConscript(dirs=['src'])
+ 
+ env['api_repo_path'] = '#/src/contrail-api-client'
+ SConscript(dirs=['../src/contrail-api-client'])
+diff --git a/lib/SConscript b/lib/SConscript
+index e713659..02285e6 100644
+--- a/lib/SConscript
++++ b/lib/SConscript
+@@ -7,12 +7,12 @@ subdirs = [
+     'http_parser',
+     'pugixml',
+     'rapidjson',
+-    'bind',
+-    'hiredis',
++#    'bind',
++#    'hiredis',
+     'rabbitmq-c',
+     'SimpleAmqpClient',
+     'openvswitch',
+-    'ipfix',
++#    'ipfix',
+     'tbb',
+ ]
+ 
+@@ -23,7 +23,7 @@ if etcd_incl:
+ (distname, version, _) = platform.dist()
+ if distname in ['centos', 'redhat'] and LooseVersion(version) >= LooseVersion('7.0'):
+    subdirs += [
+-      'gperftools',
++#      'gperftools',
+       'log4cplus',
+    ]
+ 
+diff --git a/src/SConscript b/src/SConscript
+index f3684a2..7dacc4a 100644
+--- a/src/SConscript
++++ b/src/SConscript
+@@ -30,10 +30,10 @@ if platform.system() != 'Darwin':
+ 
+ subdirs += [
+     'config',
+-    'container',
+-    'control-node',
++#    'container',
++#    'control-node',
+     'utils',
+-    'vcenter-import',
++#    'vcenter-import',
+ ]
+ 
+ include = ['#/controller/src', '#/build/include', '#src/contrail-common', '#controller/lib']
+diff --git a/src/control-node/SConscript b/src/control-node/SConscript
+index 574d44b..6b30852 100644
+--- a/src/control-node/SConscript
++++ b/src/control-node/SConscript
+@@ -98,7 +98,7 @@ env.Prepend(LIBS=['bgp',
+                   'route',
+                   'net',
+                   'config_client_mgr',
+-                  'ifmapio',
++                  #'ifmapio',
+                   'xmpp',
+                   'xml',
+                   'sandeshvns',
+@@ -111,10 +111,10 @@ env.Prepend(LIBS=['bgp',
+                   'process_info',
+                   'io',
+                   'base',
+-                  'cassandra_cql',
++                  #'cassandra_cql',
+                   'SimpleAmqpClient',
+                   'rabbitmq',
+-                  'cassandra',
++                  #'cassandra',
+                   'gendb',
+                   'cpuinfo',
+                   'process_info',
+diff --git a/src/dns/SConscript b/src/dns/SConscript
+index f71859e..77e92c4 100644
+--- a/src/dns/SConscript
++++ b/src/dns/SConscript
+@@ -28,10 +28,10 @@ if etcd_incl:
+     env.Prepend(LIBS = ['etcdql', 'protobuf', 'grpc++', 'grpc', 'z'])
+ 
+ env.Prepend(LIBS=['ifmap_vnc', 'ifmap_server', 'ifmap_common', 'net', 'config_client_mgr',
+-                  'ifmapio', 'xmpp', 'sandeshvns', 'peer_sandesh',
++                  'xmpp', 'sandeshvns', 'peer_sandesh',
+                   'curl', 'process_info',
+-                  'db', 'io', 'base', 'cassandra_cql', 'SimpleAmqpClient', 'rabbitmq',
+-                  'cassandra', 'gendb', 'xml', 'pugixml', 'xml2',
++                  'db', 'io', 'base', 'SimpleAmqpClient', 'rabbitmq',
++                   'gendb', 'xml', 'pugixml', 'xml2',
+                   'cpuinfo', 'nodeinfo',
+                   'boost_regex', 'boost_program_options','crypto', 'ssl', 'bgp_schema'])
+ 
+@@ -56,7 +56,7 @@ if platform.system() not in ['Darwin']:
+ 
+ contrail_dns = env.Program(target = 'contrail-dns', source = ['main.cc'])
+ env.Alias('contrail-dns', contrail_dns)
+-env.Default(contrail_dns)
++#env.Default(contrail_dns)
+ 
+ # Documentation
+ doc_files = []
+@@ -69,13 +69,13 @@ doc_files += env['XMPP_DOC_FILES']
+ doc_files += env.SandeshGenDoc('uve/uve.sandesh')
+ doc_files += env.SandeshGenDoc('bind/bind.sandesh')
+ 
+-# Please update sandesh/common/vns.sandesh on process name change
+-env.Alias('install', env.Install(env['INSTALL_BIN'], contrail_dns))
+-env.Alias('install', env.Install(env['INSTALL_CONF'], 'contrail-dns.conf'))
+-env.Alias('install', env.Install(env['INSTALL_CONF'] +
+-    '/dns', 'applynamedconfig.py'))
+-env.Alias('install', env.Install(env['INSTALL_MESSAGE_DOC'] +
+-    '/contrail-dns/', doc_files))
++## Please update sandesh/common/vns.sandesh on process name change
++#env.Alias('install', env.Install(env['INSTALL_BIN'], contrail_dns))
++#env.Alias('install', env.Install(env['INSTALL_CONF'], 'contrail-dns.conf'))
++#env.Alias('install', env.Install(env['INSTALL_CONF'] +
++#    '/dns', 'applynamedconfig.py'))
++#env.Alias('install', env.Install(env['INSTALL_MESSAGE_DOC'] +
++#    '/contrail-dns/', doc_files))
+ 
+ DnsEnv = env.Clone()
+ DnsEnv.CppDisableExceptions()
+diff --git a/src/ifmap/client/SConscript b/src/ifmap/client/SConscript
+index fe9a5fd..f95b892 100644
+--- a/src/ifmap/client/SConscript
++++ b/src/ifmap/client/SConscript
+@@ -37,7 +37,7 @@ libifmapio = env.Library('ifmapio',
+ 
+ env.Requires(libifmapio, '#build/lib/' + env['LIBPREFIX'] + 'SimpleAmqpClient' + env['LIBSUFFIX'])
+ env.Requires(libifmapio, '#/build/include/rapidjson.h')
+-env.Install(env['TOP_LIB'], libifmapio)
++#env.Install(env['TOP_LIB'], libifmapio)
+ 
+ client_unit_tests = env.SConscript('test/SConscript', exports='BuildEnv',
+                                    duplicate = 0)
+diff --git a/src/ifmap/ifmap_server.cc b/src/ifmap/ifmap_server.cc
+index 63d2aaf..8181f5a 100644
+--- a/src/ifmap/ifmap_server.cc
++++ b/src/ifmap/ifmap_server.cc
+@@ -11,8 +11,10 @@
+ #include "base/regex.h"
+ #include "base/task_annotations.h"
+ #include "base/time_util.h"
++/*
+ #include "config-client-mgr/config_amqp_client.h"
+ #include "config-client-mgr/config_db_client.h"
++ */
+ #include "config_client_show_types.h"
+ #include "db/db.h"
+ #include "db/db_graph.h"
+@@ -504,10 +506,13 @@ void IFMapServer::GetUIInfo(IFMapServerInfoUI *server_info) const {
+ bool IFMapServer::CollectStats(BgpRouterState *state, bool first) const {
+     CHECK_CONCURRENCY("bgp::ShowCommand");
+ 
++/*
+     ConfigDBConnInfo db_conn_info;
+     const ConfigClientManager *ccmgr = get_config_manager();
++*/
+     bool change = false;
+ 
++/*
+     ccmgr->config_db_client()->GetConnectionInfo(db_conn_info);
+     if (first || db_conn_info != state->get_db_conn_info())  {
+         state->set_db_conn_info(db_conn_info);
+@@ -522,6 +527,7 @@ bool IFMapServer::CollectStats(BgpRouterState *state, bool first) const {
+             change = true;
+         }
+     }
++ */
+ 
+     IFMapServerInfoUI server_info;
+     GetUIInfo(&server_info);
+diff --git a/src/vnsw/agent/SConscript b/src/vnsw/agent/SConscript
+index 6c2580a..61b0302 100644
+--- a/src/vnsw/agent/SConscript
++++ b/src/vnsw/agent/SConscript
+@@ -215,7 +215,7 @@ AgentEnv.AppendUnique(CONTRAIL_LIBS = [
+ ])
+ 
+ AgentEnv.AppendUnique(CONTRAIL_LIBS = [
+-        'tcmalloc',
++#        'tcmalloc',
+         'isc',
+     ])
+ 
+diff --git a/src/vnsw/agent/ovs_tor_agent/SConscript b/src/vnsw/agent/ovs_tor_agent/SConscript
+index aaa8cbc..89b095b 100644
+--- a/src/vnsw/agent/ovs_tor_agent/SConscript
++++ b/src/vnsw/agent/ovs_tor_agent/SConscript
+@@ -1,56 +1,56 @@
++##
++## Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
++##
+ #
+-# Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
+-#
+-
+-import platform
+-if platform.system() == 'Darwin':
+-    Return()
+-
+-Import('AgentEnv')
+-env = AgentEnv.Clone()
+-
+-env.Append(LIBPATH = [
+-                      '../tables',
+-                      'ovsdb_client'
+-                     ])
+-env.Prepend(LIBS = [
+-                    'ovsdbclient',
+-                    'openvswitch',
+-                    'vnswinit'
+-                   ])
+-
+-env.Append(LIBS = ['ssl', 'crypto'])
+-
+-env.GenerateBuildInfoCode(
+-    target='buildinfo.cc',
+-    source = ['main.cc'],
+-    path=str(Dir('.').abspath))
+-
+-env = AgentEnv.RemoveExceptionFlag(env)
+-env.AppendUnique(CCFLAGS='-Wno-reorder')
+-env.AppendUnique(CCFLAGS='-Wno-return-type')
+-
+-contrail_tor_agent = env.Program(target = 'contrail-tor-agent',
+-                        source = [
+-                                  'buildinfo.cc',
+-                                  'main.cc',
+-                                  'tor_agent_init.cc',
+-                                  'tor_agent_param.cc',
+-                                 ])
+-
+-env.Default(contrail_tor_agent)
+-env.Alias('agent:contrail-tor-agent', contrail_tor_agent)
+-env.SConscript('ovsdb_client/SConscript', exports='AgentEnv', duplicate=0)
+-
+-# Documentation
+-doc_files = []
+-doc_files += env['AGENT_COMMON_DOC_FILES']
+-doc_files += env['AGENT_OVS_DOC_FILES']
+-
+-env.Alias('install', env.Install(env['INSTALL_BIN'], contrail_tor_agent))
+-env.Alias('install', env.Install(
+-    env['INSTALL_MESSAGE_DOC'] + '/contrail-tor-agent/', doc_files))
+-
+-# Local Variables:
+-# mode: python
+-# End:
++#import platform
++#if platform.system() == 'Darwin':
++#    Return()
++#
++#Import('AgentEnv')
++#env = AgentEnv.Clone()
++#
++#env.Append(LIBPATH = [
++#                      '../tables',
++#                      'ovsdb_client'
++#                     ])
++#env.Prepend(LIBS = [
++#                    'ovsdbclient',
++#                    'openvswitch',
++#                    'vnswinit'
++#                   ])
++#
++#env.Append(LIBS = ['ssl', 'crypto'])
++#
++#env.GenerateBuildInfoCode(
++#    target='buildinfo.cc',
++#    source = ['main.cc'],
++#    path=str(Dir('.').abspath))
++#
++#env = AgentEnv.RemoveExceptionFlag(env)
++#env.AppendUnique(CCFLAGS='-Wno-reorder')
++#env.AppendUnique(CCFLAGS='-Wno-return-type')
++#
++#contrail_tor_agent = env.Program(target = 'contrail-tor-agent',
++#                        source = [
++#                                  'buildinfo.cc',
++#                                  'main.cc',
++#                                  'tor_agent_init.cc',
++#                                  'tor_agent_param.cc',
++#                                 ])
++#
++#env.Default(contrail_tor_agent)
++#env.Alias('agent:contrail-tor-agent', contrail_tor_agent)
++#env.SConscript('ovsdb_client/SConscript', exports='AgentEnv', duplicate=0)
++#
++## Documentation
++#doc_files = []
++#doc_files += env['AGENT_COMMON_DOC_FILES']
++#doc_files += env['AGENT_OVS_DOC_FILES']
++#
++#env.Alias('install', env.Install(env['INSTALL_BIN'], contrail_tor_agent))
++#env.Alias('install', env.Install(
++#    env['INSTALL_MESSAGE_DOC'] + '/contrail-tor-agent/', doc_files))
++#
++## Local Variables:
++## mode: python
++## End:

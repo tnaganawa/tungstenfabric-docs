@@ -1,0 +1,1024 @@
+diff --git a/rpm/contrail-vrouter-dpdk/contrail-vrouter-dpdk.spec b/rpm/contrail-vrouter-dpdk/contrail-vrouter-dpdk.spec
+index 3d07a93..8337737 100644
+--- a/rpm/contrail-vrouter-dpdk/contrail-vrouter-dpdk.spec
++++ b/rpm/contrail-vrouter-dpdk/contrail-vrouter-dpdk.spec
+@@ -57,16 +57,16 @@ URL:        http://www.juniper.net/
+ Vendor:     Juniper Networks Inc
+ 
+ BuildRequires: boost-devel
+-BuildRequires: liburcu-devel
+-# kernel is required for /lib/modules content
+-%define is_rhel %(cat /etc/os-release | grep ^NAME | cut -d = -f 2 | sed  's/\"//g')
++#BuildRequires: liburcu-devel
++## kernel is required for /lib/modules content
++#%define is_rhel %(cat /etc/os-release | grep ^NAME | cut -d = -f 2 | sed  's/\"//g')
+ %if "%{is_rhel}" == "Red Hat Enterprise Linux Server"
+-BuildRequires: kernel = 3.10.0-1062.el7
+-BuildRequires: kernel-devel = 3.10.0-1062.el7
++#BuildRequires: kernel = 3.10.0-1062.el7
++#BuildRequires: kernel-devel = 3.10.0-1062.el7
+ %else
+-BuildRequires: kernel = 3.10.0-1062.el7
+-BuildRequires: kernel-devel = 3.10.0-1062.el7
+-%endif
++#BuildRequires: kernel = 3.10.0-1062.el7
++#BuildRequires: kernel-devel = 3.10.0-1062.el7
++#%endif
+ BuildRequires: numactl-devel
+ BuildRequires: libnl3-devel
+ BuildRequires: scons
+diff --git a/rpm/contrail-web-controller/contrail-web-controller.spec b/rpm/contrail-web-controller/contrail-web-controller.spec
+index 16018da..3e48d3e 100644
+--- a/rpm/contrail-web-controller/contrail-web-controller.spec
++++ b/rpm/contrail-web-controller/contrail-web-controller.spec
+@@ -22,7 +22,7 @@ License:    Commercial
+ URL:        http://www.juniper.net/
+ Vendor:     Juniper Networks Inc
+ 
+-BuildRequires:  nodejs = 0.10.48-1contrail.el7
++#BuildRequires:  nodejs = 0.10.48-1contrail.el7
+ Requires:  redis
+ Requires:  contrail-web-core >= %{_verstr}-%{_relstr}
+ 
+diff --git a/rpm/contrail-web-core/contrail-web-core.spec b/rpm/contrail-web-core/contrail-web-core.spec
+index 038cac3..7d6a9c8 100644
+--- a/rpm/contrail-web-core/contrail-web-core.spec
++++ b/rpm/contrail-web-core/contrail-web-core.spec
+@@ -33,8 +33,8 @@ URL:       http://www.juniper.net/
+ Vendor:    Juniper Networks Inc
+ 
+ Requires:  redis
+-BuildRequires:  nodejs = 0.10.48-1contrail.el7
+-Requires:  nodejs = 0.10.48-1contrail.el7
++#BuildRequires:  nodejs = 0.10.48-1contrail.el7
++#Requires:  nodejs = 0.10.48-1contrail.el7
+ Requires:  openssl
+ 
+ Obsoletes:  contrail-webui >= 0
+diff --git a/rpm/contrail/contrail.spec b/rpm/contrail/contrail.spec
+index 2b01fed..bb768b0 100644
+--- a/rpm/contrail/contrail.spec
++++ b/rpm/contrail/contrail.spec
+@@ -50,34 +50,34 @@ BuildRequires: autoconf
+ BuildRequires: automake
+ BuildRequires: bison
+ BuildRequires: boost-devel
+-BuildRequires: cassandra-cpp-driver
+-BuildRequires: cassandra-cpp-driver-devel
++#BuildRequires: cassandra-cpp-driver
++#BuildRequires: cassandra-cpp-driver-devel
+ BuildRequires: cmake
+ BuildRequires: cyrus-sasl-devel
+ BuildRequires: flex
+ BuildRequires: python2-future
+ BuildRequires: gcc
+ BuildRequires: gcc-c++
+-BuildRequires: grok
+-BuildRequires: grok-devel
++#BuildRequires: grok
++#BuildRequires: grok-devel
+ # kernel is required for /lib/modules content
+ %define is_rhel %(cat /etc/os-release | grep ^NAME | cut -d = -f 2 | sed  's/\"//g')
+ %if "%{is_rhel}" == "Red Hat Enterprise Linux Server"
+-BuildRequires: kernel = 3.10.0-1062.el7
+-BuildRequires: kernel-devel = 3.10.0-1062.el7
++#BuildRequires: kernel = 3.10.0-1062.el7
++#BuildRequires: kernel-devel = 3.10.0-1062.el7
+ %else
+-BuildRequires: kernel = 3.10.0-1062.el7
+-BuildRequires: kernel-devel = 3.10.0-1062.el7
++#BuildRequires: kernel = 3.10.0-1062.el7
++#BuildRequires: kernel-devel = 3.10.0-1062.el7
+ BuildRequires: python3-sphinx
+ BuildRequires: python36-requests
+ BuildRequires: python3-lxml
+ %endif
+ BuildRequires: libcurl-devel
+-BuildRequires: librdkafka-devel >= 1.5.0
++#BuildRequires: librdkafka-devel >= 1.5.0
+ BuildRequires: libstdc++-devel
+ BuildRequires: libtool
+ BuildRequires: libxml2-devel
+-BuildRequires: libzookeeper-devel
++#BuildRequires: libzookeeper-devel
+ BuildRequires: lz4-devel
+ BuildRequires: make
+ BuildRequires: openssl
+@@ -236,8 +236,8 @@ rm -rf %{buildroot}/contrail-test/.git*
+ 
+ # Install section of contrail-config package - Start
+ install -d -m 755 %{buildroot}%{_fabricansible}
+-install -p -m 755 %{buildroot}/usr/bin/fabric_ansible_playbooks*.tar.gz %{buildroot}%{_fabricansible}/
+-install -p -m 755 %{buildroot}/usr/bin/vcenter-import %{buildroot}%{_contrailutils}/
++#install -p -m 755 %{buildroot}/usr/bin/fabric_ansible_playbooks*.tar.gz %{buildroot}%{_fabricansible}/
++#install -p -m 755 %{buildroot}/usr/bin/vcenter-import %{buildroot}%{_contrailutils}/
+ # Install section of contrail-config package - End
+ 
+ # Install section of contrail-manifest package - Start
+@@ -446,7 +446,7 @@ package provides the contrail-vrouter user space agent.
+ %files vrouter-agent
+ %defattr(-, root, root)
+ %attr(755, root, root) %{_bindir}/contrail-vrouter-agent*
+-%{_bindir}/contrail-tor-agent*
++#%{_bindir}/contrail-tor-agent*
+ %{_bindir}/vrouter-port-control
+ %{_bindir}/contrail-compute-setup
+ %{_bindir}/contrail-toragent-setup
+@@ -512,33 +512,33 @@ responsible for maintaining ephemeral network state. Control nodes interact
+ with each other and with network elements to ensure that network state is
+ eventually consistent.
+ 
+-%files control
+-%defattr(-,root,root,-)
+-%attr(755, root, root) %{_bindir}/contrail-control*
+-%{python_sitelib}/ContrailControlCli*
+-
+-%pre control
+-set -e
+-# Create the "contrail" user
+-getent group contrail >/dev/null || groupadd -r contrail
+-getent passwd contrail >/dev/null || \
+-  useradd -r -g contrail -d /var/lib/contrail -s /bin/false \
+-  -c "OpenContail daemon" contrail
+-
+-%post control
+-set -e
+-mkdir -p /var/log/contrail /var/lib/contrail/ /etc/contrail/
+-chown -R contrail:adm /var/log/contrail
+-chmod 0750 /var/log/contrail
+-chown -R contrail:contrail /var/lib/contrail/ /etc/contrail/
+-chmod 0750 /etc/contrail/
+-# Use authbind to bind contrail-control on a reserved port,
+-# with contrail user privileges
+-if [ ! -f /etc/authbind/byport/179 ]; then
+-  touch /etc/authbind/byport/179
+-  chown contrail. /etc/authbind/byport/179
+-  chmod 0755 /etc/authbind/byport/179
+-fi
++#%files control
++#%defattr(-,root,root,-)
++#%attr(755, root, root) %{_bindir}/contrail-control*
++#%{python_sitelib}/ContrailControlCli*
++#
++#%pre control
++#set -e
++## Create the "contrail" user
++#getent group contrail >/dev/null || groupadd -r contrail
++#getent passwd contrail >/dev/null || \
++#  useradd -r -g contrail -d /var/lib/contrail -s /bin/false \
++#  -c "OpenContail daemon" contrail
++#
++#%post control
++#set -e
++#mkdir -p /var/log/contrail /var/lib/contrail/ /etc/contrail/
++#chown -R contrail:adm /var/log/contrail
++#chmod 0750 /var/log/contrail
++#chown -R contrail:contrail /var/lib/contrail/ /etc/contrail/
++#chmod 0750 /etc/contrail/
++## Use authbind to bind contrail-control on a reserved port,
++## with contrail user privileges
++#if [ ! -f /etc/authbind/byport/179 ]; then
++#  touch /etc/authbind/byport/179
++#  chown contrail. /etc/authbind/byport/179
++#  chmod 0755 /etc/authbind/byport/179
++#fi
+ 
+ %package -n python-opencontrail-vrouter-netns
+ 
+@@ -586,281 +586,281 @@ Libraries used by the Contrail Virtual Router.
+ %defattr(-,root,root)
+ %{_libdir}/../lib/lib*.so*
+ 
+-%package config
+-Summary: Contrail Config
+-Group:              Applications/System
+-
+-Requires:           python-contrail >= %{_verstr}-%{_relstr}
+-Requires:           python-bitarray >= 0.8.0
+-Requires:           python2-future
+-Requires:           python-configparser
+-%if 0%{?rhel} >= 7
+-Requires: python-gevent >= 1.0
+-%endif
+-%if 0%{?rhel} <= 6
+-Requires:          python-gevent
+-%endif
+-Requires:           python-lxml >= 2.3.2
+-Requires:           python-pycassa
+-Requires:           python-thrift >= 0.9.1
+-Requires:           python-psutil >= 0.6.0
+-Requires:           python2-requests >= 2.20.0
+-Requires:           python-zope-interface
+-Requires:           xmltodict >= 0.7.0
+-Requires:           python-jsonpickle
+-Requires:           python-amqp
+-Requires:           python-kazoo == 2.7.0
+-Requires:           python-ncclient >= 0.3.2
+-%if 0%{?rhel}
+-Requires:           python-pysnmp
+-%else
+-Requires:           python2-pysnmp
+-%endif
+-Requires:           python-keystoneclient
+-Requires:           python-keystonemiddleware
+-Requires:           python-swiftclient
+-Requires:           python2-jmespath
+-Requires:           python-subprocess32 >= 3.2.6
+-Requires:           python2-jsonschema >= 2.5.1
+-Requires:           openssh-clients
+-Requires:           python-attrdict
+-Requires:           python-pyhash
+-%if 0%{?rhel} > 6
+-Requires:           python2-docker
+-%else
+-Requires:           python-docker-py
+-%endif
+-%if 0%{?rhel} > 6
+-Requires:           python2-crypto
+-%else
+-Requires:           python-crypto
+-%endif
+-Requires:           python-pyroute2
+-Requires:           openssl-devel
+-Requires:           uwsgi
+-Requires:           uwsgi-plugin-python2 >= 2.0.18
+-Requires:           uwsgi-plugin-python2-gevent >= 2.0.18
+-%description config
+-Contrail Config package
+-
+-Configuration nodes are responsible for the management layer. The configuration
+-nodes provide a north-bound Representational State Transfer (REST) Application
+-Programming Interface (API) that can be used to configure the system or extract
+-operational status of the system. The instantiated services are represented by
+-objects in a horizontally scalable database that is described by a formal
+-service data model (more about data models later on).
+-
+-The configuration nodes also contain a transformation engine (sometimes
+-referred to as a compiler) that transforms the objects in the high-level
+-service data model into corresponding more lower-level objects in the
+-technology data model. Whereas the high-level service data model describes what
+-services need to be implemented, the low-level technology data model describes
+-how those services need to be implemented.
+-
+-The configuration nodes publish the contents of the low-level technology data
+-model to the control nodes using the Interface for Metadata Access Points
+-(IF-MAP) protocol. Configuration nodes keep a persistent copy of the intended
+-configuration state and translate the high-level data model into the lower
+-level model suitable for interacting with network elements. Both these are kept
+-in a NoSQL database.
+-
+-%files config
+-%defattr(-,contrail,contrail,-)
+-%defattr(-,root,root,-)
+-%attr(755, root, root) %{_bindir}/contrail-api*
+-%attr(755, root, root) %{_bindir}/contrail-schema*
+-%attr(755, root, root) %{_bindir}/contrail-device-manager*
+-%{_bindir}/contrail-issu-pre-sync
+-%{_bindir}/contrail-issu-post-sync
+-%{_bindir}/contrail-issu-run-sync
+-%{_bindir}/contrail-issu-zk-sync
+-%{_fabricansible}/*.tar.gz
+-%{python_sitelib}/schema_transformer*
+-%{python_sitelib}/vnc_cfg_api_server*
+-%{python_sitelib}/contrail_api_server*
+-%{python_sitelib}/ContrailConfigCli*
+-%{python_sitelib}/device_manager*
+-%{python_sitelib}/job_manager*
+-%{python_sitelib}/device_api*
+-%{python_sitelib}/abstract_device_api*
+-%{python_sitelib}/contrail_issu*
+-%{_contrailutils}/vcenter-import
+-%attr(755, root, root) %{_bindir}/vcenter-import
+-%if 0%{?rhel} > 6
+-%docdir /usr/share/doc/contrail-config/
+-/usr/share/doc/contrail-config/
+-%endif
+-
+-%pre config
+-set -e
+-# Create the "contrail" user
+-getent group contrail >/dev/null || groupadd -r contrail
+-getent passwd contrail >/dev/null || \
+-  useradd -r -g contrail -d /var/lib/contrail -s /bin/false \
+-  -c "OpenContail daemon" contrail
+-
+-%post config
+-set -e
+-mkdir -p /var/log/contrail /var/lib/contrail/ /etc/contrail/ /etc/ansible
+-chown -R contrail:adm /var/log/contrail
+-chmod 0750 /var/log/contrail
+-chown -R contrail:contrail /var/lib/contrail/ /etc/contrail/
+-chmod 0750 /etc/contrail/
+-tar -xvzf %{_fabricansible}/*.tar.gz -C %{_fabricansible}
+-mv %{_fabricansible}/fabric_ansible_playbooks-0.1dev/* %{_fabricansible}/
+-rmdir  %{_fabricansible}/fabric_ansible_playbooks-0.1dev/
+-cat %{_fabricansible}/ansible.cfg > /etc/ansible/ansible.cfg
+-
+-%package analytics
+-Summary:            Contrail Analytics
+-Group:              Applications/System
+-
+-Requires:           xmltodict >= 0.7.0
+-Requires:           contrail-lib >= %{_verstr}-%{_relstr}
+-Requires:           python-pycassa
+-Requires:           python-redis >= 2.10.0
+-Requires:           redis >= 2.6.13-1
+-Requires:           python-contrail >= %{_verstr}-%{_relstr}
+-Requires:           python-psutil >= 0.6.0
+-Requires:           python-prettytable
+-Requires:           protobuf
+-Requires:           cassandra-cpp-driver
+-Requires:           libzookeeper
+-Requires:           net-snmp-python
+-Requires:           librdkafka1 >= 1.5.0
+-Requires:           python-kafka >= 1.4.0
+-Requires:           python-stevedore
+-Requires:           python-kazoo >= 2.3.0
+-Requires:           python-sseclient >= 0.0.26
+-Requires:           python-amqp
+-Requires:           grok
+-Requires:           python2-future
+-Requires:           python-configparser
+-%if 0%{?rhel} >= 7
+-Requires:           python-cassandra-driver >= 3.0.0
+-%endif
+-
+-%description analytics
+-Contrail Analytics package
+-Analytics nodes are responsible for collecting, collating and presenting
+-analytics information for trouble shooting problems and for understanding
+-network usage. Each component of the OpenContrail System generates detailed
+-event records for every significant event in the system. These event records
+-are sent to one of multiple instances (for scale-out) of the analytics node
+-that collate and store the information in a horizontally scalable database
+-using a format that is optimized for time-series analysis and queries. the
+-analytics nodes have mechanism to automatically trigger the collection of more
+-detailed records when certain event occur; the goal is to be able to get to the
+-root cause of any issue without having to reproduce it. The analytics nodes
+-provide a north-bound analytics query REST API. Analytics nodes collect, store,
+-correlate, and analyze information from network elements, virtual or physical.
+-This information includes statistics,logs, events, and errors.
+-
+-%files analytics
+-# Setup directories
+-%defattr(-,contrail,contrail,)
+-%defattr(-, root, root)
+-%attr(755, root, root) %{_bindir}/contrail-collector*
+-%attr(755, root, root) %{_bindir}/contrail-query-engine*
+-%attr(755, root, root) %{_bindir}/contrail-analytics-api*
+-%attr(755, root, root) %{_bindir}/contrail-alarm-gen*
+-%{python_sitelib}/opserver*
+-%{python_sitelib}/tf_snmp_collector*
+-%{python_sitelib}/tf_topology*
+-%{python_sitelib}/ContrailAnalyticsCli*
+-%{_bindir}/contrail-logs
+-%{_bindir}/contrail-flows
+-%{_bindir}/contrail-sessions
+-%{_bindir}/contrail-db
+-%{_bindir}/contrail-stats
+-%{_bindir}/contrail-alarm-notify
+-%{_bindir}/contrail-logs-api-audit
+-%attr(755, root, root) %{_bindir}/tf-snmp-*
+-%attr(755, root, root) %{_bindir}/tf-topology
+-/usr/share/doc/contrail-analytics-api
+-/usr/share/mibs/netsnmp
+-/etc/contrail/snmp.conf
+-
+-%pre analytics
+-set -e
+-# Create the "contrail" user
+-getent group contrail >/dev/null || groupadd -r contrail
+-getent passwd contrail >/dev/null || \
+-  useradd -r -g contrail -d /var/lib/contrail -s /bin/false \
+-  -c "OpenContail daemon" contrail
+-
+-%post analytics
+-set -e
+-mkdir -p /var/log/contrail /var/lib/contrail/ /etc/contrail/
+-chown -R contrail:adm /var/log/contrail
+-chmod 0750 /var/log/contrail
+-chown -R contrail:contrail /var/lib/contrail/ /etc/contrail/
+-chmod 0750 /etc/contrail/
+-
+-%package dns
+-Summary:            Contrail Dns
+-Group:              Applications/System
+-
+-Requires:           authbind
+-Requires:           python2-future
+-Requires:           python-configparser
+-
+-%description dns
+-Contrail dns  package
+-DNS provides contrail-dns, contrail-named, contrail-rndc and
+-contrail-rndc-confgen daemons
+-Provides vrouter services
+-
+-%pre dns
+-set -e
+-# Create the "contrail" user
+-getent group contrail >/dev/null || groupadd -r contrail
+-getent passwd contrail >/dev/null || \
+-  useradd -r -g contrail -d /var/lib/contrail -s /bin/false \
+-  -c "OpenContail daemon" contrail
+-
+-%post dns
+-set -e
+-mkdir -p /var/log/contrail /etc/contrail/dns
+-chown -R contrail:adm /var/log/contrail
+-chmod 0750 /var/log/contrail
+-chown -R contrail. /etc/contrail/dns
+-chmod 0750 /etc/contrail/dns
+-
+-# Use authbind to bind amed on a reserved port,
+-# with contrail user privileges
+-if [ ! -f /etc/authbind/byport/53 ]; then
+-  touch /etc/authbind/byport/53
+-  chown contrail. /etc/authbind/byport/53
+-  chmod 0755 /etc/authbind/byport/53
+-fi
+-
+-%files dns
+-%defattr(-,contrail,contrail,-)
+-%{_contraildns}
+-%config(noreplace) %{_contraildns}/applynamedconfig.py
+-%{_contraildns}/COPYRIGHT
+-%defattr(-, root, root)
+-%attr(755, root, root) %{_bindir}/contrail-named*
+-%{_bindir}/contrail-rndc
+-%{_bindir}/contrail-rndc-confgen
+-%attr(755, root, root) %{_bindir}/contrail-dns*
+-%if 0%{?rhel} > 6
+-%docdir %{python2_sitelib}/doc/*
+-%endif
+-
+-%package nova-vif
+-Summary:            Contrail nova vif driver
+-Group:              Applications/System
+-
+-%description nova-vif
+-Contrail Nova Vif driver package
+-
+-%files nova-vif
+-%defattr(-,root,root,-)
+-%{python_sitelib}/nova_contrail_vif*
+-%{python_sitelib}/vif_plug_vrouter
+-%{python_sitelib}/vif_plug_contrail_vrouter
++#%package config
++#Summary: Contrail Config
++#Group:              Applications/System
++#
++#Requires:           python-contrail >= %{_verstr}-%{_relstr}
++#Requires:           python-bitarray >= 0.8.0
++#Requires:           python2-future
++#Requires:           python-configparser
++#%if 0%{?rhel} >= 7
++#Requires: python-gevent >= 1.0
++#%endif
++#%if 0%{?rhel} <= 6
++#Requires:          python-gevent
++#%endif
++#Requires:           python-lxml >= 2.3.2
++#Requires:           python-pycassa
++#Requires:           python-thrift >= 0.9.1
++#Requires:           python-psutil >= 0.6.0
++#Requires:           python2-requests >= 2.20.0
++#Requires:           python-zope-interface
++#Requires:           xmltodict >= 0.7.0
++#Requires:           python-jsonpickle
++#Requires:           python-amqp
++#Requires:           python-kazoo == 2.7.0
++#Requires:           python-ncclient >= 0.3.2
++#%if 0%{?rhel}
++#Requires:           python-pysnmp
++#%else
++#Requires:           python2-pysnmp
++#%endif
++#Requires:           python-keystoneclient
++#Requires:           python-keystonemiddleware
++#Requires:           python-swiftclient
++#Requires:           python2-jmespath
++#Requires:           python-subprocess32 >= 3.2.6
++#Requires:           python2-jsonschema >= 2.5.1
++#Requires:           openssh-clients
++#Requires:           python-attrdict
++#Requires:           python-pyhash
++#%if 0%{?rhel} > 6
++#Requires:           python2-docker
++#%else
++#Requires:           python-docker-py
++#%endif
++#%if 0%{?rhel} > 6
++#Requires:           python2-crypto
++#%else
++#Requires:           python-crypto
++#%endif
++#Requires:           python-pyroute2
++#Requires:           openssl-devel
++#Requires:           uwsgi
++#Requires:           uwsgi-plugin-python2 >= 2.0.18
++#Requires:           uwsgi-plugin-python2-gevent >= 2.0.18
++#%description config
++#Contrail Config package
++#
++#Configuration nodes are responsible for the management layer. The configuration
++#nodes provide a north-bound Representational State Transfer (REST) Application
++#Programming Interface (API) that can be used to configure the system or extract
++#operational status of the system. The instantiated services are represented by
++#objects in a horizontally scalable database that is described by a formal
++#service data model (more about data models later on).
++#
++#The configuration nodes also contain a transformation engine (sometimes
++#referred to as a compiler) that transforms the objects in the high-level
++#service data model into corresponding more lower-level objects in the
++#technology data model. Whereas the high-level service data model describes what
++#services need to be implemented, the low-level technology data model describes
++#how those services need to be implemented.
++#
++#The configuration nodes publish the contents of the low-level technology data
++#model to the control nodes using the Interface for Metadata Access Points
++#(IF-MAP) protocol. Configuration nodes keep a persistent copy of the intended
++#configuration state and translate the high-level data model into the lower
++#level model suitable for interacting with network elements. Both these are kept
++#in a NoSQL database.
++#
++#%files config
++#%defattr(-,contrail,contrail,-)
++#%defattr(-,root,root,-)
++#%attr(755, root, root) %{_bindir}/contrail-api*
++#%attr(755, root, root) %{_bindir}/contrail-schema*
++#%attr(755, root, root) %{_bindir}/contrail-device-manager*
++#%{_bindir}/contrail-issu-pre-sync
++#%{_bindir}/contrail-issu-post-sync
++#%{_bindir}/contrail-issu-run-sync
++#%{_bindir}/contrail-issu-zk-sync
++#%{_fabricansible}/*.tar.gz
++#%{python_sitelib}/schema_transformer*
++#%{python_sitelib}/vnc_cfg_api_server*
++#%{python_sitelib}/contrail_api_server*
++#%{python_sitelib}/ContrailConfigCli*
++#%{python_sitelib}/device_manager*
++#%{python_sitelib}/job_manager*
++#%{python_sitelib}/device_api*
++#%{python_sitelib}/abstract_device_api*
++#%{python_sitelib}/contrail_issu*
++#%{_contrailutils}/vcenter-import
++#%attr(755, root, root) %{_bindir}/vcenter-import
++#%if 0%{?rhel} > 6
++#%docdir /usr/share/doc/contrail-config/
++#/usr/share/doc/contrail-config/
++#%endif
++#
++#%pre config
++#set -e
++## Create the "contrail" user
++#getent group contrail >/dev/null || groupadd -r contrail
++#getent passwd contrail >/dev/null || \
++#  useradd -r -g contrail -d /var/lib/contrail -s /bin/false \
++#  -c "OpenContail daemon" contrail
++#
++#%post config
++#set -e
++#mkdir -p /var/log/contrail /var/lib/contrail/ /etc/contrail/ /etc/ansible
++#chown -R contrail:adm /var/log/contrail
++#chmod 0750 /var/log/contrail
++#chown -R contrail:contrail /var/lib/contrail/ /etc/contrail/
++#chmod 0750 /etc/contrail/
++#tar -xvzf %{_fabricansible}/*.tar.gz -C %{_fabricansible}
++#mv %{_fabricansible}/fabric_ansible_playbooks-0.1dev/* %{_fabricansible}/
++#rmdir  %{_fabricansible}/fabric_ansible_playbooks-0.1dev/
++#cat %{_fabricansible}/ansible.cfg > /etc/ansible/ansible.cfg
++#
++#%package analytics
++#Summary:            Contrail Analytics
++#Group:              Applications/System
++#
++#Requires:           xmltodict >= 0.7.0
++#Requires:           contrail-lib >= %{_verstr}-%{_relstr}
++#Requires:           python-pycassa
++#Requires:           python-redis >= 2.10.0
++#Requires:           redis >= 2.6.13-1
++#Requires:           python-contrail >= %{_verstr}-%{_relstr}
++#Requires:           python-psutil >= 0.6.0
++#Requires:           python-prettytable
++#Requires:           protobuf
++#Requires:           cassandra-cpp-driver
++#Requires:           libzookeeper
++#Requires:           net-snmp-python
++#Requires:           librdkafka1 >= 1.5.0
++#Requires:           python-kafka >= 1.4.0
++#Requires:           python-stevedore
++#Requires:           python-kazoo >= 2.3.0
++#Requires:           python-sseclient >= 0.0.26
++#Requires:           python-amqp
++#Requires:           grok
++#Requires:           python2-future
++#Requires:           python-configparser
++#%if 0%{?rhel} >= 7
++#Requires:           python-cassandra-driver >= 3.0.0
++#%endif
++#
++#%description analytics
++#Contrail Analytics package
++#Analytics nodes are responsible for collecting, collating and presenting
++#analytics information for trouble shooting problems and for understanding
++#network usage. Each component of the OpenContrail System generates detailed
++#event records for every significant event in the system. These event records
++#are sent to one of multiple instances (for scale-out) of the analytics node
++#that collate and store the information in a horizontally scalable database
++#using a format that is optimized for time-series analysis and queries. the
++#analytics nodes have mechanism to automatically trigger the collection of more
++#detailed records when certain event occur; the goal is to be able to get to the
++#root cause of any issue without having to reproduce it. The analytics nodes
++#provide a north-bound analytics query REST API. Analytics nodes collect, store,
++#correlate, and analyze information from network elements, virtual or physical.
++#This information includes statistics,logs, events, and errors.
++#
++#%files analytics
++## Setup directories
++#%defattr(-,contrail,contrail,)
++#%defattr(-, root, root)
++#%attr(755, root, root) %{_bindir}/contrail-collector*
++#%attr(755, root, root) %{_bindir}/contrail-query-engine*
++#%attr(755, root, root) %{_bindir}/contrail-analytics-api*
++#%attr(755, root, root) %{_bindir}/contrail-alarm-gen*
++#%{python_sitelib}/opserver*
++#%{python_sitelib}/tf_snmp_collector*
++#%{python_sitelib}/tf_topology*
++#%{python_sitelib}/ContrailAnalyticsCli*
++#%{_bindir}/contrail-logs
++#%{_bindir}/contrail-flows
++#%{_bindir}/contrail-sessions
++#%{_bindir}/contrail-db
++#%{_bindir}/contrail-stats
++#%{_bindir}/contrail-alarm-notify
++#%{_bindir}/contrail-logs-api-audit
++#%attr(755, root, root) %{_bindir}/tf-snmp-*
++#%attr(755, root, root) %{_bindir}/tf-topology
++#/usr/share/doc/contrail-analytics-api
++#/usr/share/mibs/netsnmp
++#/etc/contrail/snmp.conf
++#
++#%pre analytics
++#set -e
++## Create the "contrail" user
++#getent group contrail >/dev/null || groupadd -r contrail
++#getent passwd contrail >/dev/null || \
++#  useradd -r -g contrail -d /var/lib/contrail -s /bin/false \
++#  -c "OpenContail daemon" contrail
++#
++#%post analytics
++#set -e
++#mkdir -p /var/log/contrail /var/lib/contrail/ /etc/contrail/
++#chown -R contrail:adm /var/log/contrail
++#chmod 0750 /var/log/contrail
++#chown -R contrail:contrail /var/lib/contrail/ /etc/contrail/
++#chmod 0750 /etc/contrail/
++#
++#%package dns
++#Summary:            Contrail Dns
++#Group:              Applications/System
++#
++#Requires:           authbind
++#Requires:           python2-future
++#Requires:           python-configparser
++#
++#%description dns
++#Contrail dns  package
++#DNS provides contrail-dns, contrail-named, contrail-rndc and
++#contrail-rndc-confgen daemons
++#Provides vrouter services
++#
++#%pre dns
++#set -e
++## Create the "contrail" user
++#getent group contrail >/dev/null || groupadd -r contrail
++#getent passwd contrail >/dev/null || \
++#  useradd -r -g contrail -d /var/lib/contrail -s /bin/false \
++#  -c "OpenContail daemon" contrail
++#
++#%post dns
++#set -e
++#mkdir -p /var/log/contrail /etc/contrail/dns
++#chown -R contrail:adm /var/log/contrail
++#chmod 0750 /var/log/contrail
++#chown -R contrail. /etc/contrail/dns
++#chmod 0750 /etc/contrail/dns
++#
++## Use authbind to bind amed on a reserved port,
++## with contrail user privileges
++#if [ ! -f /etc/authbind/byport/53 ]; then
++#  touch /etc/authbind/byport/53
++#  chown contrail. /etc/authbind/byport/53
++#  chmod 0755 /etc/authbind/byport/53
++#fi
++#
++#%files dns
++#%defattr(-,contrail,contrail,-)
++#%{_contraildns}
++#%config(noreplace) %{_contraildns}/applynamedconfig.py
++#%{_contraildns}/COPYRIGHT
++#%defattr(-, root, root)
++#%attr(755, root, root) %{_bindir}/contrail-named*
++#%{_bindir}/contrail-rndc
++#%{_bindir}/contrail-rndc-confgen
++#%attr(755, root, root) %{_bindir}/contrail-dns*
++#%if 0%{?rhel} > 6
++#%docdir %{python2_sitelib}/doc/*
++#%endif
++#
++#%package nova-vif
++#Summary:            Contrail nova vif driver
++#Group:              Applications/System
++#
++#%description nova-vif
++#Contrail Nova Vif driver package
++#
++#%files nova-vif
++#%defattr(-,root,root,-)
++#%{python_sitelib}/nova_contrail_vif*
++#%{python_sitelib}/vif_plug_vrouter
++#%{python_sitelib}/vif_plug_contrail_vrouter
+ 
+ %package utils
+ Summary: Contrail utility sctipts.
+@@ -880,144 +880,144 @@ Contrail utility sctipts package
+ %defattr(-, root, root)
+ /usr/share/contrail-utils/*
+ 
+-%package docs
+-Summary: Documentation for OpenContrail
+-Group: Applications/System
+-
+-%description docs
+-OpenContrail is a network virtualization solution that provides an overlay
+-virtual-network to virtual-machines, containers or network namespaces.
+-
+-This package contains the documentation for messages generated by OpenContrail
+-modules/daemons.
+-
+-%files docs
+-%doc /usr/share/doc/contrail-docs/html/*
+-
+-%package kube-manager
+-Summary:            Kubernetes network manager
+-
+-Group:              Applications/System
+-
+-Requires:    python-contrail >= %{_verstr}-%{_relstr}
+-Requires:    python-gevent
+-Requires:    python2-requests >= 2.20.0
+-Requires:    python2-future
+-Requires:    python-configparser
+-Requires:    python-kazoo
+-Requires:    python-enum34
+-Requires:    python-bitstring
+-
+-%description kube-manager
+-Contrail kubernetes network manager package
+-This package contains the kubernetes network management modules.
+-%files kube-manager
+-%{python_sitelib}/kube_manager*
+-%{_bindir}/contrail-kube-manager
+-
+-%pre kube-manager
+-set -e
+-# Create the "contrail" user
+-getent group contrail >/dev/null || groupadd -r contrail
+-getent passwd contrail >/dev/null || \
+-  useradd -r -g contrail -d /var/lib/contrail -s /bin/false \
+-  -c "OpenContail daemon" contrail
+-
+-%post kube-manager
+-set -e
+-mkdir -p /var/log/contrail /var/lib/contrail/ /etc/contrail/
+-chown -R contrail:adm /var/log/contrail
+-chmod 0750 /var/log/contrail
+-chown -R contrail:contrail /var/lib/contrail/ /etc/contrail/
+-chmod 0750 /etc/contrail/
+-
+-%package mesos-manager
+-Summary:            Mesos network manager
+-
+-Group:              Applications/System
+-
+-Requires:    python-contrail >= %{_verstr}-%{_relstr}
+-Requires:    python-gevent
+-Requires:    python2-requests >= 2.20.0
+-Requires:    python2-future
+-Requires:    python-configparser
+-Requires:    python-kazoo
+-Requires:    python-enum34
+-
+-%description mesos-manager
+-Contrail Mesos network manager package
+-This package contains the mesos network management modules.
+-%files mesos-manager
+-%{python_sitelib}/mesos_manager*
+-%{_bindir}/contrail-mesos-manager
+-
+-%pre mesos-manager
+-set -e
+-# Create the "contrail" user
+-getent group contrail >/dev/null || groupadd -r contrail
+-getent passwd contrail >/dev/null || \
+-  useradd -r -g contrail -d /var/lib/contrail -s /bin/false \
+-  -c "OpenContail daemon" contrail
+-
+-%post mesos-manager
+-set -e
+-mkdir -p /var/log/contrail /var/lib/contrail/ /etc/contrail/
+-chown -R contrail:adm /var/log/contrail
+-chmod 0750 /var/log/contrail
+-chown -R contrail:contrail /var/lib/contrail/ /etc/contrail/
+-chmod 0750 /etc/contrail/
+-
+-%package k8s-cni
+-Summary:            Kubernetes cni plugin
+-Group:              Applications/System
+-
+-%description k8s-cni
+-Contrail kubernetes cni plugin package
+-This package contains the kubernetes cni plugin modules.
+-
+-%files k8s-cni
+-%{_bindir}/contrail-k8s-cni
+-
+-%package mesos-cni
+-Summary:            Mesos cni plugin
+-Group:              Applications/System
+-
+-%description mesos-cni
+-Contrail mesos cni plugin package
+-This package contains the mesos cni plugin modules.
+-
+-%files mesos-cni
+-%{_bindir}/contrail-mesos-cni
+-
+-%if 0%{?_manifestFile:1}
+-
+-%package manifest
+-BuildArch:          noarch
+-Summary:            Android repo manifest.xml
+-
+-Group:              Applications/System
+-
+-%description manifest
+-Manifest.xml
+-Used for Android repo code checkout of OpenContrail
+-
+-%files manifest
+-/opt/contrail/manifest.xml
+-
+-%endif
++#%package docs
++#Summary: Documentation for OpenContrail
++#Group: Applications/System
++#
++#%description docs
++#OpenContrail is a network virtualization solution that provides an overlay
++#virtual-network to virtual-machines, containers or network namespaces.
++#
++#This package contains the documentation for messages generated by OpenContrail
++#modules/daemons.
++#
++#%files docs
++#%doc /usr/share/doc/contrail-docs/html/*
++#
++#%package kube-manager
++#Summary:            Kubernetes network manager
++#
++#Group:              Applications/System
++#
++#Requires:    python-contrail >= %{_verstr}-%{_relstr}
++#Requires:    python-gevent
++#Requires:    python2-requests >= 2.20.0
++#Requires:    python2-future
++#Requires:    python-configparser
++#Requires:    python-kazoo
++#Requires:    python-enum34
++#Requires:    python-bitstring
++#
++#%description kube-manager
++#Contrail kubernetes network manager package
++#This package contains the kubernetes network management modules.
++#%files kube-manager
++#%{python_sitelib}/kube_manager*
++#%{_bindir}/contrail-kube-manager
++#
++#%pre kube-manager
++#set -e
++## Create the "contrail" user
++#getent group contrail >/dev/null || groupadd -r contrail
++#getent passwd contrail >/dev/null || \
++#  useradd -r -g contrail -d /var/lib/contrail -s /bin/false \
++#  -c "OpenContail daemon" contrail
++#
++#%post kube-manager
++#set -e
++#mkdir -p /var/log/contrail /var/lib/contrail/ /etc/contrail/
++#chown -R contrail:adm /var/log/contrail
++#chmod 0750 /var/log/contrail
++#chown -R contrail:contrail /var/lib/contrail/ /etc/contrail/
++#chmod 0750 /etc/contrail/
++#
++#%package mesos-manager
++#Summary:            Mesos network manager
++#
++#Group:              Applications/System
++#
++#Requires:    python-contrail >= %{_verstr}-%{_relstr}
++#Requires:    python-gevent
++#Requires:    python2-requests >= 2.20.0
++#Requires:    python2-future
++#Requires:    python-configparser
++#Requires:    python-kazoo
++#Requires:    python-enum34
++#
++#%description mesos-manager
++#Contrail Mesos network manager package
++#This package contains the mesos network management modules.
++#%files mesos-manager
++#%{python_sitelib}/mesos_manager*
++#%{_bindir}/contrail-mesos-manager
++#
++#%pre mesos-manager
++#set -e
++## Create the "contrail" user
++#getent group contrail >/dev/null || groupadd -r contrail
++#getent passwd contrail >/dev/null || \
++#  useradd -r -g contrail -d /var/lib/contrail -s /bin/false \
++#  -c "OpenContail daemon" contrail
++#
++#%post mesos-manager
++#set -e
++#mkdir -p /var/log/contrail /var/lib/contrail/ /etc/contrail/
++#chown -R contrail:adm /var/log/contrail
++#chmod 0750 /var/log/contrail
++#chown -R contrail:contrail /var/lib/contrail/ /etc/contrail/
++#chmod 0750 /etc/contrail/
++#
++#%package k8s-cni
++#Summary:            Kubernetes cni plugin
++#Group:              Applications/System
++#
++#%description k8s-cni
++#Contrail kubernetes cni plugin package
++#This package contains the kubernetes cni plugin modules.
++#
++#%files k8s-cni
++#%{_bindir}/contrail-k8s-cni
++#
++#%package mesos-cni
++#Summary:            Mesos cni plugin
++#Group:              Applications/System
++#
++#%description mesos-cni
++#Contrail mesos cni plugin package
++#This package contains the mesos cni plugin modules.
++#
++#%files mesos-cni
++#%{_bindir}/contrail-mesos-cni
++#
++#%if 0%{?_manifestFile:1}
++#
++#%package manifest
++#BuildArch:          noarch
++#Summary:            Android repo manifest.xml
++#
++#Group:              Applications/System
++#
++#%description manifest
++#Manifest.xml
++#Used for Android repo code checkout of OpenContrail
++#
++#%files manifest
++#/opt/contrail/manifest.xml
++#
++#%endif
+ 
+ %endif
+ 
+-%package test
+-Summary: Contrail Test
+-Group: Applications/System
+-
+-%description test
+-Source code of Contrail Test and Test CI
+-
+-%files test
+-%defattr(-, root, root)
+-/contrail-test
++#%package test
++#Summary: Contrail Test
++#Group: Applications/System
++#
++#%description test
++#Source code of Contrail Test and Test CI
++#
++#%files test
++#%defattr(-, root, root)
++#/contrail-test
+ 
+ %package -n python-contrail
+ Summary:            Contrail Python Lib

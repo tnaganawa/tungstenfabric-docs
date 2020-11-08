@@ -1,0 +1,24 @@
+diff --git a/SConscript b/SConscript
+index ac6cb03..503621b 100644
+--- a/SConscript
++++ b/SConscript
+@@ -15,14 +15,14 @@ Import('contrail_common_io_doc_files')
+ Import('controller_vns_sandesh_doc_files')
+ 
+ subdirs_no_dup = [
+-          'contrail-collector',
+-          'contrail-query-engine',
+-          'contrail-opserver',
++#          'contrail-collector',
++#          'contrail-query-engine',
++#          'contrail-opserver',
+            ]
+ 
+ subdirs_dup = [
+-          'tf-snmp-collector',
+-          'tf-topology'
++#          'tf-snmp-collector',
++#          'tf-topology'
+            ]
+ 
+ variant_dir_map = {}

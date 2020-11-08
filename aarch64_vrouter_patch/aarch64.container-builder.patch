@@ -1,0 +1,56 @@
+diff --git a/containers/base/Dockerfile b/containers/base/Dockerfile
+index fcfb6d9..88905d3 100644
+--- a/containers/base/Dockerfile
++++ b/containers/base/Dockerfile
+@@ -15,6 +15,10 @@ ARG BASE_EXTRA_RPMS=""
+ #   from the yum repo install via BASE_EXTRA_RPMS. pip2 is to installed BEFORE python3 that installs pip3
+ #   byt dependencies. 
+ # NOTE! all other deps must be installed in the container that requires such deps.
++
++RUN rpm -Uvh --nodeps http://localhost:6667/aarch64/python-contrail-2004-110720201438.el7.aarch64.rpm
++RUN rpm -Uvh --nodeps http://localhost:6667/aarch64/contrail-utils-2004-110720201438.el7.aarch64.rpm
++
+ RUN BASE_EXTRA_RPMS=$(echo $BASE_EXTRA_RPMS | tr -d '"' | tr ',' ' ') && \
+     if [[ -n "$BASE_EXTRA_RPMS" ]] ; then \
+         echo "INFO: contrail-base: install $BASE_EXTRA_RPMS" ; \
+@@ -25,7 +29,8 @@ RUN BASE_EXTRA_RPMS=$(echo $BASE_EXTRA_RPMS | tr -d '"' | tr ',' ' ') && \
+     wget -nv -c --tries=3 -O /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py && \
+     python2 /tmp/get-pip.py 'pip==20.1' && \
+     if [[ -z "$CONTRAIL_BUILD_FROM_SOURCE" ]] ; then \
+-      yum install -y contrail-lib contrail-setup contrail-utils python-contrail ; \
++      ##yum install -y contrail-lib contrail-setup contrail-utils python-contrail ; \
++      yum install -y contrail-lib contrail-setup; \
+     fi && \
+     yum install -y python3 && \
+     python3 -m pip install --no-compile "future==0.18.2" "six==1.13.0" && \
+diff --git a/containers/nodemgr/Dockerfile b/containers/nodemgr/Dockerfile
+index 3ee1716..2d54a8f 100644
+--- a/containers/nodemgr/Dockerfile
++++ b/containers/nodemgr/Dockerfile
+@@ -12,8 +12,8 @@ LABEL name=$CONTAINER_NAME \
+ # install chrony, ntp and iputils-clockdiff to enable checking time sync by nodemgr
+ RUN   yum install -y contrail-nodemgr python2-docker-2.4.2-1.2.el7.noarch chrony ntp python3-contrail podman && \
+       yum clean all -y && \
+-      rm -rf /var/cache/yum && \
+-      pip2 install --no-compile grpcio==1.29.0 protobuf==3.12.1
++      rm -rf /var/cache/yum
++## && \ pip2 install --no-compile grpcio==1.29.0 protobuf==3.12.1
+ 
+ COPY *.sh /
+ ENTRYPOINT ["/entrypoint.sh"]
+diff --git a/containers/vrouter/agent/Dockerfile b/containers/vrouter/agent/Dockerfile
+index f47d7ad..d0c6d34 100644
+--- a/containers/vrouter/agent/Dockerfile
++++ b/containers/vrouter/agent/Dockerfile
+@@ -8,8 +8,9 @@ LABEL name=$CONTAINER_NAME \
+       summary="Contrail Vrouter Agent" \
+       description="The vRouter agent is a user space process running inside Linux. It acts as the local, lightweight control plane."
+ 
+-RUN  yum install -y dhclient NetworkManager contrail-vrouter-agent haproxy libvirt-client \
+-     python-opencontrail-vrouter-netns python-contrail-vrouter-api && \
++RUN  rpm -Uvh --nodeps http://localhost:6667/aarch64/contrail-vrouter-agent-2004-110720201438.el7.aarch64.rpm
++RUN  yum install -y dhclient NetworkManager contrail-vrouter-agent haproxy libvirt-client && \
++     #python-opencontrail-vrouter-netns python-contrail-vrouter-api && \
+      rpm -qi contrail-vrouter-agent | awk '/Version/{print($3)}' > /contrail_build_version && \
+      yum clean all -y && \
+      rm -rf /var/cache/yum /etc/sysconfig/network-scripts && \

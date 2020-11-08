@@ -1,0 +1,47 @@
+diff --git a/config-client-mgr/SConscript b/config-client-mgr/SConscript
+index 1f513d8..48351f9 100644
+--- a/config-client-mgr/SConscript
++++ b/config-client-mgr/SConscript
+@@ -43,23 +43,23 @@ except_env.Append(CPPPATH = env['TOP'])
+ if etcd_incl:
+     libconfig_client_mgr = env.Library('config_client_mgr',
+                          ['config_amqp_client.cc',
+-                          'config_cass2json_adapter.cc',
+-                          'config_cassandra_client.cc',
++                          #'config_cass2json_adapter.cc',
++                          #'config_cassandra_client.cc',
+                           'config_etcd_client.cc',
+                           'config_client_manager.cc',
+                           'config_db_client.cc',
+-                          'config_factory.cc',
++                          #'config_factory.cc',
+                           'config_client_log.cc',
+                           'config_json_parser_base.cc',
+                          ] + sandesh_objs)
+ else:
+     libconfig_client_mgr = env.Library('config_client_mgr',
+                          ['config_amqp_client.cc',
+-                          'config_cass2json_adapter.cc',
+-                          'config_cassandra_client.cc',
++                          #'config_cass2json_adapter.cc',
++                          #'config_cassandra_client.cc',
+                           'config_client_manager.cc',
+                           'config_db_client.cc',
+-                          'config_factory.cc',
++                          #'config_factory.cc',
+                           'config_client_log.cc',
+                           'config_json_parser_base.cc',
+                          ] + sandesh_objs)
+diff --git a/database/SConscript b/database/SConscript
+index 5ae1bbb..7fa9e0e 100644
+--- a/database/SConscript
++++ b/database/SConscript
+@@ -21,7 +21,7 @@ libgendb = DbEnv.Library('gendb', source = srcs)
+ DbEnv.Install(DbEnv['TOP_LIB'], libgendb)
+ 
+ subdirs = ['test',
+-           'cassandra',
++#           'cassandra',
+            'etcd',
+           ]
+ for dir in subdirs:
