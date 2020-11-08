@@ -17,6 +17,7 @@ Table of Contents
          * [multiple service chain](#multiple-service-chain)
       * [charm install](#charm-install)
       * [How to build tungsten fabric](#how-to-build-tungsten-fabric)
+      * [build vRouter on arm64 WIP](#build-vrouter-on-arm64-wip)
       * [vRouter scale test procedure](#vrouter-scale-test-procedure)
       * [multi kube-master deployment](#multi-kube-master-deployment)
       * [Nested kubernetes installation on openstack](#nested-kubernetes-installation-on-openstack)
@@ -1196,6 +1197,117 @@ For example, this command created vrouter.ko for centos 8.2.
 ```
 # rpm -ivh --nodeps kernel-devel-4.18.0-147.8.1.el8_1.x86_64.rpm
 # scons --opt=production --kernel-dir=/usr/src/kernels/4.18.0-147.8.1.el8_1.x86_64/ build-kmodule
+```
+
+## build vRouter on arm64 WIP
+
+I recently tried a vRouter build on arm platform and it mostly worked fine (with some limitation) ..
+
+This ec2 intance is used for arm platform (amazon linux 2 is used so far).
+
+```
+us-east-1
+64bit arm
+
+amazon linux / ec2-user
+ami-0f8c82faeb08f15da
+
+a1.large
+```
+
+The build procedure is mostly the same with x86_64 case, but some patches need to be applied to make it work.
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/aarch64_vrouter_patch/
+ - since some of dependency, such as cassandra cpp driver and some python pip package, are not available, only vrouter is built so far.
+```
+yum -y install docker
+service docker start
+git clone http://github.com/tungstenfabric/tf-dev-env
+./tf-dev-env/run.sh
+
+docker exec -it tf-developer-sandbox bash
+cd /root/contrail-dev-env
+make rpm-contrail
+ - build needs at least 2-3 hours
+
+make container-general-base
+make container-base
+make container-nodemgr
+make container-provisioner
+make container-vrouter_base
+make container-vrouter_agent
+make container-vrouter_kernel-build-init
+make container-vrouter_kernel-init
+
+
+sandbox:~$ ls contrail/RPMS/aarch64/
+contrail-2004-110720201438.el7.aarch64.rpm                   contrail-vrouter-agent-2004-110720201438.el7.aarch64.rpm
+contrail-config-openstack-2004-110720201438.el7.aarch64.rpm  contrail-vrouter-source-2004-110720201438.el7.aarch64.rpm
+contrail-debuginfo-2004-110720201438.el7.aarch64.rpm         contrail-vrouter-utils-2004-110720201438.el7.aarch64.rpm
+contrail-lib-2004-110720201438.el7.aarch64.rpm               python3-contrail-2004-110720201438.el7.aarch64.rpm
+contrail-tools-2004-110720201438.el7.aarch64.rpm             python-contrail-2004-110720201438.el7.aarch64.rpm
+contrail-utils-2004-110720201438.el7.aarch64.rpm             python-contrail-vrouter-api-2004-110720201438.el7.aarch64.rpm
+contrail-vrouter-2004-110720201438.el7.aarch64.rpm           python-opencontrail-vrouter-netns-2004-110720201438.el7.aarch64.rpm
+sandbox:~$
+
+sandbox:~/tf-dev-env$ docker images
+REPOSITORY                                          TAG                 IMAGE ID            CREATED             SIZE
+localhost:5001/contrail-nodemgr                     dev                 6d3a04d4f3ef        35 seconds ago      747 MB
+localhost:5001/contrail-provisioner                 dev                 597677fc7dae        3 minutes ago       501 MB
+localhost:5001/contrail-vrouter-kernel-build-init   dev                 95211fbc6a02        6 minutes ago       210 MB
+localhost:5001/contrail-vrouter-kernel-init         dev                 9bf079ad27c7        7 minutes ago       602 MB
+localhost:5001/contrail-vrouter-agent               dev                 da782ed3efa6        8 minutes ago       668 MB
+localhost:5001/contrail-vrouter-base                dev                 05d0b8269e89        9 minutes ago       552 MB
+localhost:5001/contrail-base                        dev                 eff41f18f387        9 minutes ago       501 MB
+localhost:5001/contrail-vrouter-agent               <none>              8e747f07b5b6        12 minutes ago      590 MB
+localhost:5001/contrail-vrouter-base                <none>              064def9fe1da        20 minutes ago      474 MB
+localhost:5001/contrail-base                        <none>              1599dfa426a9        22 minutes ago      424 MB
+localhost:5001/contrail-general-base                dev                 d0f7ff1a92c4        39 minutes ago      328 MB
+tf-dev-sandbox                                      latest              873dfc932dab        8 hours ago         728 MB
+localhost:5001/tf-dev-sandbox                       latest              873dfc932dab        8 hours ago         728 MB
+<none>                                              <none>              7939545b3a53        9 hours ago         289 MB
+<none>                                              <none>              5a8aab4325f5        9 hours ago         289 MB
+<none>                                              <none>              0aed4c2922e4        9 hours ago         289 MB
+<none>                                              <none>              3264436277ab        9 hours ago         289 MB
+ubuntu                                              18.04               85e88f7ad30b        6 weeks ago         56.7 MB
+arm64v8/centos                                      7                   190630274c4b        2 months ago        289 MB
+centos                                              7                   190630274c4b        2 months ago        289 MB
+registry                                            2                   1525b096095b        4 months ago        24.5 MB
+sandbox:~/tf-dev-env$
+
+
+(containers are also uploaded to dockerhub)
+tnaganawa/contrail-nodemgr                          aarch64             6d3a04d4f3ef        3 minutes ago       747MB
+tnaganawa/contrail-provisioner                      aarch64             597677fc7dae        6 minutes ago       501MB
+tnaganawa/contrail-vrouter-kernel-build-init        aarch64             95211fbc6a02        9 minutes ago       210MB
+tnaganawa/contrail-vrouter-kernel-init              aarch64             9bf079ad27c7        10 minutes ago      602MB
+tnaganawa/contrail-vrouter-agent                    aarch64             da782ed3efa6        11 minutes ago      668MB
+tnaganawa/contrail-vrouter-base                     aarch64             05d0b8269e89        12 minutes ago      552MB
+tnaganawa/contrail-base                             aarch64             eff41f18f387        12 minutes ago      501MB
+tnaganawa/contrail-general-base                     aarch64             d0f7ff1a92c4        42 minutes ago      328MB
+```
+
+After the build, unfotunately, vrouter.ko load failed :(, since aarch64 kernel doesn't have ipv6 cksum feature, which is used in vrouter.ko ..
+ - https://lore.kernel.org/linux-arm-kernel/3a723a4b08938154c37febe2504f029c4480e53c.1579546194.git.robin.murphy@arm.com/T/#m8e5f48be3524376fd5afbe7704b70471ad0ca03a
+
+TODO: to disable ipv6 cksum feature, and re-try
+
+```
+[root@ip-172-30-0-153 tmp]# insmod vrouter.ko 
+insmod: ERROR: could not insert module vrouter.ko: Unknown symbol in module
+[root@ip-172-30-0-153 tmp]# 
+[root@ip-172-30-0-153 tmp]# 
+[root@ip-172-30-0-153 tmp]# dmesg | tail
+[12332.541609] [18971]     0 18971     1815       31       7       3        0             0 g++
+[12332.544237] [18972]     0 18972   557774   548086    1095       6        0             0 cc1plus
+[12332.546900] Out of memory: Kill process 18972 (cc1plus) score 547 or sacrifice child
+[12332.549254] Killed process 18972 (cc1plus) total-vm:2231096kB, anon-rss:2192344kB, file-rss:0kB, shmem-rss:0kB
+[12332.837140] oom_reaper: reaped process 18972 (cc1plus), now anon-rss:0kB, file-rss:0kB, shmem-rss:0kB
+[13149.853399] Adding 3999996k swap on /root/swap0.  Priority:-2 extents:5 across:5084184k SSFS
+[35404.058785] vrouter: disagrees about version of symbol module_layout
+[36766.555193] vrouter: loading out-of-tree module taints kernel.
+[36766.557468] vrouter: module verification failed: signature and/or required key missing - tainting kernel
+[36766.560538] vrouter: Unknown symbol __csum_ipv6_magic (err 0)
+[root@ip-172-30-0-153 tmp]# 
 ```
 
 ## vRouter scale test procedure
