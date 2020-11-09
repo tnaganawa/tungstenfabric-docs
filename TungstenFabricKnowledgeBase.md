@@ -1289,8 +1289,6 @@ tnaganawa/contrail-general-base                     aarch64             d0f7ff1a
 After the build, unfotunately, vrouter.ko load failed :(, since aarch64 kernel doesn't have ipv6 cksum feature, which is used in vrouter.ko ..
  - https://lore.kernel.org/linux-arm-kernel/3a723a4b08938154c37febe2504f029c4480e53c.1579546194.git.robin.murphy@arm.com/T/#m8e5f48be3524376fd5afbe7704b70471ad0ca03a
 
-TODO: to disable ipv6 cksum feature, and re-try
-
 ```
 [root@ip-172-30-0-153 tmp]# insmod vrouter.ko 
 insmod: ERROR: could not insert module vrouter.ko: Unknown symbol in module
@@ -1309,6 +1307,55 @@ insmod: ERROR: could not insert module vrouter.ko: Unknown symbol in module
 [36766.560538] vrouter: Unknown symbol __csum_ipv6_magic (err 0)
 [root@ip-172-30-0-153 tmp]# 
 ```
+
+With commenting out csum_ipv6_magic from vrouter_mod.c, it is now possible to load vrouter.ko :)
+
+```
+[root@ip-172-30-0-131 ~]# ls
+contrail  kernel-devel-4.14.77-81.59.amzn2.aarch64.rpm  output  tf-dev-env  vrouter.ko
+[root@ip-172-30-0-131 ~]# file vrouter.ko 
+vrouter.ko: ELF 64-bit LSB relocatable, ARM aarch64, version 1 (SYSV), BuildID[sha1]=810ebb827b3668fb3168932b7d10b6152752bd4a, not stripped
+[root@ip-172-30-0-131 ~]# insmod vrouter.ko 
+[root@ip-172-30-0-131 ~]# 
+[root@ip-172-30-0-131 ~]# 
+[root@ip-172-30-0-131 ~]# 
+[root@ip-172-30-0-131 ~]# lsmod | grep vrouter
+vrouter               856064  0
+[root@ip-172-30-0-131 ~]#
+
+
+[root@ip-172-30-0-131 ~]# ip link
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc pfifo_fast state UP mode DEFAULT group default qlen 1000
+    link/ether 0e:9b:43:c0:d0:eb brd ff:ff:ff:ff:ff:ff
+3: docker0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DEFAULT group default 
+    link/ether 02:42:89:97:32:cf brd ff:ff:ff:ff:ff:ff
+5: veth0a07aba@if4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master docker0 state UP mode DEFAULT group default 
+    link/ether 86:e1:a7:9d:52:a1 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+6: pkt1: <UP,LOWER_UP> mtu 65535 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/void e6:55:26:fc:25:a0 brd 00:00:00:00:00:00
+7: pkt3: <UP,LOWER_UP> mtu 65535 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/void 0a:20:4f:21:84:70 brd 00:00:00:00:00:00
+8: pkt2: <UP,LOWER_UP> mtu 65535 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/void 8e:a0:fd:57:94:29 brd 00:00:00:00:00:00
+9: vhost0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc pfifo_fast state UNKNOWN mode DEFAULT group default qlen 1000
+    link/ether 0e:9b:43:c0:d0:eb brd ff:ff:ff:ff:ff:ff
+
+[root@ip-172-30-0-131 ~]# ip -o a
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+3: docker0    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0\       valid_lft forever preferred_lft forever
+3: docker0    inet6 fe80::42:89ff:fe97:32cf/64 scope link \       valid_lft forever preferred_lft forever
+5: veth0a07aba    inet6 fe80::84e1:a7ff:fe9d:52a1/64 scope link \       valid_lft forever preferred_lft forever
+9: vhost0    inet 172.30.0.131/24 brd 172.30.0.255 scope global dynamic vhost0\       valid_lft 157679927sec preferred_lft 157679927sec
+9: vhost0    inet6 fe80::c9b:43ff:fec0:d0eb/64 scope link \       valid_lft forever preferred_lft forever
+[root@ip-172-30-0-131 ~]#
+```
+
+Having said that, it lost connectivity when I started vrouter-agent ..
+Some more time is needed to investigate the detail.
+
 
 ## vRouter scale test procedure
 
