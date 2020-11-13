@@ -816,7 +816,7 @@ instances:
       webui:
       analytics:
       analytics_database:
-      analytics_snmp:
+      analytics_alarm:
       openstack_control:
       openstack_network:
       openstack_storage:
