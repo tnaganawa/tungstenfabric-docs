@@ -3054,8 +3054,8 @@ If it is seen,
 ```
 # docker exec -it config_database_cassandra_1 bash
 # cqlsh config-db-ip 9041
-  cql> ALTER TABLE config_db_uuid WITH gc_grace_seconds = 0;
-  cql> ALTER TABLE config_db_uuid WITH gc_grace_seconds = 864000;
+  cql> ALTER TABLE config_db_uuid.obj_uuid_table WITH gc_grace_seconds = 0;
+  cql> ALTER TABLE config_db_uuid.obj_uuid_table WITH gc_grace_seconds = 864000;
 ```
 will forcefully delete all tombstones.
  - One drawback is that if this is typed at the same time with data deletion, that delete operation will not be propagated to other cassandra nodes successfully ..
