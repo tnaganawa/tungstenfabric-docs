@@ -2312,9 +2312,10 @@ INFO -  [SYS_INFO]: SessionData: [ vmi = default-domain:k8s-kube-system:coredns-
 
 With these parameters jsonized by fluentd, and queried by kibana through ES, it is much easier to see what kind of packets went through between vRouters, or physical switches in turn.
 
-## ElastiFlow
+### EFK flow collector
 
-to be investigated
+I tried sending vRouter's flow log to elasticsearch in a similar manner with ipfix module, and flow collector UI can show vRouter flow log.
+ - Detail is described in this url: https://github.com/tnaganawa/tungstenfabric-efk-flow-log
 
 ## Topology view
 
