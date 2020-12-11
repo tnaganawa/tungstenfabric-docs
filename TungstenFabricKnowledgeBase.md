@@ -1139,26 +1139,22 @@ juju ssh 0
 
 ## How to build tungsten fabric
 
-This repo's readme mostly worked well.
-https://github.com/Juniper/contrail-dev-env
+This repo's readme worked well.
+ - https://github.com/tungstenfabric/tf-dev-env#developers-scenario
 
 ```
 yum -y install docker git
-git clone https://github.com/Juniper/contrail-dev-env
-cd contrail-dev-env
-./startup.sh
-docker exec -it contrail-developer-sandbox bash
-
-cd /root/contrail-dev-env
-yum -y remove python-devel ## it is needed to resolve dependency issue
-make sync
-make fetch_packages
-make setup
-make dep
+systemctl start docker
+systemctl enable docker
+git clone http://github.com/tungstenfabric/tf-dev-env
+export GERRIT_BRANCH="R2011"
+./tf-dev-env/run.sh
 ```
 
 To build all the modules, this command can be used (it takes 1-2 hours, depending on machine power)
 ```
+docker exec -it tf-dev-sandbox bash
+cd /root/tf-dev-env
 make rpm
 make containers
 ```
