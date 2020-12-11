@@ -1143,9 +1143,7 @@ This repo's readme worked well.
  - https://github.com/tungstenfabric/tf-dev-env#developers-scenario
 
 ```
-yum -y install docker git
-systemctl start docker
-systemctl enable docker
+yum -y install git
 git clone http://github.com/tungstenfabric/tf-dev-env
 export GERRIT_BRANCH="R2011"
 ./tf-dev-env/run.sh
