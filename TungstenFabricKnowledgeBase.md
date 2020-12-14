@@ -872,6 +872,92 @@ To read this, json file created by backup / restore procedure is convinient,
 
 although that result is mostly similar to config-api's HTTP GET output ..
 
+### to edit schema-transformer keyspace
+
+Although most of config data is stored in the one cassandra keyspace for config-api (config_db_uuid), there are several other keyspaces for other processes such as schema-transformer (to_bgp_keyspace), and it is not easy to update those directly .. (config API cannot edit them)
+
+```
+[root@centos111 ~]# docker exec -it config_database_cassandra_1 bash
+
+[root@centos111 /]# cqlsh 192.168.122.111 9041
+Connected to contrail_database at 192.168.122.111:9041.
+[cqlsh 5.0.1 | Cassandra 3.11.3 | CQL spec 3.4.4 | Native protocol v4]
+Use HELP for help.
+cqlsh> DESCRIBE KEYSPACES
+
+system_schema  config_db_uuid      system_traces         dm_keyspace
+system_auth    to_bgp_keyspace     useragent
+system         system_distributed  svc_monitor_keyspace
+
+cqlsh>
+
+Note:
+  config_db_uuid: config-api
+  to_bgp_keyspace: schema-transformer
+  svc_monitor_keyspace: svc-monitor
+  dm_keyspaces: device-manager
+```
+
+
+Challenge is that those keyspaces are created by pycassa (OR Mapper for cassandra), and the data is not readable without some pycassa logic .. 
+ - since it can be automatically updated by such as schema-transformer, generally it is not needed to be modified manually, but in some troubleshooting situation, it might be needed
+
+
+To edit this, one way is to add add some python function to db_manage.py, and specify function name as an argument to this script.
+
+For example, this patch will get some contents of schema-transformer's ColumnFamily and edit them.
+
+```
+(config-api)[/usr/lib/python2.7/site-packages/vnc_cfg_api_server]$ diff -u db_manage.py.orig db_manage.py
+--- db_manage.py.orig     2020-06-03 16:10:27.000000000 +0900
++++ db_manage.py        2020-06-14 00:05:42.026726768 +0900
+@@ -3322,11 +3322,27 @@
+                 obj_uuid,
+                 columns={'META:latest_col_ts': json.dumps(None)})
+
+
+ # end db_touch_latest
+ db_touch_latest.is_operation = True
+
+
++def db_get_uuids(args, api_args):
++    vnc_cgitb.enable(format='text')
++
++    db_mgr = DatabaseManager(args, api_args)
++    obj_uuid_table = db_mgr._cf_dict['obj_uuid_table']
++    fq_name_table = db_mgr._cf_dict['obj_fq_name_table']
++    route_target_table = db_mgr._cf_dict['route_target_table']
++
++    ####
++    # dump all the colmuns in that keyspaces: key could be uuid or fq_name (it depends on the table used)
++    ####
++    for fq_name, cols in route_target_table.get_range():
++     print (fq_name, cols)
++
++    ####
++    # to get a specific colmnn
++    ####
++    print (route_target_table.get ('default-domain:admin:vn1:vn1'))
++
++    ####
++    # to edit that colmnn
++    ####
++    #vn1 = route_target_table.get ('default-domain:admin:vn1:vn1')
++    #vn1['rtgt_num']='8000080'
++    #route_target_table.insert ('default-domain:admin:vn1:vn1', vn1)
++
++
+ def main():
+     args, api_args = _parse_args(' '.join(sys.argv[1:]))
+     verb = args.operation
+(config-api)[/usr/lib/python2.7/site-packages/vnc_cfg_api_server]$
+
+
+
+docker exec -it config_api_1 python /usr/lib/python2.7/site-packages/vnc_cfg_api_server/db_manage.py get_uuids
+```
+
+
 
 ### zookeeper usage in tungsten fabric config database
 
