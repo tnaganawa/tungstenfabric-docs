@@ -16,6 +16,7 @@ Table of Contents
          * [allow tranisit](#allow-tranisit)
          * [multiple service chain](#multiple-service-chain)
       * [charm install](#charm-install)
+      * [LDAP AD integration](#ldap-ad-integration)
       * [How to build tungsten fabric](#how-to-build-tungsten-fabric)
       * [build vRouter on arm64 WIP](#build-vrouter-on-arm64-wip)
       * [vRouter scale test procedure](#vrouter-scale-test-procedure)
@@ -1136,6 +1137,272 @@ juju ssh 0
     lxc config show juju-cb8047-0-lxd-4
     lxc restart juju-cb8047-0-lxd-4
 ```
+
+## LDAP AD integration
+
+Since keystone supports LDAP (and Active Directory) integration, tungstenfabric also can cover this scenario, 
+ - https://docs.openstack.org/keystone/pike/admin/identity-integrate-with-ldap.html
+ - each LDAP url can be mapped to an openstack domain 
+ - since projects in 'default' domain can be authorized to users in other domains with OS_PROJECT_DOMAIN_NAME and OS_USER_DOMAIN_NAME, all the projects can be still created in 'default' domain
+
+
+To test this, I used 389-ds on CentOS8 for LDAP, and Windows Server 2019 DataCenter edition for AD
+ - tungstenfabric controller and openstack controller is installed on 192.168.122.113 (centos113)
+ - LDAP is installed on 192.168.122.114 (centos114)
+ - AD is installed on 192.168.122.115 (win2019-115)
+
+```
+(LDAP)
+
+$ ldapsearch -LLL -x -D "uid=user1,ou=people,dc=centos114" -h 192.168.122.114 -b dc=centos114 -w password | head
+dn: dc=centos114
+objectClass: top
+objectClass: domain
+dc: centos114
+description: dc=centos114
+
+dn: ou=groups,dc=centos114
+objectClass: top
+objectClass: organizationalunit
+ou: groups
+$
+
+(AD)
+
+$ ldapsearch -H 'ldap://192.168.122.115' -x -D "user21@examplerootdomain.org" -b 'cn=users,dc=examplerootdomain,dc=org' -w 'Contrail123' | head
+# extended LDIF
+#
+# LDAPv3
+# base <cn=users,dc=examplerootdomain,dc=org> with scope subtree
+# filter: (objectclass=*)
+# requesting: ALL
+#
+
+# Users, examplerootdomain.org
+dn: CN=Users,DC=examplerootdomain,DC=org
+$
+
+```
+
+keystone.conf will be updated.
+
+```
+(LDAP)
+
+/etc/kolla/keystone
+
+# diff -u keystone.conf.orig keystone.conf
+--- keystone.conf.orig      2020-10-27 13:45:40.670448508 +0900
++++ keystone.conf       2020-11-05 17:28:51.853440265 +0900
+@@ -23,3 +24,20 @@
+ [oslo_messaging_notifications]
+ transport_url = rabbit://openstack:contrail123@192.168.122.113:5672
+
++
++
++
++[identity]
++##driver = sql
++#driver = ldap
++domain_specific_drivers_enabled = True
++domain_config_dir = /etc/keystone/domains
++
+[root@centos113 keystone]#
+
+
+[root@centos113 keystone]# cat domains/keystone.centos114.conf
+
+[identity]
+driver = ldap
+
+[ldap]
+url = ldap://192.168.122.114
+user = uid=user11,ou=people,dc=centos114
+password = password
+suffix = dc=centos114
+query_scope = sub
+
+user_tree_dn = ou=people,dc=centos114
+group_tree_dn = ou=groups,dc=centos114
+
+[root@centos113 keystone]#
+
+(AD)
+ - some more knobs such as user_enabled_attribute = userAccountControl, might be needed for tighter integration
+ https://wiki.openstack.org/wiki/HowtoIntegrateKeystonewithAD
+
+
+/etc/kolla/keystone/domains
+
+[root@centos113 domains]# cat keystone.win2019-115.conf
+
+[identity]
+driver = ldap
+
+[ldap]
+url = ldap://192.168.122.115
+user = user21@examplerootdomain.org
+password = Contrail123
+suffix = dc=examplerootdomain,dc=org
+query_scope = sub
+
+user_tree_dn = cn=users,dc=examplerootdomain,dc=org
+user_objectclass = person
+user_id_attribute        = cn
+user_name_attribute      = cn
+
+group_tree_dn = cn=groups,dc=examplerootdomain,dc=org
+
+[root@centos113 domains]#
+
+```
+
+Domain and role assignment will be configured by openstack cli.
+
+```
+(LDAP)
+
+$ source /var/lib/kolla/config_files/admin-openrc.sh
+$ openstack domain list
++----------------------------------+------------------+---------+--------------------+
+| ID                               | Name             | Enabled | Description        |
++----------------------------------+------------------+---------+--------------------+
+| 32028bc012df4089b0cc66ad9dc721f8 | heat_user_domain | True    |                    |
+| default                          | Default          | True    | The default domain |
++----------------------------------+------------------+---------+--------------------+
+
+$ openstack domain create centos114
++-------------+----------------------------------+
+| Field       | Value                            |
++-------------+----------------------------------+
+| description |                                  |
+| enabled     | True                             |
+| id          | 000ea79ffb2145ee816466e8030a0441 |
+| name        | centos114                        |
+| tags        | []                               |
+(snip)
+
+
+$ openstack domain list
++----------------------------------+------------------+---------+--------------------+
+| ID                               | Name             | Enabled | Description        |
++----------------------------------+------------------+---------+--------------------+
+| 000ea79ffb2145ee816466e8030a0441 | centos114        | True    |                    |
+| 32028bc012df4089b0cc66ad9dc721f8 | heat_user_domain | True    |                    |
+| default                          | Default          | True    | The default domain |
++----------------------------------+------------------+---------+--------------------+
+
+
+$ openstack user list --domain centos114
++------------------------------------------------------------------+--------+
+| ID                                                               | Name   |
++------------------------------------------------------------------+--------+
+| ad47d4d9076de8f5bb510c9e5b0857c37a411e596ecee6d1495c455e0a9204cc | user11 |
++------------------------------------------------------------------+--------+
+
+
+$ openstack role add --project project1 --user ad47d4d9076de8f5bb510c9e5b0857c37a411e596ecee6d1495c455e0a9204cc _member_
+
+
+$ cat /var/lib/kolla/config_files/centos114-user11-openrc.sh
+export OS_PROJECT_DOMAIN_NAME=Default
+export OS_USER_DOMAIN_NAME=centos114
+export OS_PROJECT_NAME=project1
+export OS_TENANT_NAME=project1
+export OS_USERNAME=user11
+export OS_PASSWORD=password
+export OS_AUTH_URL=http://192.168.122.113:35357/v3
+export OS_INTERFACE=internal
+export OS_IDENTITY_API_VERSION=3
+export OS_REGION_NAME=RegionOne
+export OS_AUTH_PLUGIN=password
+export OS_BAREMETAL_API_VERSION=1.29
+
+$ source /var/lib/kolla/config_files/centos114-user11-openrc.sh
+
+$ openstack token issue
++------------+------------------------------------------------------------------+
+| Field      | Value                                                            |
++------------+------------------------------------------------------------------+
+| expires    | 2020-11-05T10:27:26+0000                                         |
+| id         | 9ee942faefcf45a6803e42d44c05f9df                                 |
+| project_id | 8b9f17e4a9f04815a2a0abab56ee4569                                 |
+| user_id    | ad47d4d9076de8f5bb510c9e5b0857c37a411e596ecee6d1495c455e0a9204cc |
++------------+------------------------------------------------------------------+
+$
+
+
+$ contrail-api-cli --host 192.168.122.113 ls -l virtual-network
+virtual-network/72d95266-8363-4426-9988-70902dda38eb  default-domain:project1:testvn
+$ contrail-api-cli --host 192.168.122.113 ls -l virtual-machine-interface
+$
+ -> testvn is in project1, and no port is available in project1
+
+
+(AD)
+
+$ source /var/lib/kolla/config_files/admin-openrc.sh
+$ openstack domain create win2019-115
+
++-------------+----------------------------------+
+| Field       | Value                            |
++-------------+----------------------------------+
+| description |                                  |
+| enabled     | True                             |
+| id          | 17e450f3285e45d4b03603ec68da9e7e |
+| name        | win2019-115                      |
+| tags        | []                               |
++-------------+----------------------------------+
+
+$ openstack domain list
++----------------------------------+------------------+---------+--------------------+
+| ID                               | Name             | Enabled | Description       |
++----------------------------------+------------------+---------+--------------------+
+| 000ea79ffb2145ee816466e8030a0441 | centos114        | True    |                   |
+| 17e450f3285e45d4b03603ec68da9e7e | win2019-115      | True    |                   |
+| 32028bc012df4089b0cc66ad9dc721f8 | heat_user_domain | True    |                   |
+| default                          | Default          | True    | The default domain|
++----------------------------------+------------------+---------+--------------------+
+
+
+$ openstack user list --domain win2019-115
++------------------------------------------------------------------+---------------+
+| ID                                                               | Name          |
++------------------------------------------------------------------+---------------+
+| 4dab54878fe291e5efd1b4162db8ce2da97bcf5d9399f79b19ed966a15d104e3 | Administrator |
+| 16d10881fba062844de34cf5951339ec83ce1ac8f7a23c06668e2e528c664d39 | Guest         |
+| bf804126c1d9f356047c0465d6d95d365abf9227a70433b9b2f67a05850b9fa8 | krbtgt        |
+| 5fac7b09d596d5e11f3380cccc494dba746dfa3459f1edc1e0ddb78b6799bfca | user21        |
++------------------------------------------------------------------+---------------+
+
+
+$ openstack role add --project project1 --user 5fac7b09d596d5e11f3380cccc494dba746dfa3459f1edc1e0ddb78b6799bfca _member_
+
+$ openstack role assignment list
+
+$ cat win2019-115-user21-openrc.sh
+export OS_PROJECT_DOMAIN_NAME=Default
+export OS_USER_DOMAIN_NAME=win2019-115
+export OS_PROJECT_NAME=project1
+export OS_TENANT_NAME=project1
+export OS_USERNAME=user21
+export OS_PASSWORD=Contrail123
+export OS_AUTH_URL=http://192.168.122.113:35357/v3
+export OS_INTERFACE=internal
+export OS_IDENTITY_API_VERSION=3
+export OS_REGION_NAME=RegionOne
+export OS_AUTH_PLUGIN=password
+export OS_BAREMETAL_API_VERSION=1.29
+
+$ source win2019-115-user21-openrc.sh
+
+$ contrail-api-cli --host 192.168.122.113 ls -l virtual-network
+virtual-network/72d95266-8363-4426-9988-70902dda38eb  default-domain:project1:testvn
+$
+ -> testvn can be seen since it is in default-domain:project1, and other virtual-network in such as default-domain:admin cannot be seen
+
+```
+
 
 ## How to build tungsten fabric
 
