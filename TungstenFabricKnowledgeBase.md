@@ -16,6 +16,7 @@ Table of Contents
          * [allow tranisit](#allow-tranisit)
          * [multiple service chain](#multiple-service-chain)
       * [charm install](#charm-install)
+      * [host-based-service](#host-based-service)
       * [LDAP AD integration](#ldap-ad-integration)
       * [How to build tungsten fabric](#how-to-build-tungsten-fabric)
       * [build vRouter on arm64 WIP](#build-vrouter-on-arm64-wip)
@@ -1223,6 +1224,166 @@ juju ssh 0
     lxc config show juju-cb8047-0-lxd-4
     lxc restart juju-cb8047-0-lxd-4
 ```
+
+## host-based-service
+
+This feature is added around R2003. 
+ - https://github.com/tungstenfabric/tf-specs/blob/master/hbf.md
+
+At its core, it will redirect packets to left interface of HBS instance, and redirect return packets to right interface.
+ - since it can forward packets between VMs in the same subnet, packets from vm1 to vm2 will go through left - hbf - right, and interestingly, vm2 to vm1 also will go through left - hbf - right ..
+
+Although it is originally meant for kubernetes, as far as I tried, it seems that it still works fine with openstack and VNF for host-based-service instance.
+I'll describe the configuration for openstack and VNF in this document.
+
+
+One note, as far as I tried, this feature only covers l1 VNF, and l2 VNF cannot be used, since vRouter will use the same mac-address for both sides. Since linux bridge is only for l2 VNF, tc-flower and mirred redirect is used to emulate this scenario. (ip rule based FBF might work, but I haven't tried ..)
+
+
+At the beginning, host-based-service need to be configured with several tools, including ansible module.
+ - https://github.com/tnaganawa/ansible-collections-tungstenfabric
+
+
+```
+(set project quota for host-based-service to 1)
+
+contrail-api-cli --host x.x.x.x ls -l project | grep default-domain:admin
+contrail-api-cli --host x.x.x.x edit project/b51fc8e5-3a0a-4ba6-91e1-a4e5600fc0df
+
+  "quota": {
+    "host_based_service": 1
+  },
+
+(create host-based-service)
+ansible -m tungstenfabric.networking.host_based_service localhost -a 'name=host-based-service-1 controller_ip=x.x.x.x project=admin state=present'
+
+(create VM: CentOS 7.5 is used)
+openstack server create --flavor centos7 --image centos7 --network __host-based-service-1-hbf-left__ --network __host-based-service-1-hbf-right__ hbs-vm1
+
+(create firewall-rule)
+ - associate this firewall-rule to global default-application-policy-set
+  - to use project-scope application-policy-set, application also needs to be specified ..
+
+$ cat firewall-rule1.yaml
+- name: create project-scope firewall_rule for host-based service
+  tungstenfabric.networking.firewall_rule:
+    name: firewall_rule1
+    controller_ip: x.x.x.x
+    state: present
+    project: admin
+    endpoint_1: {virtual_network: default-domain:admin:vn1}
+    endpoint_2: {virtual_network: default-domain:admin:vn2}
+    service: {protocol: any}
+    action_list: {simple_action: pass, host_based_service: true}
+
+$ ansible-playbook -i localhost firewall-rule1.yaml
+
+
+(vn1 to vn2 routing could be configured by logical-router or network-policy)
+
+
+
+(emulate L1 vnf: on VNF)
+tc qdisc add dev eth0 ingress
+tc qdisc add dev eth1 ingress
+tc filter add dev eth0 protocol ip parent ffff: flower indev eth0 action mirred egress redirect dev eth1
+tc filter add dev eth1 protocol ip parent ffff: flower indev eth1 action mirred egress redirect dev eth0
+tc qdisc show
+```
+
+After that, ping between vn1 to vn2 will go through hbs instance.
+
+```
+[root@centos111 ~]# ./ist.py vr intf
++-------+----------------+--------+-------------------+---------------+---------------+--------------------------------------+--------------------------------------+
+| index | name           | active | mac_addr          | ip_addr       | mdata_ip_addr | vm_name                              | vn_name                              |
++-------+----------------+--------+-------------------+---------------+---------------+--------------------------------------+--------------------------------------+
+| 0     | eth1           | Active | n/a               | n/a           | n/a           | n/a                                  | n/a                                  |
+| 1     | vhost0         | Active | 52:54:00:8c:3f:6e | 172.18.183.11 | 169.254.0.1   | n/a                                  | default-domain:default-project:ip-   |
+|       |                |        |                   |               |               |                                      | fabric                               |
+| 4     | tap3ae097f6-d8 | Active | 02:3a:e0:97:f6:d8 | 10.0.2.4      | 169.254.0.4   | vm2                                  | default-domain:admin:vn2             |
+| 5     | tap9370e874-3f | Active | 02:93:70:e8:74:3f | 0.1.255.252   | 169.254.0.5   | hbs-vm1                              | default-domain:admin:__host-based-   |
+|       |                |        |                   |               |               |                                      | service-1-hbf-left__                 |
+| 3     | tap94dcb507-80 | Active | 02:94:dc:b5:07:80 | 10.0.1.4      | 169.254.0.3   | vm1                                  | default-domain:admin:vn1             |
+| 6     | tapc3fc88dd-cc | Active | 02:c3:fc:88:dd:cc | 0.2.255.252   | 169.254.0.6   | hbs-vm1                              | default-domain:admin:__host-based-   |
+|       |                |        |                   |               |               |                                      | service-1-hbf-right__                |
+| 2     | pkt0           | Active | n/a               | n/a           | n/a           | n/a                                  | n/a                                  |
++-------+----------------+--------+-------------------+---------------+---------------+--------------------------------------+--------------------------------------+
+[root@centos111 ~]#
+
+
+
+[root@centos111 ~]# tcpdump -nn -e icmp -i tap94dcb507-80
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on tap94dcb507-80, link-type EN10MB (Ethernet), capture size 262144 bytes
+19:17:02.946639 02:94:dc:b5:07:80 > 00:00:5e:00:01:00, ethertype IPv4 (0x0800), length 98: 10.0.1.4 > 10.0.2.4: ICMP echo request, id 15621, seq 215, length 64
+19:17:02.947419 00:00:5e:00:01:00 > 02:94:dc:b5:07:80, ethertype IPv4 (0x0800), length 98: 10.0.2.4 > 10.0.1.4: ICMP echo reply, id 15621, seq 215, length 64
+19:17:03.946936 02:94:dc:b5:07:80 > 00:00:5e:00:01:00, ethertype IPv4 (0x0800), length 98: 10.0.1.4 > 10.0.2.4: ICMP echo request, id 15621, seq 216, length 64
+19:17:03.947695 00:00:5e:00:01:00 > 02:94:dc:b5:07:80, ethertype IPv4 (0x0800), length 98: 10.0.2.4 > 10.0.1.4: ICMP echo reply, id 15621, seq 216, length 64
+^C
+4 packets captured
+10 packets received by filter
+0 packets dropped by kernel
+[root@centos111 ~]#
+ -> vm1 to vRouter ping packet is not changed. Source mac address is from vm1 (02:94:dc:b5:07:80), and destination mac address is for vRouter (00:00:5e:00:01:00)
+
+
+[root@centos111 ~]# tcpdump -nn -e icmp -i tap9370e874-3f
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on tap9370e874-3f, link-type EN10MB (Ethernet), capture size 262144 bytes
+19:17:31.958795 ca:f1:00:03:23:1c > 00:00:5e:00:01:00, ethertype IPv4 (0x0800), length 98: 10.0.1.4 > 10.0.2.4: ICMP echo request, id 15621, seq 244, length 64
+19:17:31.959650 02:3a:e0:97:f6:d8 > c0:d5:00:06:9e:a8, ethertype IPv4 (0x0800), length 98: 10.0.2.4 > 10.0.1.4: ICMP echo reply, id 15621, seq 244, length 64
+19:17:32.959173 ca:f1:00:03:23:1c > 00:00:5e:00:01:00, ethertype IPv4 (0x0800), length 98: 10.0.1.4 > 10.0.2.4: ICMP echo request, id 15621, seq 245, length 64
+19:17:32.959935 02:3a:e0:97:f6:d8 > c0:d5:00:06:9e:a8, ethertype IPv4 (0x0800), length 98: 10.0.2.4 > 10.0.1.4: ICMP echo reply, id 15621, seq 245, length 64
+19:17:33.959491 ca:f1:00:03:23:1c > 00:00:5e:00:01:00, ethertype IPv4 (0x0800), length 98: 10.0.1.4 > 10.0.2.4: ICMP echo request, id 15621, seq 246, length 64
+19:17:33.960243 02:3a:e0:97:f6:d8 > c0:d5:00:06:9e:a8, ethertype IPv4 (0x0800), length 98: 10.0.2.4 > 10.0.1.4: ICMP echo reply, id 15621, seq 246, length 64
+^C
+6 packets captured
+7 packets received by filter
+0 packets dropped by kernel
+[root@centos111 ~]#
+ -> for vRouter to hbs-vm1 left, mac address is modified in several ways. Source mac address is changed to ca:f1:00:03:23:1c, this value is to 'remember' flow index of vm1 to vRouter flow. In the same way, return packets' destination mac address (c0:d5:00:06:9e:a8) is also changed to the value to idenfity the flow index of reverse flow.
+
+
+[root@centos111 ~]# tcpdump -nn -e icmp -i tapc3fc88dd-cc
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on tapc3fc88dd-cc, link-type EN10MB (Ethernet), capture size 262144 bytes
+19:18:14.977842 ca:f1:00:03:23:1c > 00:00:5e:00:01:00, ethertype IPv4 (0x0800), length 98: 10.0.1.4 > 10.0.2.4: ICMP echo request, id 15621, seq 287, length 64
+19:18:14.978263 02:3a:e0:97:f6:d8 > c0:d5:00:06:9e:a8, ethertype IPv4 (0x0800), length 98: 10.0.2.4 > 10.0.1.4: ICMP echo reply, id 15621, seq 287, length 64
+19:18:15.978323 ca:f1:00:03:23:1c > 00:00:5e:00:01:00, ethertype IPv4 (0x0800), length 98: 10.0.1.4 > 10.0.2.4: ICMP echo request, id 15621, seq 288, length 64
+19:18:15.978818 02:3a:e0:97:f6:d8 > c0:d5:00:06:9e:a8, ethertype IPv4 (0x0800), length 98: 10.0.2.4 > 10.0.1.4: ICMP echo reply, id 15621, seq 288, length 64
+19:18:16.978730 ca:f1:00:03:23:1c > 00:00:5e:00:01:00, ethertype IPv4 (0x0800), length 98: 10.0.1.4 > 10.0.2.4: ICMP echo request, id 15621, seq 289, length 64
+19:18:16.979012 02:3a:e0:97:f6:d8 > c0:d5:00:06:9e:a8, ethertype IPv4 (0x0800), length 98: 10.0.2.4 > 10.0.1.4: ICMP echo reply, id 15621, seq 289, length 64
+^C
+6 packets captured
+6 packets received by filter
+0 packets dropped by kernel
+[root@centos111 ~]#
+ -> for hbs-vm1 right to vRouter also, mac address is modified in similar ways. It will recover source mac address and nh based on flow index identified from source mac address (ca:f1:00:03:23:1c). In the same way, return packets' destination mac address (c0:d5:00:06:9e:a8) is used to identify 
+
+
+
+[root@centos111 ~]# tcpdump -nn -e icmp -i tap3ae097f6-d8
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on tap3ae097f6-d8, link-type EN10MB (Ethernet), capture size 262144 bytes
+19:19:08.005708 00:00:5e:00:01:00 > 02:3a:e0:97:f6:d8, ethertype IPv4 (0x0800), length 98: 10.0.1.4 > 10.0.2.4: ICMP echo request, id 15621, seq 340, length 64
+19:19:08.005952 02:3a:e0:97:f6:d8 > 00:00:5e:00:01:00, ethertype IPv4 (0x0800), length 98: 10.0.2.4 > 10.0.1.4: ICMP echo reply, id 15621, seq 340, length 64
+19:19:09.006222 00:00:5e:00:01:00 > 02:3a:e0:97:f6:d8, ethertype IPv4 (0x0800), length 98: 10.0.1.4 > 10.0.2.4: ICMP echo request, id 15621, seq 341, length 64
+19:19:09.006472 02:3a:e0:97:f6:d8 > 00:00:5e:00:01:00, ethertype IPv4 (0x0800), length 98: 10.0.2.4 > 10.0.1.4: ICMP echo reply, id 15621, seq 341, length 64
+19:19:10.006511 00:00:5e:00:01:00 > 02:3a:e0:97:f6:d8, ethertype IPv4 (0x0800), length 98: 10.0.1.4 > 10.0.2.4: ICMP echo request, id 15621, seq 342, length 64
+19:19:10.007057 02:3a:e0:97:f6:d8 > 00:00:5e:00:01:00, ethertype IPv4 (0x0800), length 98: 10.0.2.4 > 10.0.1.4: ICMP echo reply, id 15621, seq 342, length 64
+19:19:11.006668 00:00:5e:00:01:00 > 02:3a:e0:97:f6:d8, ethertype IPv4 (0x0800), length 98: 10.0.1.4 > 10.0.2.4: ICMP echo request, id 15621, seq 343, length 64
+19:19:11.007061 02:3a:e0:97:f6:d8 > 00:00:5e:00:01:00, ethertype IPv4 (0x0800), length 98: 10.0.2.4 > 10.0.1.4: ICMP echo reply, id 15621, seq 343, length 64
+^C
+8 packets captured
+14 packets received by filter
+0 packets dropped by kernel
+[root@centos111 ~]#
+ -> vRouter to vm2 ping packet is also not changed Source mac address is from vRouter (00:00:5e:00:01:00), and destination mac address is for vRouter (02:3a:e0:97:f6:d8)).
+
+
+```
+
 
 ## LDAP AD integration
 
