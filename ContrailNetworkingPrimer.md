@@ -902,6 +902,7 @@ In this case, it might still works if vDS is manually modified from vCenter afte
 When vRouterVM is imported as OVA, it will run specific logic at /, such as find_host_and_rename, firstboot, get_ovf_properties and rename_interface (they are kicked by /etc/rc.d/rc.local).
 
 If some continuous OS reboot is seen after vRouterVM configuration change, perhaps those logic can be checked to see the detail ..
+ - since this logic internally edit /etc/udev/rules.d/70-persistent-net.rules, this file is also worth being checked
 
 
 ## Contrail multicloud
