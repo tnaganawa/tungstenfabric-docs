@@ -14,9 +14,10 @@ Table of Contents
       * [Multi fabric setup](#multi-fabric-setup)
       * [Integration with fabric automation and vRouters](#integration-with-fabric-automation-and-vrouters)
       * [Ironic integration](#ironic-integration-wip)
-      * [Contrail vCenter fabric manager](#contrail-vcenter-fabric-manager)
+      * [Contrail vcenter fabric manager](#contrail-vcenter-fabric-manager)
    * [Contrail Healthbot](#contrail-healthbot)
    * [Contrail Insights](#contrail-insights)
+   * [contrail-vcenter-manager](#contrail-vcenter-manager)
    * [Contrail multicloud](#contrail-multicloud)
       * [container deployment](#container-deployment)
       * [baremetal instance deployment](#baremetal-instance-deployment)
@@ -871,6 +872,36 @@ To see the installation status, those two commands can be used
 
 After that, contrail-command should show some additional views such as 'Topology View', 'Overlay / Underlay correlation', in a similar sense with contrail-webui.
 ![TopologyView](https://github.com/tnaganawa/tungstenfabric-docs/blob/master/CommandTopologyView.png)
+
+## contrail-vcenter-manager
+
+contrail-vcenter-manager (a.k.a. CVM) is also a feature which is not fully open source (vRouterVM OVA), so I'll add this feature in this page.
+ - https://github.com/tungstenfabric/tf-vcenter-manager
+ - https://github.com/tungstenfabric/tf-vcenter-plugin
+
+Although it mostly works fine in a similar manner with other orchestrators, it has several caveats.
+
+### SR-IOV or PCI-passthrough for vRouter uplink
+
+For this feature, PCI-passthrough is recommended over SR-IOV, since SR-IOV of ESXi currently doesn't cover mac address change (this behavior might change in the future), so LACP is not configurable.
+ - https://docs.vmware.com/en/VMware-vSphere/7.0/com.vmware.vsphere.networking.doc/GUID-AD78A7BD-29A2-40F6-B707-B3C0B4C2C873.html
+
+With PCI-passthrough, LACP from vRouterVM should work fine.
+
+
+### uplink configuration from ansible-deployer
+
+Although ansible-deployer can automatically create uplink with vSS, vDS, SR-IOV, and PCI-passthrough, it has some limitations so far.
+ - one of them is that it cannot use trunk distributed port-group, so vRouterVM cannot share uplink with other vDS .. (this behavior might change in the future)
+ - https://github.com/tungstenfabric/tf-ansible-deployer/blob/master/playbooks/roles/vcenter/tasks/add_dvs.yml#L46-L58
+
+In this case, it might still works if vDS is manually modified from vCenter after ansible based installation.
+
+### vRouterVM OVA init script
+
+When vRouterVM is imported as OVA, it will run specific logic at /, such as find_host_and_rename, firstboot, get_ovf_properties and rename_interface (they are kicked by /etc/rc.d/rc.local).
+
+If some continuous OS reboot is seen after vRouterVM configuration change, perhaps those logic can be checked to see the detail ..
 
 
 ## Contrail multicloud
