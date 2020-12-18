@@ -2883,6 +2883,7 @@ To change log level higher to see more detail, LOG_LEVEL=SYS_DEBUG parameter can
 ```
  # flow -l
  # flow -l --show-evicted ### this can be used to see flow for drop packets
+ # ist.py vr trace Flow ### to check Flow log
 ```
  to see if it is dropped by flow action.
   - For example, action: D(Policy), D(SG) indicates it is dropped by network-policy or security-group
