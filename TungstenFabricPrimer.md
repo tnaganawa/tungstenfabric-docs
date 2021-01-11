@@ -127,13 +127,13 @@ k8s master need to have at least 2 vCPUs and 8GB mem, and 8GB disk. k8s node nee
 sudo yum -y remove PyYAML python-requests
 sudo yum -y install git
 sudo easy_install pip
-sudo pip install PyYAML requests ansible\<2.8
+sudo pip install PyYAML requests ansible\<2.9
 ssh-keygen
 cd .ssh/
 cat id_rsa.pub >> authorized_keys
 ssh-copy-id root@(k8s node's ip) ## or manually register id_rsa.pub to authorized_keys
 cd
-git clone -b R5.1 http://github.com/Juniper/contrail-ansible-deployer
+git clone -b R2011 http://github.com/tungstenfabric/tf-ansible-deployer
 cd contrail-ansible-deployer
 vi config/instances.yaml
 (replace contents with this)
@@ -152,7 +152,6 @@ instances:
       config:
       control:
       analytics:
-      analytics_database:
       webui:
       k8s_master:
       kubemanager:
@@ -164,11 +163,12 @@ instances:
      k8s_node:
    ip: 172.31.41.236 ## k8s node's ip
 contrail_configuration:
-  CONTRAIL_CONTAINER_TAG: r5.1
-  KUBERNETES_CLUSTER_PROJECT: {}
-  JVM_EXTRA_OPTS: "-Xms128m -Xmx1g"
+  CONTRAIL_CONTAINER_TAG: R2011-latest
+  JVM_EXTRA_OPTS: "-Xms128m -Xmx2g"
 global_configuration:
   CONTAINER_REGISTRY: tungstenfabric
+  K8S_VERSION: 1.19.6
+
 
 ansible-playbook -e orchestrator=kubernetes -i inventory/ playbooks/configure_instances.yml
  - it takes about 10 minutes
@@ -179,7 +179,7 @@ ansible-playbook -e orchestrator=kubernetes -i inventory/ playbooks/install_cont
 ```
 
 One point to be taken cared of is that it is a fairly strict requirement to use supported kernel version, since Tungsten Fabric uses its own kernel module (vrouter.ko) for it's data plane.
-I tried CentOS7.5, 7.6, Ubuntu Xenial and noticed it works well (for Ubuntu Bionic, some modification is needed), but if it is the first time to try, I will recommend that specific AMI id, since debuging what's not working is not an easy task.
+I tried CentOS7.5-7.9, Ubuntu Xenial and Bionic and noticed it works well, but if it is the first time to try, I will recommend that specific AMI id, since debuging what's not working is not an easy task.
 
 
 If all the playbooks worked well, you can firstly type,
@@ -498,6 +498,10 @@ default-domain:k8s-default:k8s-default-service-network:k8s-default-service-netwo
 
 If it shows similar, since everything is working well, you can create containers based on k8s yaml.
 ```
+## if bash completion is needed, type these two commands
+yum -y install bash-completion
+source <(kubectl completion bash)
+
 vi first-containers.yaml
 apiVersion: apps/v1beta1
 kind: Deployment
@@ -520,6 +524,9 @@ spec:
         image: cirros
         ports:
         - containerPort: 22
+or simply type
+kubectl create deployment --image=cirros --replicas=2 cirros-deployment
+
 
 kubectl create -f first-containers.yaml
 kubectl get pod -o wide ## check pod name and ip
