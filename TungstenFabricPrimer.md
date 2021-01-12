@@ -134,7 +134,7 @@ cat id_rsa.pub >> authorized_keys
 ssh-copy-id root@(k8s node's ip) ## or manually register id_rsa.pub to authorized_keys
 cd
 git clone -b R2011 http://github.com/tungstenfabric/tf-ansible-deployer
-cd contrail-ansible-deployer
+cd tf-ansible-deployer
 vi config/instances.yaml
 (replace contents with this)
 provider_config:
