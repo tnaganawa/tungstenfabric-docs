@@ -3199,7 +3199,7 @@ agent: active
 piraeus is DRBD-based HCI storage for such as kubernetes.
  - https://github.com/piraeusdatastore/piraeus-operator
 
-It looks interesting for me, since for some type of workload, it potentially could have better performance than other opensource distributed storage.
+It looks interesting to me, since for some type of workload, it potentially could have better performance than other open source distributed storage.
 Let me add some URLs.
  - https://itnext.io/state-of-persistent-storage-in-k8s-a-benchmark-77a96bb1ac29
  - https://www.cncf.io/wp-content/uploads/2020/08/LINSTOR_August_2019.pdf
@@ -3404,7 +3404,7 @@ root@ip-172-31-128-6:/#
 ```
 
 
-On the pod, xfs system will be mounted, and read / write is available.
+On the pod, xfs system is mounted, and read / write is available.
 ```
 [root@ip-172-31-128-223 ~]# cat cirros1.yaml 
 apiVersion: v1
