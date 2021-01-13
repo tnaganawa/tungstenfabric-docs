@@ -27,6 +27,7 @@ Table of Contents
       * [erm-vpn](#erm-vpn)
       * [vRouter ml2 plugin](#vrouter-ml2-plugin)
       * [CentOS 8 installation procedure](#centos-8-installation-procedure)
+      * [piraeus integration](#piraeus-integration)
       * [Random tungsten fabric patch (not tested)](#random-tungsten-fabric-patch-not-tested)
 
 
@@ -3192,6 +3193,270 @@ agent: active
 [root@ip-172-31-4-206 ~]# 
 ```
 
+
+## piraeus integration
+
+piraeus is DRBD-based HCI storage for such as kubernetes.
+ - https://github.com/piraeusdatastore/piraeus-operator
+
+It looks interesting for me, since for some type of workload, it potentially could have better performance than other opensource distributed storage.
+Let me add some URLs.
+ - https://itnext.io/state-of-persistent-storage-in-k8s-a-benchmark-77a96bb1ac29
+ - https://www.cncf.io/wp-content/uploads/2020/08/LINSTOR_August_2019.pdf
+ - https://www.youtube.com/watch?v=kMU3JAsFXQk
+
+
+To install this, firstly create kubernetes cluster with tungsten fabric CNI based on ansible-deployer.
+ - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#2-tungstenfabric-up-and-running
+ - K8S_VERSION is set to 1.17.16 ( < 1.18 is required because of CSI dependency: https://github.com/piraeusdatastore/piraeus#requirements)
+ - 1 control-plane node, and 3 worker nodes are used. CentOS7 with kernel-3.10.0-1062.12.1.el7.x86_64.rpm is used.
+ - EC2 instance (4vCPU, 15 GB mem, 20 GB disk) is used.
+
+After installation is done, those commands will be typed.
+```
+# For DRBD kernel module (on each worker node)
+yum -y install lvm2
+curl -O https://vault.centos.org/7.7.1908/updates/x86_64/Packages/kernel-devel-3.10.0-1062.12.1.el7.x86_64.rpm
+yum localinstall -y kernel-devel-3.10.0-1062.12.1.el7.x86_64.rpm
+(From AWS console, add ebs to each worker node (20GB): /dev/xvdf will be created)
+
+## helm 3 installation (on control-plane node)
+curl -O https://get.helm.sh/helm-v3.4.2-linux-amd64.tar.gz
+tar xvf helm-v3.4.2-linux-amd64.tar.gz
+mv linux-amd64/helm /usr/local/bin/helm
+
+## piraeus operator installation (on control-plane node)
+git clone https://github.com/piraeusdatastore/piraeus-operator.git
+cd piraeus-operator
+vi charts/piraeus/values.yaml
+(kernelModuleInjectionImage and storagePools will be manually set)
+
+[root@ip-172-31-128-13 piraeus-operator]# git diff | cat
+diff --git a/charts/piraeus/values.yaml b/charts/piraeus/values.yaml
+index 0c986bf..10bfd54 100644
+--- a/charts/piraeus/values.yaml
++++ b/charts/piraeus/values.yaml
+@@ -73,13 +73,18 @@ operator:
+   satelliteSet:
+     enabled: true
+     satelliteImage: quay.io/piraeusdatastore/piraeus-server:v1.11.0
+-    storagePools: {}
++    storagePools:
++      lvmPools:
++      - name: lvm-thick
++        volumeGroup: drbdpool
++        devicePaths:
++        - /dev/xvdf
+     sslSecret: ""
+     automaticStorageType: None
+     affinity: {}
+     tolerations: []
+     resources: {}
+-    kernelModuleInjectionImage: quay.io/piraeusdatastore/drbd9-bionic:v9.0.26
++    kernelModuleInjectionImage: quay.io/piraeusdatastore/drbd9-centos7:v9.0.26
+     kernelModuleInjectionMode: Compile
+     kernelModuleInjectionResources: {}
+ haController:
+[root@ip-172-31-128-13 piraeus-operator]# 
+
+## start installation of piraeus-operator (on control-plane node)
+helm install piraeus-op ./charts/piraeus --set etcd.persistentVolume.enabled=false
+```
+
+Since piraeus operator creates ClusterIP Service without selector for piraeus-cs-op and tungsten fabric kube-manager cannot handle this, this kubectl patch command is needed.
+```
+kubectl patch svc piraeus-op-cs -p '{"spec":{"selector": {"app": "piraeus-op-cs"}}}'
+```
+
+When everything worked, all the pod status will be Running.
+```
+[root@ip-172-31-128-223 ~]# kubectl get pod -o wide
+NAME                                         READY   STATUS    RESTARTS   AGE   IP              NODE                                               NOMINATED NODE   READINESS GATES
+cirros                                       1/1     Running   0          19m   10.47.255.242   ip-172-31-128-73.ap-northeast-1.compute.internal   <none>           <none>
+piraeus-op-cs-controller-6c9d896f9-9j2r9     1/1     Running   0          35m   10.47.255.244   ip-172-31-128-6.ap-northeast-1.compute.internal    <none>           <none>
+piraeus-op-csi-controller-5ffd698c4-8lg7z    6/6     Running   0          35m   10.47.255.243   ip-172-31-128-85.ap-northeast-1.compute.internal   <none>           <none>
+piraeus-op-csi-node-jmhxb                    3/3     Running   0          35m   172.31.128.85   ip-172-31-128-85.ap-northeast-1.compute.internal   <none>           <none>
+piraeus-op-csi-node-lcsrf                    3/3     Running   1          35m   172.31.128.73   ip-172-31-128-73.ap-northeast-1.compute.internal   <none>           <none>
+piraeus-op-csi-node-x6d5k                    3/3     Running   0          35m   172.31.128.6    ip-172-31-128-6.ap-northeast-1.compute.internal    <none>           <none>
+piraeus-op-etcd-0                            1/1     Running   0          35m   10.47.255.245   ip-172-31-128-73.ap-northeast-1.compute.internal   <none>           <none>
+piraeus-op-ha-controller-54c9bf45b-mw4ph     1/1     Running   4          35m   10.47.255.246   ip-172-31-128-6.ap-northeast-1.compute.internal    <none>           <none>
+piraeus-op-ns-node-52pnh                     1/1     Running   0          35m   172.31.128.6    ip-172-31-128-6.ap-northeast-1.compute.internal    <none>           <none>
+piraeus-op-ns-node-mnbwx                     1/1     Running   0          35m   172.31.128.73   ip-172-31-128-73.ap-northeast-1.compute.internal   <none>           <none>
+piraeus-op-ns-node-sgff8                     1/1     Running   0          35m   172.31.128.85   ip-172-31-128-85.ap-northeast-1.compute.internal   <none>           <none>
+piraeus-op-operator-595c9b8985-j958b         1/1     Running   0          35m   10.47.255.250   ip-172-31-128-6.ap-northeast-1.compute.internal    <none>           <none>
+piraeus-op-stork-6b9dc685f7-rv2pj            1/1     Running   0          35m   10.47.255.247   ip-172-31-128-85.ap-northeast-1.compute.internal   <none>           <none>
+piraeus-op-stork-scheduler-87cb99fbc-8h2hm   1/1     Running   0          32s   10.47.255.241   ip-172-31-128-6.ap-northeast-1.compute.internal    <none>           <none>
+snapshot-controller-5446b64b9-w2lcm          1/1     Running   0          35m   10.47.255.249   ip-172-31-128-85.ap-northeast-1.compute.internal   <none>           <none>
+[root@ip-172-31-128-223 ~]#
+```
+
+linstor will show node status: Online, and storage-pool status: Ok.
+```
+# kubectl exec -it piraeus-op-ns-node-52pnh bash
+
+root@ip-172-31-128-45:/# linstor node list
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ Node                                              ┊ NodeType   ┊ Addresses                   ┊ State  ┊
+╞═══════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ ip-172-31-128-45.ap-northeast-1.compute.internal  ┊ SATELLITE  ┊ 172.31.128.45:3366 (PLAIN)  ┊ Online ┊
+┊ ip-172-31-128-195.ap-northeast-1.compute.internal ┊ SATELLITE  ┊ 172.31.128.195:3366 (PLAIN) ┊ Online ┊
+┊ ip-172-31-128-219.ap-northeast-1.compute.internal ┊ SATELLITE  ┊ 172.31.128.219:3366 (PLAIN) ┊ Online ┊
+┊ piraeus-op-cs-controller-6c9d896f9-dnw6h          ┊ CONTROLLER ┊ 10.47.255.244:3366 (PLAIN)  ┊ Online ┊
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@ip-172-31-128-45:/# 
+root@ip-172-31-128-45:/# 
+root@ip-172-31-128-45:/# linstor sp list
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ StoragePool          ┊ Node                                              ┊ Driver   ┊ PoolName ┊ FreeCapacity ┊ TotalCapacity ┊ CanSnapshots ┊ State ┊
+╞══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ DfltDisklessStorPool ┊ ip-172-31-128-195.ap-northeast-1.compute.internal ┊ DISKLESS ┊          ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ DfltDisklessStorPool ┊ ip-172-31-128-219.ap-northeast-1.compute.internal ┊ DISKLESS ┊          ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ DfltDisklessStorPool ┊ ip-172-31-128-45.ap-northeast-1.compute.internal  ┊ DISKLESS ┊          ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ lvm-thick            ┊ ip-172-31-128-195.ap-northeast-1.compute.internal ┊ LVM      ┊ drbdpool ┊    20.00 GiB ┊     20.00 GiB ┊ False        ┊ Ok    ┊
+┊ lvm-thick            ┊ ip-172-31-128-219.ap-northeast-1.compute.internal ┊ LVM      ┊ drbdpool ┊    20.00 GiB ┊     20.00 GiB ┊ False        ┊ Ok    ┊
+┊ lvm-thick            ┊ ip-172-31-128-45.ap-northeast-1.compute.internal  ┊ LVM      ┊ drbdpool ┊    20.00 GiB ┊     20.00 GiB ┊ False        ┊ Ok    ┊
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@ip-172-31-128-45:/#
+```
+
+When all the status is good, storageclass, pvc and pod can be created.
+When things are working, pvc status will be Bound and pod status will be Running.
+ - pvc creation might take about 1 minute
+
+```
+# cat sc1.yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: "piraeus-dflt-r1"
+provisioner: linstor.csi.linbit.com
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+parameters:
+  layerlist: drbd storage
+  placementCount: "1" ## set this to 2 or 3, when data replica is needed
+  ##placementPolicy: FollowTopology ## this needs to be commented out, since piraeus-operator currently disables CSI topology feature: https://github.com/piraeusdatastore/linstor-csi/issues/77#issuecomment-664175467
+  allowRemoteVolumeAccess: "false"
+  disklessOnRemaining: "false"
+  csi.storage.k8s.io/fstype: xfs
+  mountOpts: noatime,discard
+  storagePool: lvm-thick
+
+[root@ip-172-31-128-154 ~]# kubectl get sc
+NAME              PROVISIONER              RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
+piraeus-dflt-r1   linstor.csi.linbit.com   Delete          Immediate           true                   12s
+[root@ip-172-31-128-154 ~]#
+
+# cat pvc1.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: demo-rwo-r1
+spec:
+  storageClassName: piraeus-dflt-r1 ## set r2 for two replicas
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 2Gi
+
+[root@ip-172-31-128-223 ~]# kubectl get pvc
+NAME          STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS      AGE
+demo-rwo-r1   Bound    pvc-030416b5-1946-4ba5-8024-a4807ad6000c   2Gi        RWO            piraeus-dflt-r1   6m33s
+demo-rwo-r2   Bound    pvc-3e83f35a-8211-4a90-8bcd-8d3a78968d53   2Gi        RWO            piraeus-dflt-r2   74s
+[root@ip-172-31-128-223 ~]# 
+```
+
+linstor will see volumes with one or two replicas, and data sync will be done automatically when needed.
+```
+(/dev/drbd1001 is syncing the data: State: SyncTarget is increasing until it becomes UpToDate)
+
+root@ip-172-31-128-6:/# linstor v list
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ Node                                             ┊ Resource                                 ┊ StoragePool ┊ VolNr ┊ MinorNr ┊ DeviceName    ┊ Allocated ┊ InUse  ┊              State ┊
+╞═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ ip-172-31-128-6.ap-northeast-1.compute.internal  ┊ pvc-030416b5-1946-4ba5-8024-a4807ad6000c ┊ lvm-thick   ┊     0 ┊    1000 ┊ /dev/drbd1000 ┊  2.00 GiB ┊ Unused ┊           UpToDate ┊
+┊ ip-172-31-128-73.ap-northeast-1.compute.internal ┊ pvc-3e83f35a-8211-4a90-8bcd-8d3a78968d53 ┊ lvm-thick   ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊  2.00 GiB ┊ Unused ┊           UpToDate ┊
+┊ ip-172-31-128-85.ap-northeast-1.compute.internal ┊ pvc-3e83f35a-8211-4a90-8bcd-8d3a78968d53 ┊ lvm-thick   ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊  2.00 GiB ┊ Unused ┊ SyncTarget(78.47%) ┊
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@ip-172-31-128-6:/# 
+root@ip-172-31-128-6:/# 
+root@ip-172-31-128-6:/# linstor v list
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ Node                                             ┊ Resource                                 ┊ StoragePool ┊ VolNr ┊ MinorNr ┊ DeviceName    ┊ Allocated ┊ InUse  ┊              State ┊
+╞═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ ip-172-31-128-6.ap-northeast-1.compute.internal  ┊ pvc-030416b5-1946-4ba5-8024-a4807ad6000c ┊ lvm-thick   ┊     0 ┊    1000 ┊ /dev/drbd1000 ┊  2.00 GiB ┊ Unused ┊           UpToDate ┊
+┊ ip-172-31-128-73.ap-northeast-1.compute.internal ┊ pvc-3e83f35a-8211-4a90-8bcd-8d3a78968d53 ┊ lvm-thick   ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊  2.00 GiB ┊ Unused ┊           UpToDate ┊
+┊ ip-172-31-128-85.ap-northeast-1.compute.internal ┊ pvc-3e83f35a-8211-4a90-8bcd-8d3a78968d53 ┊ lvm-thick   ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊  2.00 GiB ┊ Unused ┊ SyncTarget(96.04%) ┊
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@ip-172-31-128-6:/# 
+root@ip-172-31-128-6:/# 
+root@ip-172-31-128-6:/# linstor v list
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ Node                                             ┊ Resource                                 ┊ StoragePool ┊ VolNr ┊ MinorNr ┊ DeviceName    ┊ Allocated ┊ InUse  ┊    State ┊
+╞═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ ip-172-31-128-6.ap-northeast-1.compute.internal  ┊ pvc-030416b5-1946-4ba5-8024-a4807ad6000c ┊ lvm-thick   ┊     0 ┊    1000 ┊ /dev/drbd1000 ┊  2.00 GiB ┊ Unused ┊ UpToDate ┊
+┊ ip-172-31-128-73.ap-northeast-1.compute.internal ┊ pvc-3e83f35a-8211-4a90-8bcd-8d3a78968d53 ┊ lvm-thick   ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊  2.00 GiB ┊ Unused ┊ UpToDate ┊
+┊ ip-172-31-128-85.ap-northeast-1.compute.internal ┊ pvc-3e83f35a-8211-4a90-8bcd-8d3a78968d53 ┊ lvm-thick   ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊  2.00 GiB ┊ Unused ┊ UpToDate ┊
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@ip-172-31-128-6:/# 
+```
+
+
+On the pod, xfs system will be mounted, and read / write is available.
+```
+[root@ip-172-31-128-223 ~]# cat cirros1.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: cirros
+  name: cirros
+spec:
+  containers:
+  - image: cirros
+    name: cirros
+    volumeMounts:
+    - mountPath: "/mnt"
+      name: task-pv-storage
+  volumes:
+    - name: task-pv-storage
+      persistentVolumeClaim:
+        claimName: demo-rwo-r2
+[root@ip-172-31-128-223 ~]#
+
+[root@ip-172-31-128-223 ~]# kubectl exec -it cirros sh
+/ # mount | grep mnt
+/dev/drbd1001 on /mnt type xfs (rw,seclabel,noatime,attr2,inode64,noquota)
+/ # 
+
+/mnt # dd if=/dev/zero of=aaa bs=1000000 count=100
+100+0 records in
+100+0 records out
+/mnt # df -h .
+Filesystem                Size      Used Available Use% Mounted on
+/dev/drbd1001             2.0G    127.6M      1.9G   6% /mnt
+/mnt # 
+/mnt # 
+/mnt # ls -lhtr
+total 97660
+-rw-r--r--    1 root     root       95.4M Jan 13 11:26 aaa
+/mnt # 
+```
+
+And linstor will see that volume is InUse status on the node where pod is running.
+```
+root@ip-172-31-128-6:/# linstor v list
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ Node                                             ┊ Resource                                 ┊ StoragePool ┊ VolNr ┊ MinorNr ┊ DeviceName    ┊ Allocated ┊ InUse  ┊    State ┊
+╞═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ ip-172-31-128-6.ap-northeast-1.compute.internal  ┊ pvc-030416b5-1946-4ba5-8024-a4807ad6000c ┊ lvm-thick   ┊     0 ┊    1000 ┊ /dev/drbd1000 ┊  2.00 GiB ┊ Unused ┊ UpToDate ┊
+┊ ip-172-31-128-73.ap-northeast-1.compute.internal ┊ pvc-3e83f35a-8211-4a90-8bcd-8d3a78968d53 ┊ lvm-thick   ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊  2.00 GiB ┊ InUse  ┊ UpToDate ┊
+┊ ip-172-31-128-85.ap-northeast-1.compute.internal ┊ pvc-3e83f35a-8211-4a90-8bcd-8d3a78968d53 ┊ lvm-thick   ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊  2.00 GiB ┊ Unused ┊ UpToDate ┊
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@ip-172-31-128-6:/# 
+```
 
 
 ## Random tungsten fabric patch (not tested)
