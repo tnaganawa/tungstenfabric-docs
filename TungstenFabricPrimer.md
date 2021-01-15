@@ -780,6 +780,14 @@ When physical-router receives update event, it will call push_conf function from
 
 To enable this feature, this knob is needed to be configured in /etc/contrail/common_config.env: DEVICE_MANAGER__DEFAULTS__push_mode=0, and config procedure is described there: https://www.juniper.net/documentation/en_US/contrail5.0/topics/concept/using-device-manager-netconf-contrail.html
 
+Unfortunately, this open source plugin didn't work well after R1911-latest .. :(
+
+To make it work, please apply this patch (https://github.com/tnaganawa/tungstenfabric-docs/blob/master/R2011-latest-netconf-device-manager.patch) to 3 files under /usr/lib/python2.7/site-packages/device_manager, and it will work fine again.
+ - briefly tested with tungstenfabric/R2011-latest and vMX / vQFX
+ 
+Note: After this commit (https://review.opencontrail.org/c/tungstenfabric/tf-controller/+/62296), the first attempt of setting device password to physical router failed with authentication failure, since device password was encrypted with incompatible way to that plugin.
+To make it work, please kindly update that password with the same one again (the second attempt should work).
+
 ## analytics
 
 Tungsten Fabric analytics has a lot of features, but most of the feature is currently optional, so let me skip most of the components.
