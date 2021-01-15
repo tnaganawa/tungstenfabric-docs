@@ -1,0 +1,323 @@
+diff -u -r bkup/juniper_conf.py main/juniper_conf.py
+--- bkup/juniper_conf.py	2021-01-15 13:24:27.711039244 +0900
++++ main/juniper_conf.py	2021-01-15 12:48:26.858853391 +0900
+@@ -8,6 +8,7 @@
+ 
+ from future import standard_library
+ standard_library.install_aliases()
++from future.utils import native_str
+ from builtins import str
+ from builtins import object
+ from ncclient import manager
+@@ -353,13 +354,13 @@
+ 
+     def add_dynamic_tunnels(self, tunnel_source_ip,
+                              ip_fabric_nets, bgp_router_ips):
+-        dynamic_tunnel = DynamicTunnel(name=DMUtils.dynamic_tunnel_name(self.get_asn()),
++        dynamic_tunnel = DynamicTunnel(name=native_str(DMUtils.dynamic_tunnel_name(self.get_asn())),
+                                        source_address=tunnel_source_ip, gre='')
+         if ip_fabric_nets is not None:
+             for subnet in ip_fabric_nets.get("subnet", []):
+                 dest_net = subnet['ip_prefix'] + '/' + str(subnet['ip_prefix_len'])
+                 dynamic_tunnel.add_destination_networks(
+-                    DestinationNetworks(name=dest_net,
++                    DestinationNetworks(name=native_str(dest_net),
+                                         comment=DMUtils.ip_fabric_subnet_comment()))
+ 
+         for r_name, bgp_router_ip in list(bgp_router_ips.items()):
+@@ -465,11 +466,11 @@
+         bgp_group = BgpGroup()
+         bgp_group.set_comment(DMUtils.bgp_group_comment(self.bgp_obj))
+         if external:
+-            bgp_group.set_name(DMUtils.make_bgp_group_name(self.get_asn(), True))
++            bgp_group.set_name(native_str(DMUtils.make_bgp_group_name(self.get_asn(), True)))
+             bgp_group.set_type('external')
+             bgp_group.set_multihop('')
+         else:
+-            bgp_group.set_name(DMUtils.make_bgp_group_name(self.get_asn(), False))
++            bgp_group.set_name(native_str(DMUtils.make_bgp_group_name(self.get_asn(), False)))
+             bgp_group.set_type('internal')
+             self.add_ibgp_export_policy(self.bgp_params, bgp_group)
+         bgp_group.set_local_address(self.bgp_params['address'])
+@@ -523,7 +524,7 @@
+         if self.global_routing_options_config is None:
+             self.global_routing_options_config = RoutingOptions(comment=DMUtils.routing_options_comment())
+         self.global_routing_options_config.set_route_distinguisher_id(self.bgp_params['identifier'])
+-        self.global_routing_options_config.set_autonomous_system(str(self.get_asn()))
++        self.global_routing_options_config.set_autonomous_system(native_str(self.get_asn()))
+     # end set_as_config
+ 
+     def set_bgp_group_config(self):
+diff -u -r bkup/mx_conf.py main/mx_conf.py
+--- bkup/mx_conf.py	2021-01-15 13:24:20.946227147 +0900
++++ main/mx_conf.py	2021-01-15 13:19:24.405262416 +0900
+@@ -9,6 +9,7 @@
+ 
+ from builtins import str
+ import copy
++from future.utils import native_str
+ 
+ from device_api.juniper_common_xsd import *
+ 
+@@ -150,8 +151,8 @@
+                         pnf_inters.add(pnf_li)
+ 
+             if pnf_inters:
+-                vrf_name = self.physical_router.get_pnf_vrf_name(
+-                    si_obj, if_type, is_left_first_vrf)
++                vrf_name = native_str(self.physical_router.get_pnf_vrf_name(
++                    si_obj, if_type, is_left_first_vrf))
+                 vrf_interfaces = pnf_inters
+                 ri_conf = { 'ri_name': vrf_name }
+                 ri_conf['si'] = si_obj
+@@ -225,7 +226,7 @@
+ 
+         from_ = From()
+         for prefix in prefixes:
+-            from_.add_destination_address(prefix)
++            from_.add_destination_address(native_str(prefix))
+         then_ = Then()
+         then_.add_routing_instance(ri_name)
+         return Term(name=DMUtils.make_vrf_term_name(ri_name),
+@@ -315,9 +316,9 @@
+                         rib_config_v6.set_static(static_config_v6)
+                         ri_opt.set_rib(rib_config_v6)
+                     if ':' in prefix:
+-                        static_config_v6.add_route(Route(name=prefix, discard=''))
++                        static_config_v6.add_route(Route(name=native_str(prefix), discard=''))
+                     else:
+-                        static_config.add_route(Route(name=prefix, discard=''))
++                        static_config.add_route(Route(name=native_str(prefix), discard=''))
+                     if router_external:
+                         self.add_to_global_ri_opts(prefix)
+ 
+@@ -472,7 +473,7 @@
+             irb_intf = Interface(name="irb")
+             interfaces_config.add_interface(irb_intf)
+ 
+-            intf_unit = Unit(name=str(network_id),
++            intf_unit = Unit(name=native_str(network_id),
+                              comment=DMUtils.vn_irb_fip_inet_comment(vn))
+             if restrict_proxy_arp:
+                 intf_unit.set_proxy_arp(ProxyArp(restricted=''))
+@@ -491,21 +492,21 @@
+             if highest_enapsulation_priority == "VXLAN":
+                 bd_config = BridgeDomains()
+                 ri.set_bridge_domains(bd_config)
+-                bd = Domain(name=DMUtils.make_bridge_name(vni), vlan_id='none', vxlan=VXLan(vni=vni))
++                bd = Domain(name=native_str(DMUtils.make_bridge_name(vni)), vlan_id='none', vxlan=VXLan(vni=vni))
+                 bd.set_comment(DMUtils.vn_bd_comment(vn, "VXLAN"))
+                 bd_config.add_domain(bd)
+                 for interface in interfaces:
+                      bd.add_interface(Interface(name=interface.name))
+                 if is_l2_l3:
+                     # network_id is unique, hence irb
+-                    bd.set_routing_interface("irb." + str(network_id))
++                    bd.set_routing_interface("irb." + native_str(network_id))
+                 ri.set_protocols(RoutingInstanceProtocols(
+                                evpn=Evpn(encapsulation='vxlan', extended_vni_list='all')))
+             elif highest_enapsulation_priority in ["MPLSoGRE", "MPLSoUDP"]:
+                 ri.set_vlan_id('none')
+                 if is_l2_l3:
+                     # network_id is unique, hence irb
+-                    ri.set_routing_interface("irb." + str(network_id))
++                    ri.set_routing_interface("irb." + native_str(network_id))
+                 evpn = Evpn()
+                 evpn.set_comment(DMUtils.vn_evpn_comment(vn, highest_enapsulation_priority))
+                 for interface in interfaces:
+@@ -517,7 +518,7 @@
+                 irb_intf = Interface(name='irb', gratuitous_arp_reply='')
+                 interfaces_config.add_interface(irb_intf)
+                 if gateways is not None:
+-                    intf_unit = Unit(name=str(network_id),
++                    intf_unit = Unit(name=native_str(network_id),
+                                      comment=DMUtils.vn_irb_comment(vn, False, is_l2_l3))
+                     irb_intf.add_unit(intf_unit)
+                     family = Family()
+@@ -537,16 +538,16 @@
+                                 family.set_inet(inet)
+                             addr = Address()
+                             inet.add_address(addr)
+-                        addr.set_name(irb_ip)
++                        addr.set_name(native_str(irb_ip))
+                         addr.set_comment(DMUtils.irb_ip_comment(irb_ip))
+                         if len(gateway) and gateway != '0.0.0.0':
+-                            addr.set_virtual_gateway_address(gateway)
++                            addr.set_virtual_gateway_address(native_str(gateway))
+ 
+             self.build_l2_evpn_interface_config(interfaces_config, interfaces, vn)
+ 
+         if (not is_l2 and not is_l2_l3 and gateways):
+             interfaces_config = self.interfaces_config or Interfaces(comment=DMUtils.interfaces_comment())
+-            ifl_num = str(1000 + int(network_id))
++            ifl_num = native_str(1000 + int(network_id))
+             lo_intf = Interface(name="lo0")
+             interfaces_config.add_interface(lo_intf)
+             intf_unit = Unit(name=ifl_num, comment=DMUtils.l3_lo_intf_comment(vn))
+@@ -572,7 +573,7 @@
+                     addr = Address()
+                     inet.add_address(addr)
+                     lo_ip = ip + '/' + '32'
+-                addr.set_name(lo_ip)
++                addr.set_name(native_str(lo_ip))
+                 addr.set_comment(DMUtils.lo0_ip_comment(subnet))
+             ri.add_interface(Interface(name="lo0." + ifl_num,
+                                        comment=DMUtils.lo0_ri_intf_comment(vn)))
+@@ -689,7 +690,7 @@
+                                comment=DMUtils.l2_evpn_intf_unit_comment(vn,
+                                                      True, interface.vlan_tag),
+                                encapsulation='vlan-bridge',
+-                               vlan_id=str(interface.vlan_tag)))
++                               vlan_id=native_str(interface.vlan_tag)))
+     # end build_l2_evpn_interface_config
+ 
+     def add_to_global_ri_opts(self, prefix):
+@@ -704,7 +705,7 @@
+             self.global_routing_options_config.add_rib(rib_config_v6)
+         else:
+             self.global_routing_options_config.add_static(static_config)
+-        static_config.add_route(Route(name=prefix, discard=''))
++        static_config.add_route(Route(name=native_str(prefix), discard=''))
+     # end add_to_global_ri_opts
+ 
+     def set_route_targets_config(self):
+@@ -748,10 +749,10 @@
+                 if ri_obj is None:
+                     continue
+                 if ri_obj.fq_name[-1] == vn_obj.fq_name[-1]:
+-                    vrf_name_l2 = DMUtils.make_vrf_name(vn_obj.fq_name[-1],
+-                                                   vn_obj.vn_network_id, 'l2')
+-                    vrf_name_l3 = DMUtils.make_vrf_name(vn_obj.fq_name[-1],
+-                                                   vn_obj.vn_network_id, 'l3')
++                    vrf_name_l2 = native_str(DMUtils.make_vrf_name(vn_obj.fq_name[-1],
++                                                   vn_obj.vn_network_id, 'l2'))
++                    vrf_name_l3 = native_str(DMUtils.make_vrf_name(vn_obj.fq_name[-1],
++                                                   vn_obj.vn_network_id, 'l3'))
+                     export_set = copy.copy(ri_obj.export_targets)
+                     import_set = copy.copy(ri_obj.import_targets)
+                     for ri2_id in ri_obj.routing_instances:
+@@ -788,7 +789,7 @@
+                         if vn_obj.get_forwarding_mode() == 'l2_l3':
+                             interfaces = [
+                                  JunosInterface(
+-                                'irb.' + str(vn_obj.vn_network_id),
++                                'irb.' + native_str(vn_obj.vn_network_id),
+                                 'l3', 0)]
+                         else:
+                             lo0_ips = vn_irb_ip_map['lo0'].get(vn_id, [])
+@@ -814,8 +815,8 @@
+                         vn_obj.fq_name,
+                         vn_obj.vn_network_id))
+                 else:
+-                    vrf_name = DMUtils.make_vrf_name(vn_obj.fq_name[-1],
+-                                                 vn_obj.vn_network_id, 'l3', True)
++                    vrf_name = native_str(DMUtils.make_vrf_name(vn_obj.fq_name[-1],
++                                                 vn_obj.vn_network_id, 'l3', True))
+                     interfaces = []
+                     service_ports = self.physical_router.junos_service_ports.get(
+                         'service_port')
+Only in bkup/: qfx_10k.py
+Only in bkup/: qfx_5k.py
+diff -u -r bkup/qfx_conf.py main/qfx_conf.py
+--- bkup/qfx_conf.py	2021-01-15 13:23:51.546041701 +0900
++++ main/qfx_conf.py	2021-01-15 14:31:20.871946172 +0900
+@@ -9,6 +9,7 @@
+ 
+ from builtins import str
+ import copy
++from future.utils import native_str
+ 
+ import abc
+ from device_api.juniper_common_xsd import *
+@@ -120,7 +121,7 @@
+         interfaces_config.add_interface(irb_intf)
+         self._logger.info("Vn=" + vn.name + ", IRB: " +  str(gateways) + ", pr=" + self.physical_router.name)
+         if gateways is not None:
+-            intf_unit = Unit(name=str(network_id),
++            intf_unit = Unit(name=native_str(str(network_id)),
+                                      comment=DMUtils.vn_irb_comment(vn, False, is_l2_l3))
+             irb_intf.add_unit(intf_unit)
+             if self.is_spine():
+@@ -245,7 +246,7 @@
+ 
+         # add policies for export route targets
+         if self.is_spine():
+-            ps = PolicyStatement(name=DMUtils.make_export_name(ri_name))
++            ps = PolicyStatement(name=native_str(DMUtils.make_export_name(ri_name)))
+             ps.set_comment(DMUtils.vn_ps_comment(vn, "Export"))
+             then = Then()
+             ps.add_term(Term(name="t1", then=then))
+@@ -255,10 +256,10 @@
+                 then.add_community(comm)
+                 then.set_accept('')
+             policy_config.add_policy_statement(ps)
+-            self.add_to_global_switch_opts(DMUtils.make_export_name(ri_name), False)
++            self.add_to_global_switch_opts(native_str(DMUtils.make_export_name(ri_name)), False)
+ 
+         # add policies for import route targets
+-        ps = PolicyStatement(name=DMUtils.make_import_name(ri_name))
++        ps = PolicyStatement(name=native_str(DMUtils.make_import_name(ri_name)))
+         ps.set_comment(DMUtils.vn_ps_comment(vn, "Import"))
+ 
+         # add term switch policy
+@@ -277,7 +278,7 @@
+                 self.add_vni_option(vni or network_id, route_target)
+         term.set_then(Then(accept=''))
+         policy_config.add_policy_statement(ps)
+-        self.add_to_global_switch_opts(DMUtils.make_import_name(ri_name), True)
++        self.add_to_global_switch_opts(native_str(DMUtils.make_import_name(ri_name)), True)
+ 
+         # add L2 EVPN and BD config
+         interfaces_config = self.interfaces_config
+@@ -397,11 +398,11 @@
+                     unit = Unit(name=interface.unit,
+                                comment=DMUtils.l2_evpn_intf_unit_comment(vn,
+                                                      True, interface.vlan_tag),
+-                               vlan_id=str(interface.vlan_tag))
++                               vlan_id=native_str(str(interface.vlan_tag)))
+                     # attach acls
+                     self.attach_acls(interface, unit)
+                     intf.add_unit(unit)
+-                    vlan_conf.add_interface(Interface(name=ifd_name + "." + str(interface.unit)))
++                    vlan_conf.add_interface(Interface(name=native_str(ifd_name + "." + str(interface.unit))))
+     # end build_l2_evpn_interface_config
+ 
+     @abc.abstractmethod
+@@ -432,7 +433,7 @@
+         if not vni_options:
+             vni_options = VniOptions()
+             self.evpn.set_extended_vni_list("all")
+-        vni_options.add_vni(Vni(name=str(vni), vrf_target=VniTarget(community=vrf_target)))
++        vni_options.add_vni(Vni(name=native_str(str(vni)), vrf_target=VniTarget(community=vrf_target)))
+         self.evpn.set_vni_options(vni_options)
+ 
+     def init_global_switch_opts(self):
+@@ -443,7 +444,7 @@
+             # no vn config then no need to configure vrf target
+             return
+         self.global_switch_options_config.add_vrf_target(VniTarget(auto=''))
+-        switch_options_community = DMUtils.get_switch_vrf_import(self.get_asn())
++        switch_options_community = native_str(DMUtils.get_switch_vrf_import(self.get_asn()))
+         self.global_switch_options_config.add_vrf_target(VniTarget(community=switch_options_community))
+         self.set_global_export_policy()
+     # end init_global_switch_opts
+@@ -495,7 +496,7 @@
+             self.policy_config.add_community(export_comm)
+         # add community for switch options
+         comm = CommunityType(name=DMUtils.get_switch_policy_name())
+-        comm.add_members(DMUtils.get_switch_vrf_import(self.get_asn()))
++        comm.add_members(native_str(DMUtils.get_switch_vrf_import(self.get_asn())))
+         self.policy_config.add_community(comm)
+     # end set_route_targets_config
+ 
+@@ -508,8 +509,8 @@
+             if not irb_intf:
+                 self._logger.error("Missing irb interface config l3 vlan: %s" % vrf_name)
+             else:
+-                vlan.set_vlan_id(str(vni))
+-                vlan.set_l3_interface(irb_intf)
++                vlan.set_vlan_id(native_str(str(vni)))
++                vlan.set_l3_interface(native_str(irb_intf))
+         self.vlans_config.add_vlan(vlan)
+         return vlan
+     # end add_vlan_config
