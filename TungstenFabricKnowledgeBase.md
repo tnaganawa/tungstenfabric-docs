@@ -3208,7 +3208,7 @@ Let me add some URLs.
 
 To install this, firstly create kubernetes cluster with tungsten fabric CNI based on ansible-deployer.
  - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#2-tungstenfabric-up-and-running
- - K8S_VERSION is set to 1.17.16 ( < 1.18 is required because of CSI dependency: https://github.com/piraeusdatastore/piraeus#requirements)
+ - K8S_VERSION is set to 1.19.6
  - 1 control-plane node, and 3 worker nodes are used. CentOS7 with kernel-3.10.0-1062.12.1.el7.x86_64.rpm is used.
  - EC2 instance (4vCPU, 15 GB mem, 20 GB disk) is used.
 
