@@ -1614,6 +1614,7 @@ default-domain:k8s-default:k8s-default-pod-network:k8s-default-pod-network.inet.
 ```
 
 Note: To make coredns active, I need to make two changes
+ - Update: When tungstenfabric, R2011-latest is used for container tag, this procedure is not needed and coredns becomes active automatically (kubernetes v1.19.6 is used)
 ```
 [root@ip-172-31-8-73 ~]# kubectl edit configmap -n kube-system coredns
 -        forward . /etc/resolv.conf
