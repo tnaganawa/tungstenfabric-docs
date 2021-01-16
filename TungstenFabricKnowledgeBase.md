@@ -3458,6 +3458,353 @@ root@ip-172-31-128-6:/# linstor v list
 root@ip-172-31-128-6:/# 
 ```
 
+### pv-hostpath
+
+To store etcd data on the worker node volume, this helm chart can be used.
+ - Internally, it will create /var/lib/linstor-etcd directory with chown / chmod job, and create pv with that hostPath.
+```
+helm install linstor-etcd ./charts/pv-hostpath --set "nodes={ip-172-31-128-145.ap-northeast-1.compute.internal}"
+helm install piraeus-op ./charts/piraeus ## this command will create piraeus-operator with etcd on that node
+```
+
+Note: when hostname is long, label lengh for the chown job will be too long. I modified template to make it shorter and after that it worked fine.
+```
+[root@ip-172-31-128-34 piraeus-operator]# helm install linstor-etcd ./charts/pv-hostpath --set "nodes={ip-172-31-128-145.ap-northeast-1.compute.internal}"
+Error: failed post-install: warning: Hook post-install pv-hostpath/templates/pv.yaml failed: Job.batch "linstor-etcd-ip-172-31-128-145.ap-northeast-1.compute.internal-chown" is invalid: spec.template.labels: Invalid value: "linstor-etcd-ip-172-31-128-145.ap-northeast-1.compute.internal-chown": must be no more than 63 characters
+[root@ip-172-31-128-34 piraeus-operator]# 
+
+diff --git a/charts/pv-hostpath/templates/pv.yaml b/charts/pv-hostpath/templates/pv.yaml
+index 7c1636f..41cc241 100644
+--- a/charts/pv-hostpath/templates/pv.yaml
++++ b/charts/pv-hostpath/templates/pv.yaml
+@@ -94,7 +94,7 @@ spec:
+ apiVersion: batch/v1
+ kind: Job
+ metadata:
+-  name: {{ $.Release.Name }}-{{ . }}-chown
++  name: {{ $.Release.Name }}-{{ . }}
+   namespace: {{ $.Release.Namespace | default "default" }}
+   labels:
+ {{ include "post-install-labels" $ | indent 4 }}
+
+[root@ip-172-31-128-34 piraeus-operator]# helm install linstor-etcd ./charts/pv-hostpath --set "nodes={ip-172-31-128-145.ap-northeast-1.compute.internal}"
+NAME: linstor-etcd
+LAST DEPLOYED: Fri Jan 15 13:53:26 2021
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+[root@ip-172-31-128-34 piraeus-operator]# 
+
+[root@ip-172-31-128-145 ~]# ls -lhtrd /var/lib/linstor-etcd/
+drwxr-xr-x. 2 root root 6 Jan 15 13:53 /var/lib/linstor-etcd/
+[root@ip-172-31-128-145 ~]# 
+ ->
+[root@ip-172-31-128-145 ~]# ls -lhtrd /var/lib/linstor-etcd/
+drwxrwxr-x. 2 centos centos 6 Jan 15 13:53 /var/lib/linstor-etcd/
+[root@ip-172-31-128-145 ~]#
+
+[root@ip-172-31-128-34 piraeus-operator]# kubectl get pv
+NAME                                                             CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   REASON   AGE
+linstor-etcd-ip-172-31-128-145.ap-northeast-1.compute.internal   1Gi        RWO            Retain           Available                                   32s
+[root@ip-172-31-128-34 piraeus-operator]# 
+```
+
+### lvmthin, snapshot
+
+With piraeus, volume snapshot feature with kubenetes API can be used.
+ - https://github.com/LINBIT/linbit-documentation/blob/master/UG9/en/kubernetes.adoc#using-volume-snapshots
+ - kubernetes v1.19.6 is used
+
+Firstly, lvmthin volume will be created when piraeus is installed.
+```
+[root@ip-172-31-128-34 piraeus-operator]# git diff | cat
+diff --git a/charts/piraeus/values.yaml b/charts/piraeus/values.yaml
+index 252f8e9..f98d4a7 100644
+--- a/charts/piraeus/values.yaml
++++ b/charts/piraeus/values.yaml
+@@ -73,13 +73,19 @@ operator:
+   satelliteSet:
+     enabled: true
+     satelliteImage: quay.io/piraeusdatastore/piraeus-server:v1.11.1
+-    storagePools: {}
++    storagePools:
++      lvmThinPools:
++      - name: lvm-thin
++        thinVolume: thinpool
++        volumeGroup: linstor_thinpool
++        devicePaths:
++        - /dev/xvdf
+     sslSecret: ""
+     automaticStorageType: None
+     affinity: {}
+     tolerations: []
+     resources: {}
+-    kernelModuleInjectionImage: quay.io/piraeusdatastore/drbd9-bionic:v9.0.27
++    kernelModuleInjectionImage: quay.io/piraeusdatastore/drbd9-centos7:v9.0.27
+     kernelModuleInjectionMode: Compile
+     kernelModuleInjectionResources: {}
+ haController:
+[root@ip-172-31-128-34 piraeus-operator]#
+
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# linstor --controller 127.0.0.1 node list
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ Node                                              ┊ NodeType   ┊ Addresses                   ┊ State  ┊
+╞═══════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ ip-172-31-128-145.ap-northeast-1.compute.internal ┊ SATELLITE  ┊ 172.31.128.145:3366 (PLAIN) ┊ Online ┊
+┊ ip-172-31-128-154.ap-northeast-1.compute.internal ┊ SATELLITE  ┊ 172.31.128.154:3366 (PLAIN) ┊ Online ┊
+┊ ip-172-31-128-207.ap-northeast-1.compute.internal ┊ SATELLITE  ┊ 172.31.128.207:3366 (PLAIN) ┊ Online ┊
+┊ piraeus-op-cs-controller-67bccfd9bc-tqqfm         ┊ CONTROLLER ┊ 10.47.255.244:3366 (PLAIN)  ┊ Online ┊
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# 
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# 
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# linstor --controller 127.0.0.1 sp list
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ StoragePool          ┊ Node                                              ┊ Driver   ┊ PoolName                  ┊ FreeCapacity ┊ TotalCapacity ┊ CanSnapshots ┊ State ┊
+╞═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ DfltDisklessStorPool ┊ ip-172-31-128-145.ap-northeast-1.compute.internal ┊ DISKLESS ┊                           ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ DfltDisklessStorPool ┊ ip-172-31-128-154.ap-northeast-1.compute.internal ┊ DISKLESS ┊                           ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ DfltDisklessStorPool ┊ ip-172-31-128-207.ap-northeast-1.compute.internal ┊ DISKLESS ┊                           ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ lvm-thin             ┊ ip-172-31-128-145.ap-northeast-1.compute.internal ┊ LVM_THIN ┊ linstor_thinpool/thinpool ┊    19.96 GiB ┊     19.96 GiB ┊ True         ┊ Ok    ┊
+┊ lvm-thin             ┊ ip-172-31-128-154.ap-northeast-1.compute.internal ┊ LVM_THIN ┊ linstor_thinpool/thinpool ┊    19.96 GiB ┊     19.96 GiB ┊ True         ┊ Ok    ┊
+┊ lvm-thin             ┊ ip-172-31-128-207.ap-northeast-1.compute.internal ┊ LVM_THIN ┊ linstor_thinpool/thinpool ┊    19.96 GiB ┊     19.96 GiB ┊ True         ┊ Ok    ┊
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/#
+```
+
+After that, volumesnapshotclass and sc, pvc, and pod with that volume will be created.
+ - sc, pvc, and pod with that volume is the same with the previous example
+
+```
+# cat vsc.yaml
+apiVersion: snapshot.storage.k8s.io/v1beta1
+kind: VolumeSnapshotClass
+metadata:
+  name: my-first-linstor-snapshot-class
+driver: linstor.csi.linbit.com
+deletionPolicy: Delete
+
+[root@ip-172-31-128-34 ~]# kubectl get volumesnapshotclasses.snapshot.storage.k8s.io 
+NAME                              DRIVER                   DELETIONPOLICY   AGE
+my-first-linstor-snapshot-class   linstor.csi.linbit.com   Delete           2m2s
+[root@ip-172-31-128-34 ~]# 
+```
+
+
+After creating some file in that volume (1GB file (/mnt/aaa) is created), snapshot will be created. 
+```
+# cat snapshot1.yaml
+apiVersion: snapshot.storage.k8s.io/v1beta1
+kind: VolumeSnapshot
+metadata:
+  name: my-first-linstor-snapshot
+spec:
+  volumeSnapshotClassName: my-first-linstor-snapshot-class
+  source:
+    persistentVolumeClaimName: demo-rwo-r1
+
+[root@ip-172-31-128-34 ~]# kubectl get volumesnapshot -o wide
+NAME                        READYTOUSE   SOURCEPVC     SOURCESNAPSHOTCONTENT   RESTORESIZE   SNAPSHOTCLASS                     SNAPSHOTCONTENT                                    CREATIONTIME   AGE
+my-first-linstor-snapshot   true         demo-rwo-r1                           2Gi           my-first-linstor-snapshot-class   snapcontent-39ee3093-9ad1-431c-82e0-9325ff1828fd   31s            32s
+[root@ip-172-31-128-34 ~]# 
+```
+
+From linstor client also, snapshot can be seen.
+```
+[root@ip-172-31-128-34 ~]# kubectl exec -it piraeus-op-cs-controller-67bccfd9bc-tqqfm -- bash
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# 
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# linstor --controller 127.0.0.1 sp list
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ StoragePool          ┊ Node                                              ┊ Driver   ┊ PoolName                  ┊ FreeCapacity ┊ TotalCapacity ┊ CanSnapshots ┊ State ┊
+╞═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ DfltDisklessStorPool ┊ ip-172-31-128-145.ap-northeast-1.compute.internal ┊ DISKLESS ┊                           ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ DfltDisklessStorPool ┊ ip-172-31-128-154.ap-northeast-1.compute.internal ┊ DISKLESS ┊                           ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ DfltDisklessStorPool ┊ ip-172-31-128-207.ap-northeast-1.compute.internal ┊ DISKLESS ┊                           ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ lvm-thin             ┊ ip-172-31-128-145.ap-northeast-1.compute.internal ┊ LVM_THIN ┊ linstor_thinpool/thinpool ┊    19.02 GiB ┊     19.96 GiB ┊ True         ┊ Ok    ┊
+┊ lvm-thin             ┊ ip-172-31-128-154.ap-northeast-1.compute.internal ┊ LVM_THIN ┊ linstor_thinpool/thinpool ┊    19.02 GiB ┊     19.96 GiB ┊ True         ┊ Ok    ┊
+┊ lvm-thin             ┊ ip-172-31-128-207.ap-northeast-1.compute.internal ┊ LVM_THIN ┊ linstor_thinpool/thinpool ┊    19.96 GiB ┊     19.96 GiB ┊ True         ┊ Ok    ┊
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# 
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# linstor --controller 127.0.0.1 v list
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ Node                                              ┊ Resource                                 ┊ StoragePool ┊ VolNr ┊ MinorNr ┊ DeviceName    ┊  Allocated ┊ InUse  ┊    State ┊
+╞═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ ip-172-31-128-145.ap-northeast-1.compute.internal ┊ pvc-0716861b-6ca6-47c1-8b64-b74c85eb6dad ┊ lvm-thin    ┊     0 ┊    1000 ┊ /dev/drbd1000 ┊ 964.85 MiB ┊ Unused ┊ UpToDate ┊
+┊ ip-172-31-128-154.ap-northeast-1.compute.internal ┊ pvc-0716861b-6ca6-47c1-8b64-b74c85eb6dad ┊ lvm-thin    ┊     0 ┊    1000 ┊ /dev/drbd1000 ┊ 964.85 MiB ┊ InUse  ┊ UpToDate ┊
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# 
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# linstor --controller 127.0.0.1 snapshot list
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ ResourceName                             ┊ SnapshotName                                  ┊ NodeNames                                                                                            ┊ Volumes  ┊ CreatedOn           ┊ State      ┊
+╞═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ pvc-0716861b-6ca6-47c1-8b64-b74c85eb6dad ┊ snapshot-39ee3093-9ad1-431c-82e0-9325ff1828fd ┊ ip-172-31-128-145.ap-northeast-1.compute.internal, ip-172-31-128-154.ap-northeast-1.compute.internal ┊ 0: 2 GiB ┊ 2021-01-15 14:38:37 ┊ Successful ┊
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# 
+```
+
+After that, create some file in that volume, and create a new volume from snapshot. (although original volume is modified after snapshot creation, the new volume should only contain /mnt/aaa)
+```
+/ # cd /mnt/
+/mnt # ls
+aaa
+/mnt # df -h .
+Filesystem                Size      Used Available Use% Mounted on
+/dev/drbd1000             2.0G    986.1M      1.0G  48% /mnt
+/mnt # dd if=/dev/zero of=bbb bs=1000000 count=100
+100+0 records in
+100+0 records out
+/mnt # df -h .
+Filesystem                Size      Used Available Use% Mounted on
+/dev/drbd1000             2.0G      1.1G    959.6M  53% /mnt
+/mnt # 
+/mnt # 
+/mnt # ls -lhtr
+total 1074224
+-rw-r--r--    1 root     root      953.7M Jan 15 14:24 aaa
+-rw-r--r--    1 root     root       95.4M Jan 15 14:40 bbb
+/mnt # 
+
+
+# cat volume-from-snapshot1.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-first-linstor-volume-from-snapshot
+spec:
+  storageClassName: piraeus-dflt-r1
+  dataSource:
+    name: my-first-linstor-snapshot
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+
+
+[root@ip-172-31-128-34 ~]# kubectl get pvc
+NAME                                    STATUS   VOLUME                                                           CAPACITY   ACCESS MODES   STORAGECLASS      AGE
+datadir-piraeus-op-etcd-0               Bound    linstor-etcd-ip-172-31-128-145.ap-northeast-1.compute.internal   1Gi        RWO                              47m
+demo-rwo-r1                             Bound    pvc-0716861b-6ca6-47c1-8b64-b74c85eb6dad                         2Gi        RWO            piraeus-dflt-r1   20m
+my-first-linstor-volume-from-snapshot   Bound    pvc-81b15e04-f2be-4c78-9cef-b4649b5e4228                         2Gi        RWO            piraeus-dflt-r1   3s
+[root@ip-172-31-128-34 ~]# 
+
+- new volume is created, and capacity of storage-pool decreased.
+
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# linstor --controller 127.0.0.1 sp list
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ StoragePool          ┊ Node                                              ┊ Driver   ┊ PoolName                  ┊ FreeCapacity ┊ TotalCapacity ┊ CanSnapshots ┊ State ┊
+╞═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ DfltDisklessStorPool ┊ ip-172-31-128-145.ap-northeast-1.compute.internal ┊ DISKLESS ┊                           ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ DfltDisklessStorPool ┊ ip-172-31-128-154.ap-northeast-1.compute.internal ┊ DISKLESS ┊                           ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ DfltDisklessStorPool ┊ ip-172-31-128-207.ap-northeast-1.compute.internal ┊ DISKLESS ┊                           ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ lvm-thin             ┊ ip-172-31-128-145.ap-northeast-1.compute.internal ┊ LVM_THIN ┊ linstor_thinpool/thinpool ┊    18.92 GiB ┊     19.96 GiB ┊ True         ┊ Ok    ┊
+┊ lvm-thin             ┊ ip-172-31-128-154.ap-northeast-1.compute.internal ┊ LVM_THIN ┊ linstor_thinpool/thinpool ┊    18.88 GiB ┊     19.96 GiB ┊ True         ┊ Ok    ┊
+┊ lvm-thin             ┊ ip-172-31-128-207.ap-northeast-1.compute.internal ┊ LVM_THIN ┊ linstor_thinpool/thinpool ┊    19.96 GiB ┊     19.96 GiB ┊ True         ┊ Ok    ┊
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# 
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# linstor --controller 127.0.0.1 v list
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ Node                                              ┊ Resource                                 ┊ StoragePool ┊ VolNr ┊ MinorNr ┊ DeviceName    ┊  Allocated ┊ InUse  ┊             State ┊
+╞════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ ip-172-31-128-145.ap-northeast-1.compute.internal ┊ pvc-0716861b-6ca6-47c1-8b64-b74c85eb6dad ┊ lvm-thin    ┊     0 ┊    1000 ┊ /dev/drbd1000 ┊   1.04 GiB ┊ Unused ┊          UpToDate ┊
+┊ ip-172-31-128-154.ap-northeast-1.compute.internal ┊ pvc-0716861b-6ca6-47c1-8b64-b74c85eb6dad ┊ lvm-thin    ┊     0 ┊    1000 ┊ /dev/drbd1000 ┊   1.04 GiB ┊ InUse  ┊          UpToDate ┊
+┊ ip-172-31-128-145.ap-northeast-1.compute.internal ┊ pvc-81b15e04-f2be-4c78-9cef-b4649b5e4228 ┊ lvm-thin    ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊ 964.85 MiB ┊ Unused ┊          UpToDate ┊
+┊ ip-172-31-128-154.ap-northeast-1.compute.internal ┊ pvc-81b15e04-f2be-4c78-9cef-b4649b5e4228 ┊ lvm-thin    ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊ 887.49 MiB ┊ Unused ┊ SyncTarget(5.84%) ┊
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# linstor --controller 127.0.0.1 snapshot list
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ ResourceName                             ┊ SnapshotName                                  ┊ NodeNames                                                                                            ┊ Volumes  ┊ CreatedOn           ┊ State      ┊
+╞═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ pvc-0716861b-6ca6-47c1-8b64-b74c85eb6dad ┊ snapshot-39ee3093-9ad1-431c-82e0-9325ff1828fd ┊ ip-172-31-128-145.ap-northeast-1.compute.internal, ip-172-31-128-154.ap-northeast-1.compute.internal ┊ 0: 2 GiB ┊ 2021-01-15 14:38:37 ┊ Successful ┊
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/#
+```
+
+When the new volume is mounted by pod, it is possible to see that volume only has /mnt/aaa, 1GB.
+```
+[root@ip-172-31-128-34 ~]# cat cirros-with-volume-from-snapshot.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: cirros-with-volume-from-snapshot
+  name: cirros-with-volume-from-snapshot
+spec:
+  containers:
+  - image: cirros
+    name: cirros-with-volume-from-snapshot
+    volumeMounts:
+    - mountPath: "/mnt"
+      name: task-pv-storage
+  volumes:
+    - name: task-pv-storage
+      persistentVolumeClaim:
+        claimName: my-first-linstor-volume-from-snapshot
+[root@ip-172-31-128-34 ~]# 
+
+[root@ip-172-31-128-34 ~]# kubectl get pod -o wide | grep cirros
+cirros                                        1/1     Running   0          23m   10.47.255.242    ip-172-31-128-154.ap-northeast-1.compute.internal   <none>           <none>
+cirros-with-volume-from-snapshot              1/1     Running   0          22s   10.47.255.241    ip-172-31-128-145.ap-northeast-1.compute.internal   <none>           <none>
+[root@ip-172-31-128-34 ~]# 
+
+[root@ip-172-31-128-34 ~]# kubectl exec -it cirros-with-volume-from-snapshot -- sh
+/ # 
+/ # 
+/ # cd /mnt/
+/mnt # ls
+aaa
+/mnt # df -h .
+Filesystem                Size      Used Available Use% Mounted on
+/dev/drbd1001             2.0G    986.1M      1.0G  48% /mnt
+/mnt # ls -lhtr
+total 976564
+-rw-r--r--    1 root     root      953.7M Jan 15 14:24 aaa
+/mnt #
+
+ - new volume is InUse status now
+[root@ip-172-31-128-34 ~]# kubectl exec -it piraeus-op-cs-controller-67bccfd9bc-tqqfm -- bash
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# linstor --controller 127.0.0.1 v list
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ Node                                              ┊ Resource                                 ┊ StoragePool ┊ VolNr ┊ MinorNr ┊ DeviceName    ┊  Allocated ┊ InUse  ┊              State ┊
+╞═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ ip-172-31-128-145.ap-northeast-1.compute.internal ┊ pvc-0716861b-6ca6-47c1-8b64-b74c85eb6dad ┊ lvm-thin    ┊     0 ┊    1000 ┊ /dev/drbd1000 ┊   1.04 GiB ┊ Unused ┊           UpToDate ┊
+┊ ip-172-31-128-154.ap-northeast-1.compute.internal ┊ pvc-0716861b-6ca6-47c1-8b64-b74c85eb6dad ┊ lvm-thin    ┊     0 ┊    1000 ┊ /dev/drbd1000 ┊   1.04 GiB ┊ InUse  ┊           UpToDate ┊
+┊ ip-172-31-128-145.ap-northeast-1.compute.internal ┊ pvc-81b15e04-f2be-4c78-9cef-b4649b5e4228 ┊ lvm-thin    ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊ 964.85 MiB ┊ InUse  ┊           UpToDate ┊
+┊ ip-172-31-128-154.ap-northeast-1.compute.internal ┊ pvc-81b15e04-f2be-4c78-9cef-b4649b5e4228 ┊ lvm-thin    ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊ 578.05 MiB ┊ Unused ┊ SyncTarget(36.14%) ┊
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@piraeus-op-cs-controller-67bccfd9bc-tqqfm:/# 
+```
+
+Note: internally, lvm thinprovisioning is used for snapshot.
+```
+[root@ip-172-31-128-145 ~]# lsblk 
+NAME                                                                       MAJ:MIN  RM SIZE RO TYPE MOUNTPOINT
+xvda                                                                       202:0     0  20G  0 disk 
+└─xvda1                                                                    202:1     0  20G  0 part /
+xvdf                                                                       202:80    0  20G  0 disk 
+├─linstor_thinpool-thinpool_tmeta                                          253:0     0  20M  0 lvm  
+│ └─linstor_thinpool-thinpool-tpool                                        253:2     0  20G  0 lvm  
+│   ├─linstor_thinpool-thinpool                                            253:3     0  20G  1 lvm  
+│   ├─linstor_thinpool-pvc--0716861b--6ca6--47c1--8b64--b74c85eb6dad_00000 253:4     0   2G  0 lvm  
+│   │ └─drbd1000                                                           147:1000  0   2G  0 disk 
+│   ├─linstor_thinpool-pvc--0716861b--6ca6--47c1--8b64--b74c85eb6dad_00000_snapshot--39ee3093--9ad1--431c--82e0--9325ff1828fd
+                                                                           253:5     0   2G  0 lvm  
+│   └─linstor_thinpool-pvc--81b15e04--f2be--4c78--9cef--b4649b5e4228_00000 253:6     0   2G  0 lvm  
+│     └─drbd1001                                                           147:1001  0   2G  0 disk /var/lib/k
+└─linstor_thinpool-thinpool_tdata                                          253:1     0  20G  0 lvm  
+  └─linstor_thinpool-thinpool-tpool                                        253:2     0  20G  0 lvm  
+    ├─linstor_thinpool-thinpool                                            253:3     0  20G  1 lvm  
+    ├─linstor_thinpool-pvc--0716861b--6ca6--47c1--8b64--b74c85eb6dad_00000 253:4     0   2G  0 lvm  
+    │ └─drbd1000                                                           147:1000  0   2G  0 disk 
+    ├─linstor_thinpool-pvc--0716861b--6ca6--47c1--8b64--b74c85eb6dad_00000_snapshot--39ee3093--9ad1--431c--82e0--9325ff1828fd
+                                                                           253:5     0   2G  0 lvm  
+    └─linstor_thinpool-pvc--81b15e04--f2be--4c78--9cef--b4649b5e4228_00000 253:6     0   2G  0 lvm  
+      └─drbd1001                                                           147:1001  0   2G  0 disk /var/lib/k
+[root@ip-172-31-128-145 ~]# 
+```
+
 
 ## Random tungsten fabric patch (not tested)
 #### static schedule for svc-monitor logic to choose available vRouters
