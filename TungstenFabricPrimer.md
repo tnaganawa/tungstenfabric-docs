@@ -500,7 +500,7 @@ If it shows similar, since everything is working well, you can create containers
 ```
 ## if bash completion is needed, type these two commands
 yum -y install bash-completion
-source <(kubectl completion bash)
+echo "source <(kubectl completion bash)" >> ~/.bashrc
 
 vi first-containers.yaml
 apiVersion: apps/v1beta1
