@@ -3806,6 +3806,363 @@ xvdf                                                                       202:8
 [root@ip-172-31-128-145 ~]# 
 ```
 
+### CSI topology feature
+
+CSI topology feature is one way to locate pods on nodes where PV is available (similar to stork, but it is not needed to modify pod spec).
+ - although it is handy for small installation, some limitation is still there, so this feature is disabled by default: https://github.com/piraeusdatastore/piraeus-operator/issues/68#issuecomment-688330397
+
+To enabled this, enableTopology feature needs to be set to true,
+```
+diff --git a/charts/piraeus/values.yaml b/charts/piraeus/values.yaml
+index 252f8e9..fce361b 100644
+--- a/charts/piraeus/values.yaml
++++ b/charts/piraeus/values.yaml
+@@ -39,7 +39,7 @@ csi:
+   nodeTolerations: []
+   controllerAffinity: {}
+   controllerTolerations: []
+-  enableTopology: false
++  enableTopology: true
+   resources: {}
+ priorityClassName: ""
+ drbdRepoCred: "" # <- Specify the kubernetes secret name here
+```
+
+and StorageClass should have FollowTopology knob enabled.
+```
+[root@ip-172-31-47-80 ~]# cat sc2.yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: "piraeus-dflt-r2"
+provisioner: linstor.csi.linbit.com
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+parameters:
+  layerlist: drbd storage
+  placementCount: "2" ## set this to 2 or 3, when data replica is needed
+  placementPolicy: FollowTopology # enabled
+  allowRemoteVolumeAccess: "false"
+  disklessOnRemaining: "false"
+  csi.storage.k8s.io/fstype: xfs
+  mountOpts: noatime,discard
+  storagePool: lvm-thick
+[root@ip-172-31-47-80 ~]#
+
+ - PVC spec is not changed
+[root@ip-172-31-47-80 ~]# cat pvc11.yaml 
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: demo-rwo-r11
+spec:
+  storageClassName: piraeus-dflt-r2 ## set r2 for two replicas
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 2Gi
+[root@ip-172-31-47-80 ~]# 
+
+ - pod spec doesn't need schedulerName: stork
+[root@ip-172-31-47-80 ~]# cat cirros11.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cirros11
+spec:
+  containers:
+  - image: cirros
+    name: cirros11
+    volumeMounts:
+    - mountPath: "/mnt"
+      name: task-pv-storage
+  ### schedulerName: stork ## commented out
+  volumes:
+    - name: task-pv-storage
+      persistentVolumeClaim:
+        claimName: demo-rwo-r11
+[root@ip-172-31-47-80 ~]# 
+```
+
+With this setup, PV will have got NodeAffinity, and the pod assigned to this PV is located with this NodeAffinity setting.
+
+```
+[root@ip-172-31-47-80 ~]# kubectl describe pv pvc-12e94fdf-5de6-40ac-bc42-651570afbfc9 
+Name:              pvc-12e94fdf-5de6-40ac-bc42-651570afbfc9
+Labels:            <none>
+Annotations:       pv.kubernetes.io/provisioned-by: linstor.csi.linbit.com
+Finalizers:        [kubernetes.io/pv-protection external-attacher/linstor-csi-linbit-com]
+StorageClass:      piraeus-dflt-r2
+Status:            Bound
+Claim:             default/demo-rwo-r21
+Reclaim Policy:    Delete
+Access Modes:      RWO
+VolumeMode:        Filesystem
+Capacity:          2Gi
+Node Affinity:   ## two nodes where volume replicas are located, are added to node affinity
+  Required Terms:  
+    Term 0:        linbit.com/hostname in [ip-172-31-38-114.ap-northeast-1.compute.internal] ## volume replica 1
+    Term 1:        linbit.com/hostname in [ip-172-31-45-90.ap-northeast-1.compute.internal] ## volume replica 2
+Message:           
+Source:
+    Type:              CSI (a Container Storage Interface (CSI) volume source)
+    Driver:            linstor.csi.linbit.com
+    FSType:            xfs
+    VolumeHandle:      pvc-12e94fdf-5de6-40ac-bc42-651570afbfc9
+    ReadOnly:          false
+    VolumeAttributes:      storage.kubernetes.io/csiProvisionerIdentity=1611468114638-8081-linstor.csi.linbit.com
+Events:                <none>
+[root@ip-172-31-47-80 ~]#
+```
+
+### postgresql-operator
+
+As one usecase of PVC, I tried postgresql-operator.
+ - https://access.crunchydata.com/documentation/postgres-operator/4.5.0/tutorial/create-cluster/
+
+I created 1 control-plane node and 3 worker nodes cluster, with lvmthin volume and topology feature enabled.
+
+After that, postgres-operator can be installed with this procedure.
+
+```
+## install postgres-operator
+
+curl -LO https://raw.githubusercontent.com/CrunchyData/postgres-operator/v4.4.2/installers/kubectl/postgres-operator.yml
+vi postgres-operator.yml
+
+(add storage-config)
+[root@ip-172-31-39-140 ~]# diff -u postgres-operator.yml.orig postgres-operator.yml
+--- postgres-operator.yml.orig	2021-01-24 12:44:35.970670947 +0000
++++ postgres-operator.yml	2021-01-24 12:44:25.647751619 +0000
+@@ -203,10 +203,10 @@
+     scheduler_timeout: "3600"
+     service_type: "ClusterIP"
+     sync_replication: "false"
+-    backrest_storage: "hostpathstorage"
+-    backup_storage: "hostpathstorage"
+-    primary_storage: "hostpathstorage"
+-    replica_storage: "hostpathstorage"
++    backrest_storage: "piraeus"
++    backup_storage: "piraeus"
++    primary_storage: "piraeus"
++    replica_storage: "piraeus"
+     wal_storage: ""
+     storage1_name: "hostpathstorage"
+     storage1_access_mode: "ReadWriteMany"
+@@ -252,6 +252,11 @@
+     storage9_size: "1Gi"
+     storage9_type: "dynamic"
+     storage9_class: "rook-ceph-block"
++    storage10_name: "piraeus"
++    storage10_access_mode: "ReadWriteOnce"
++    storage10_size: "1Gi"
++    storage10_type: "dynamic"
++    storage10_class: "piraeus-dflt-r2"
+ ---
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: ClusterRoleBinding
+[root@ip-172-31-39-140 ~]# 
+
+
+kubectl create namespace pgo
+kubectl apply -f postgres-operator.yml
+
+- few minutes later, pgo-deploy job will be Completed status
+
+[root@ip-172-31-39-140 ~]# kubectl -n pgo get all 
+NAME                                     READY   STATUS      RESTARTS   AGE
+pod/pgo-deploy-jf2m2                     0/1     Completed   0          111s
+pod/postgres-operator-57844c9f44-zlgqt   4/4     Running     1          56s
+
+NAME                        TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
+service/postgres-operator   ClusterIP   10.96.213.252   <none>        8443/TCP,4171/TCP,4150/TCP   57s
+
+NAME                                READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/postgres-operator   1/1     1            1           56s
+
+NAME                                           DESIRED   CURRENT   READY   AGE
+replicaset.apps/postgres-operator-57844c9f44   1         1         1       56s
+
+NAME                   COMPLETIONS   DURATION   AGE
+job.batch/pgo-deploy   1/1           103s       111s
+[root@ip-172-31-39-140 ~]# 
+
+## install pgo client
+
+curl -LO https://raw.githubusercontent.com/CrunchyData/postgres-operator/v4.4.2/installers/kubectl/client-setup.sh
+bash client-setup.sh
+
+pgo client files have been generated, please add the following to your bashrc
+export PATH=/root/.pgo/pgo:$PATH
+export PGOUSER=/root/.pgo/pgo/pgouser
+export PGO_CA_CERT=/root/.pgo/pgo/client.crt
+export PGO_CLIENT_CERT=/root/.pgo/pgo/client.crt
+export PGO_CLIENT_KEY=/root/.pgo/pgo/client.key
+
+[root@ip-172-31-128-244 ~]# kubectl -n pgo port-forward svc/postgres-operator 8443:8443 &
+Forwarding from 127.0.0.1:8443 -> 8443
+Forwarding from [::1]:8443 -> 8443
+
+cat >> ~/.bashrc <<EOF 
+export PGO_APISERVER_URL="https://127.0.0.1:8443"
+EOF
+
+[root@ip-172-31-39-140 ~]# pgo version
+pgo client version 4.4.2
+pgo-apiserver version 4.4.2
+[root@ip-172-31-39-140 ~]# 
+```
+
+After that, this command will create postgres cluster with 1 primary node and 1 replica node.
+```
+[root@ip-172-31-39-140 ~]# pgo create cluster hippo --replica-count=1 --sync-replication -n pgo
+created cluster: hippo
+workflow id: 3ccea67d-4b66-44e4-8904-9638fe511fc3
+database name: hippo
+users:
+	username: testuser password: xxxxx
+[root@ip-172-31-39-140 ~]# 
+
+ - when things worked well, pods are Running or Completed status, and PV, PVC will be Bound status
+
+[root@ip-172-31-39-140 ~]# kubectl get all,pvc,pv -n pgo
+NAME                                             READY   STATUS      RESTARTS   AGE
+pod/backrest-backup-hippo-t8s9z                  0/1     Completed   0          3m25s
+pod/hippo-7964797d7-hgwgg                        1/1     Running     0          4m40s
+pod/hippo-backrest-shared-repo-956965978-s4t52   1/1     Running     0          5m35s
+pod/hippo-eosw-54bbd4b95d-5fsbn                  1/1     Running     0          3m6s
+pod/hippo-stanza-create-s7cfn                    0/1     Completed   0          3m45s
+pod/pgo-deploy-jf2m2                             0/1     Completed   0          10m
+pod/postgres-operator-57844c9f44-zlgqt           4/4     Running     1          9m32s
+
+NAME                                 TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                      AGE
+service/hippo                        ClusterIP   10.108.146.131   <none>        2022/TCP,5432/TCP            5m35s
+service/hippo-backrest-shared-repo   ClusterIP   10.107.17.62     <none>        2022/TCP                     5m35s
+service/hippo-replica                ClusterIP   10.107.80.169    <none>        2022/TCP,5432/TCP            3m6s
+service/postgres-operator            ClusterIP   10.96.213.252    <none>        8443/TCP,4171/TCP,4150/TCP   9m33s
+
+NAME                                         READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/hippo                        1/1     1            1           5m35s
+deployment.apps/hippo-backrest-shared-repo   1/1     1            1           5m35s
+deployment.apps/hippo-eosw                   1/1     1            1           3m6s
+deployment.apps/postgres-operator            1/1     1            1           9m32s
+
+NAME                                                   DESIRED   CURRENT   READY   AGE
+replicaset.apps/hippo-7964797d7                        1         1         1       5m35s
+replicaset.apps/hippo-backrest-shared-repo-956965978   1         1         1       5m35s
+replicaset.apps/hippo-eosw-54bbd4b95d                  1         1         1       3m6s
+replicaset.apps/postgres-operator-57844c9f44           1         1         1       9m32s
+
+NAME                              COMPLETIONS   DURATION   AGE
+job.batch/backrest-backup-hippo   1/1           19s        3m25s
+job.batch/hippo-stanza-create     1/1           19s        3m45s
+job.batch/pgo-deploy              1/1           103s       10m
+
+NAME                                    STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS      AGE
+persistentvolumeclaim/hippo             Bound    pvc-3871ddf7-4de7-4498-8019-9990f1be4763   1Gi        RWO            piraeus-dflt-r2   5m35s
+persistentvolumeclaim/hippo-eosw        Bound    pvc-4adb1aa3-28d9-4d00-830d-95ac7942bb83   1Gi        RWO            piraeus-dflt-r2   3m6s
+persistentvolumeclaim/hippo-pgbr-repo   Bound    pvc-3921055c-a5af-4aa8-b091-ee8f6ae21356   1Gi        RWO            piraeus-dflt-r2   5m35s
+
+NAME                                                        CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                 STORAGECLASS      REASON   AGE
+persistentvolume/pvc-3871ddf7-4de7-4498-8019-9990f1be4763   1Gi        RWO            Delete           Bound    pgo/hippo             piraeus-dflt-r2            5m5s
+persistentvolume/pvc-3921055c-a5af-4aa8-b091-ee8f6ae21356   1Gi        RWO            Delete           Bound    pgo/hippo-pgbr-repo   piraeus-dflt-r2            5m4s
+persistentvolume/pvc-4adb1aa3-28d9-4d00-830d-95ac7942bb83   1Gi        RWO            Delete           Bound    pgo/hippo-eosw        piraeus-dflt-r2            2m53s
+[root@ip-172-31-39-140 ~]# 
+
+[root@ip-172-31-39-140 ~]# pgo test hippo -n pgo
+Handling connection for 8443
+
+cluster : hippo
+	Services
+		primary (10.108.146.131:5432): UP
+		replica (10.107.80.169:5432): UP
+	Instances
+		primary (hippo-7964797d7-hgwgg): UP
+		replica (hippo-eosw-54bbd4b95d-5fsbn): UP
+[root@ip-172-31-39-140 ~]#
+```
+
+Since pod location is contolled by CSI topology, DfltDisklessStorPool is not used.
+
+```
+[root@ip-172-31-39-140 ~]# kubectl get pod -o wide -n pgo
+NAME                                         READY   STATUS      RESTARTS   AGE   IP              NODE                                               NOMINATED NODE   READINESS GATES
+backrest-backup-hippo-t8s9z                  0/1     Completed   0          10m   10.47.255.237   ip-172-31-38-129.ap-northeast-1.compute.internal   <none>           <none>
+hippo-7964797d7-hgwgg                        1/1     Running     0          12m   10.47.255.239   ip-172-31-42-96.ap-northeast-1.compute.internal    <none>           <none>
+hippo-backrest-shared-repo-956965978-s4t52   1/1     Running     0          13m   10.47.255.240   ip-172-31-38-129.ap-northeast-1.compute.internal   <none>           <none>
+hippo-eosw-54bbd4b95d-5fsbn                  1/1     Running     0          10m   10.47.255.236   ip-172-31-44-131.ap-northeast-1.compute.internal   <none>           <none>
+hippo-stanza-create-s7cfn                    0/1     Completed   0          11m   10.47.255.238   ip-172-31-38-129.ap-northeast-1.compute.internal   <none>           <none>
+pgo-deploy-jf2m2                             0/1     Completed   0          17m   10.47.255.242   ip-172-31-38-129.ap-northeast-1.compute.internal   <none>           <none>
+postgres-operator-57844c9f44-zlgqt           4/4     Running     1          17m   10.47.255.241   ip-172-31-44-131.ap-northeast-1.compute.internal   <none>           <none>
+[root@ip-172-31-39-140 ~]# 
+
+[root@ip-172-31-39-140 ~]# kubectl get pvc -o wide -n pgo
+NAME              STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS      AGE   VOLUMEMODE
+hippo             Bound    pvc-3871ddf7-4de7-4498-8019-9990f1be4763   1Gi        RWO            piraeus-dflt-r2   14m   Filesystem
+hippo-eosw        Bound    pvc-4adb1aa3-28d9-4d00-830d-95ac7942bb83   1Gi        RWO            piraeus-dflt-r2   12m   Filesystem
+hippo-pgbr-repo   Bound    pvc-3921055c-a5af-4aa8-b091-ee8f6ae21356   1Gi        RWO            piraeus-dflt-r2   14m   Filesystem
+[root@ip-172-31-39-140 ~]# 
+
+[root@ip-172-31-39-140 ~]# kubectl exec -it piraeus-op-cs-controller-795c5f45cf-hw6hr -- bash -c "stty cols 100; stty rows 100; bash"
+root@piraeus-op-cs-controller-795c5f45cf-hw6hr:/# linstor --controller 127.0.0.1 n list
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ Node                                             ┊ NodeType   ┊ Addresses                  ┊ State  ┊
+╞═════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ ip-172-31-38-129.ap-northeast-1.compute.internal ┊ SATELLITE  ┊ 172.31.38.129:3366 (PLAIN) ┊ Online ┊
+┊ ip-172-31-42-96.ap-northeast-1.compute.internal  ┊ SATELLITE  ┊ 172.31.42.96:3366 (PLAIN)  ┊ Online ┊
+┊ ip-172-31-44-131.ap-northeast-1.compute.internal ┊ SATELLITE  ┊ 172.31.44.131:3366 (PLAIN) ┊ Online ┊
+┊ piraeus-op-cs-controller-795c5f45cf-hw6hr        ┊ CONTROLLER ┊ 10.47.255.244:3366 (PLAIN) ┊ Online ┊
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@piraeus-op-cs-controller-795c5f45cf-hw6hr:/# linstor --controller 127.0.0.1 sp list
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ StoragePool          ┊ Node                                             ┊ Driver   ┊ PoolName                  ┊ FreeCapacity ┊ TotalCapacity ┊ CanSnapshots ┊ State ┊
+╞══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ DfltDisklessStorPool ┊ ip-172-31-38-129.ap-northeast-1.compute.internal ┊ DISKLESS ┊                           ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ DfltDisklessStorPool ┊ ip-172-31-42-96.ap-northeast-1.compute.internal  ┊ DISKLESS ┊                           ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ DfltDisklessStorPool ┊ ip-172-31-44-131.ap-northeast-1.compute.internal ┊ DISKLESS ┊                           ┊              ┊               ┊ False        ┊ Ok    ┊
+┊ lvm-thin             ┊ ip-172-31-38-129.ap-northeast-1.compute.internal ┊ LVM_THIN ┊ linstor_thinpool/thinpool ┊    49.62 GiB ┊     49.89 GiB ┊ True         ┊ Ok    ┊
+┊ lvm-thin             ┊ ip-172-31-42-96.ap-northeast-1.compute.internal  ┊ LVM_THIN ┊ linstor_thinpool/thinpool ┊    49.73 GiB ┊     49.89 GiB ┊ True         ┊ Ok    ┊
+┊ lvm-thin             ┊ ip-172-31-44-131.ap-northeast-1.compute.internal ┊ LVM_THIN ┊ linstor_thinpool/thinpool ┊    49.77 GiB ┊     49.89 GiB ┊ True         ┊ Ok    ┊
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@piraeus-op-cs-controller-795c5f45cf-hw6hr:/# linstor --controller 127.0.0.1 v list
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ Node                                             ┊ Resource                                 ┊ StoragePool ┊ VolNr ┊ MinorNr ┊ DeviceName    ┊  Allocated ┊ InUse  ┊    State ┊
+╞══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ ip-172-31-38-129.ap-northeast-1.compute.internal ┊ pvc-3871ddf7-4de7-4498-8019-9990f1be4763 ┊ lvm-thin    ┊     0 ┊    1000 ┊ /dev/drbd1000 ┊ 140.42 MiB ┊ Unused ┊ UpToDate ┊
+┊ ip-172-31-42-96.ap-northeast-1.compute.internal  ┊ pvc-3871ddf7-4de7-4498-8019-9990f1be4763 ┊ lvm-thin    ┊     0 ┊    1000 ┊ /dev/drbd1000 ┊ 140.42 MiB ┊ InUse  ┊ UpToDate ┊
+┊ ip-172-31-38-129.ap-northeast-1.compute.internal ┊ pvc-3921055c-a5af-4aa8-b091-ee8f6ae21356 ┊ lvm-thin    ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊  22.51 MiB ┊ InUse  ┊ UpToDate ┊
+┊ ip-172-31-42-96.ap-northeast-1.compute.internal  ┊ pvc-3921055c-a5af-4aa8-b091-ee8f6ae21356 ┊ lvm-thin    ┊     0 ┊    1001 ┊ /dev/drbd1001 ┊  22.51 MiB ┊ Unused ┊ UpToDate ┊
+┊ ip-172-31-38-129.ap-northeast-1.compute.internal ┊ pvc-4adb1aa3-28d9-4d00-830d-95ac7942bb83 ┊ lvm-thin    ┊     0 ┊    1002 ┊ /dev/drbd1002 ┊ 123.77 MiB ┊ Unused ┊ UpToDate ┊
+┊ ip-172-31-44-131.ap-northeast-1.compute.internal ┊ pvc-4adb1aa3-28d9-4d00-830d-95ac7942bb83 ┊ lvm-thin    ┊     0 ┊    1002 ┊ /dev/drbd1002 ┊ 123.77 MiB ┊ InUse  ┊ UpToDate ┊
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+root@piraeus-op-cs-controller-795c5f45cf-hw6hr:/# 
+```
+
+
+After all the status become UP, postgresql can be accessed from other pods.
+
+```
+[root@ip-172-31-39-140 ~]# kubectl exec -it hippo-eosw-54bbd4b95d-5fsbn -n pgo -- bash
+bash-4.2$ 
+bash-4.2$ psql -h hippo -U testuser hippo
+Password for user testuser: 
+psql (12.5)
+Type "help" for help.
+
+hippo=> \d
+               List of relations
+ Schema |        Name        | Type |  Owner   
+--------+--------------------+------+----------
+ public | pg_stat_statements | view | postgres
+(1 row)
+
+hippo=>
+```
+
+So, it is now possible to deploy DBaaS inside of vRouter :)
+
 
 ## Random tungsten fabric patch (not tested)
 #### static schedule for svc-monitor logic to choose available vRouters
