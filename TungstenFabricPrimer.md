@@ -126,7 +126,7 @@ k8s master need to have at least 2 vCPUs and 8GB mem, and 8GB disk. k8s node nee
 ## all the commands are typed at k8s master node
 sudo yum -y remove PyYAML python-requests
 sudo yum -y install git
-sudo easy_install pip
+sudo easy_install pip\<21
 sudo pip install PyYAML requests ansible\<2.9
 ssh-keygen
 cd .ssh/
@@ -167,7 +167,7 @@ contrail_configuration:
   JVM_EXTRA_OPTS: "-Xms128m -Xmx2g"
 global_configuration:
   CONTAINER_REGISTRY: tungstenfabric
-  K8S_VERSION: 1.19.6
+  K8S_VERSION: 1.19.7
 
 
 ansible-playbook -e orchestrator=kubernetes -i inventory/ playbooks/configure_instances.yml
