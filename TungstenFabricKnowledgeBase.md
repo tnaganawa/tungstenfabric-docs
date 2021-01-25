@@ -3469,6 +3469,7 @@ helm install piraeus-op ./charts/piraeus ## this command will create piraeus-ope
 ```
 
 Note: when hostname is long, label lengh for the chown job will be too long. I modified template to make it shorter and after that it worked fine.
+ - this modification is not needed after this fix: https://github.com/piraeusdatastore/piraeus-operator/issues/156
 ```
 [root@ip-172-31-128-34 piraeus-operator]# helm install linstor-etcd ./charts/pv-hostpath --set "nodes={ip-172-31-128-145.ap-northeast-1.compute.internal}"
 Error: failed post-install: warning: Hook post-install pv-hostpath/templates/pv.yaml failed: Job.batch "linstor-etcd-ip-172-31-128-145.ap-northeast-1.compute.internal-chown" is invalid: spec.template.labels: Invalid value: "linstor-etcd-ip-172-31-128-145.ap-northeast-1.compute.internal-chown": must be no more than 63 characters
