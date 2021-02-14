@@ -3294,6 +3294,8 @@ linstor will show node status: Online, and storage-pool status: Ok.
 ```
 # kubectl exec -it piraeus-op-ns-node-52pnh bash
 
+stty cols 100; stty rows 100
+
 root@ip-172-31-128-45:/# linstor node list
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────╮
 ┊ Node                                              ┊ NodeType   ┊ Addresses                   ┊ State  ┊
@@ -3916,6 +3918,15 @@ Source:
     VolumeAttributes:      storage.kubernetes.io/csiProvisionerIdentity=1611468114638-8081-linstor.csi.linbit.com
 Events:                <none>
 [root@ip-172-31-47-80 ~]#
+```
+
+### Creating several PVCs in parallel
+When PVCs are created in parallel, piraeus-operator sometimes leads to some timeout, and some volume could be in 'Inconsistent' state.
+ - https://github.com/LINBIT/linstor-server/issues/214
+
+To workaround this, it is useful to wait for previous create pvc command to finish with this kubectl command.
+```
+kubectl create -f /tmp/pvc11.yaml; kubectl get --watch pvc demo-rwo-r11 --template '{{if eq .status.phase "Bound"}}{{.err}}{{end}}' | head -n 0
 ```
 
 ### postgresql-operator
