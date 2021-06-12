@@ -3322,7 +3322,27 @@ root@ip-172-31-128-45:/# linstor sp list
 root@ip-172-31-128-45:/#
 ```
 
-When all the status is good, storageclass, pvc and pod can be created.
+Alternatively, kubectl can be used as linstor client. (kubectl-linstor module is needed)
+```
+curl -O -L https://github.com/piraeusdatastore/kubectl-linstor/releases/download/v0.1.1/kubectl-linstor-v0.1.1-linux-amd64.tar.gz
+tar xvf kubectl-linstor-v0.1.1-linux-amd64.tar.gz kubectl-linstor
+mv -i kubectl-linstor /usr/local/bin
+```
+
+```
+[root@ip-172-31-128-195 ~]# kubectl linstor --controller 127.0.0.1 n list
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────╮
+┊ Node                                              ┊ NodeType   ┊ Addresses                   ┊ State  ┊
+╞═══════════════════════════════════════════════════════════════════════════════════════════════════════╡
+┊ ip-172-31-128-36.ap-northeast-1.compute.internal  ┊ SATELLITE  ┊ 172.31.128.36:3366 (PLAIN)  ┊ Online ┊
+┊ ip-172-31-128-174.ap-northeast-1.compute.internal ┊ SATELLITE  ┊ 172.31.128.174:3366 (PLAIN) ┊ Online ┊
+┊ ip-172-31-128-241.ap-northeast-1.compute.internal ┊ SATELLITE  ┊ 172.31.128.241:3366 (PLAIN) ┊ Online ┊
+┊ piraeus-op-cs-controller-795c5f45cf-6lj89         ┊ CONTROLLER ┊ 10.47.255.243:3366 (PLAIN)  ┊ Online ┊
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────╯
+[root@ip-172-31-128-195 ~]# 
+```
+
+When all the status is good, storageclass, pvc and pod can be created.  
 When things are working, pvc status will be Bound and pod status will be Running.
  - pvc creation might take about 1 minute
 
