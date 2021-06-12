@@ -3226,8 +3226,9 @@ tar xvf helm-v3.4.2-linux-amd64.tar.gz
 mv linux-amd64/helm /usr/local/bin/helm
 
 ## piraeus operator installation (on control-plane node)
-git clone https://github.com/piraeusdatastore/piraeus-operator.git
-cd piraeus-operator
+curl -O -L https://github.com/piraeusdatastore/piraeus-operator/archive/refs/tags/v1.4.0.tar.gz
+tar xvf v1.4.0.tar.gz
+cd piraeus-operator-1.4.0
 vi charts/piraeus/values.yaml
 (kernelModuleInjectionImage and storagePools will be manually set)
 
@@ -3468,28 +3469,7 @@ To store etcd data on the worker node volume, this helm chart can be used.
 ```
 helm install linstor-etcd ./charts/pv-hostpath --set "nodes={ip-172-31-128-145.ap-northeast-1.compute.internal}"
 helm install piraeus-op ./charts/piraeus ## this command will create piraeus-operator with etcd on that node
-```
 
-Note: when hostname is long, label lengh for the chown job will be too long. I modified template to make it shorter and after that it worked fine.
- - this modification is not needed after this fix: https://github.com/piraeusdatastore/piraeus-operator/issues/156
-```
-[root@ip-172-31-128-34 piraeus-operator]# helm install linstor-etcd ./charts/pv-hostpath --set "nodes={ip-172-31-128-145.ap-northeast-1.compute.internal}"
-Error: failed post-install: warning: Hook post-install pv-hostpath/templates/pv.yaml failed: Job.batch "linstor-etcd-ip-172-31-128-145.ap-northeast-1.compute.internal-chown" is invalid: spec.template.labels: Invalid value: "linstor-etcd-ip-172-31-128-145.ap-northeast-1.compute.internal-chown": must be no more than 63 characters
-[root@ip-172-31-128-34 piraeus-operator]# 
-
-diff --git a/charts/pv-hostpath/templates/pv.yaml b/charts/pv-hostpath/templates/pv.yaml
-index 7c1636f..41cc241 100644
---- a/charts/pv-hostpath/templates/pv.yaml
-+++ b/charts/pv-hostpath/templates/pv.yaml
-@@ -94,7 +94,7 @@ spec:
- apiVersion: batch/v1
- kind: Job
- metadata:
--  name: {{ $.Release.Name }}-{{ . }}-chown
-+  name: {{ $.Release.Name }}-{{ . }}
-   namespace: {{ $.Release.Namespace | default "default" }}
-   labels:
- {{ include "post-install-labels" $ | indent 4 }}
 
 [root@ip-172-31-128-34 piraeus-operator]# helm install linstor-etcd ./charts/pv-hostpath --set "nodes={ip-172-31-128-145.ap-northeast-1.compute.internal}"
 NAME: linstor-etcd
