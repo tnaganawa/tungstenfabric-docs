@@ -3226,9 +3226,9 @@ tar xvf helm-v3.4.2-linux-amd64.tar.gz
 mv linux-amd64/helm /usr/local/bin/helm
 
 ## piraeus operator installation (on control-plane node)
-curl -O -L https://github.com/piraeusdatastore/piraeus-operator/archive/refs/tags/v1.4.0.tar.gz
-tar xvf v1.4.0.tar.gz
-cd piraeus-operator-1.4.0
+curl -O -L https://github.com/piraeusdatastore/piraeus-operator/archive/refs/tags/v1.5.1.tar.gz
+tar xvf v1.5.1.tar.gz
+cd piraeus-operator-1.5.1
 vi charts/piraeus/values.yaml
 (kernelModuleInjectionImage and storagePools will be manually set)
 
@@ -3267,6 +3267,9 @@ helm install piraeus-op ./charts/piraeus --set etcd.persistentVolume.enabled=fal
 Since piraeus operator creates ClusterIP Service without selector for piraeus-cs-op and tungsten fabric kube-manager cannot handle this, this kubectl patch command is needed.
 ```
 kubectl patch svc piraeus-op-cs -p '{"spec":{"selector": {"app": "piraeus-op-cs"}}}'
+
+## Note: from piraeus-operator v1.5.0, this command needs to be used instead.
+kubectl patch svc piraeus-op-cs -p '{"spec":{"selector": {"app.kubernetes.io/instance": "piraeus-op-cs"}}}'
 ```
 
 When everything worked, all the pod status will be Running.
