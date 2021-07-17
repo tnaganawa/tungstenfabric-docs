@@ -167,7 +167,7 @@ contrail_configuration:
   JVM_EXTRA_OPTS: "-Xms128m -Xmx2g"
 global_configuration:
   CONTAINER_REGISTRY: tungstenfabric
-  K8S_VERSION: 1.19.7
+  K8S_VERSION: 1.19.11
 
 
 ansible-playbook -e orchestrator=kubernetes -i inventory/ playbooks/configure_instances.yml
