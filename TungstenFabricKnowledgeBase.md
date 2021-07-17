@@ -3218,7 +3218,18 @@ After installation is done, those commands will be typed.
 yum -y install lvm2
 curl -O https://vault.centos.org/7.7.1908/updates/x86_64/Packages/kernel-devel-3.10.0-1062.12.1.el7.x86_64.rpm
 yum localinstall -y kernel-devel-3.10.0-1062.12.1.el7.x86_64.rpm
+
 (From AWS console, add ebs to each worker node (20GB): /dev/xvdf will be created)
+(or loopback mount also works)
+fallocate -l 10G /linstor.img
+losetup /dev/loop0 /linstor.img
+losetup -l
+pvcreate /dev/loop0
+vgcreate drbdpool /dev/loop0
+
+(when loopback mount is used, disks could be manually added by linstor command)
+nodes="ip-172-31-128-114.ap-northeast-1.compute.internal ip-172-31-128-176.ap-northeast-1.compute.internal ip-172-31-128-209.ap-northeast-1.compute.internal"
+for node in $nodes; do kubectl linstor --controller 127.0.0.1 storage-pool create lvm ${node} lvm-thick drbdpool; done
 
 ## helm 3 installation (on control-plane node)
 curl -O https://get.helm.sh/helm-v3.4.2-linux-amd64.tar.gz
@@ -3237,6 +3248,15 @@ diff --git a/charts/piraeus/values.yaml b/charts/piraeus/values.yaml
 index 0c986bf..10bfd54 100644
 --- a/charts/piraeus/values.yaml
 +++ b/charts/piraeus/values.yaml
+@@ -39,7 +39,7 @@ csi:
+   nodeTolerations: []
+   controllerAffinity: {}
+   controllerTolerations: []
+-  enableTopology: false
++  enableTopology: true
+   resources: {}
+ priorityClassName: ""
+ drbdRepoCred: "" # <- Specify the kubernetes secret name here
 @@ -73,13 +73,18 @@ operator:
    satelliteSet:
      enabled: true
@@ -3355,13 +3375,15 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: "piraeus-dflt-r1"
+  ##annotations:
+  ##  storageclass.kubernetes.io/is-default-class: "true"
 provisioner: linstor.csi.linbit.com
 allowVolumeExpansion: true
 reclaimPolicy: Delete
 parameters:
   layerlist: drbd storage
   placementCount: "1" ## set this to 2 or 3, when data replica is needed
-  ##placementPolicy: FollowTopology ## this needs to be commented out, since piraeus-operator currently disables CSI topology feature: https://github.com/piraeusdatastore/linstor-csi/issues/77#issuecomment-664175467
+  placementPolicy: FollowTopology ## this might need to be commented out, since piraeus-operator currently disables CSI topology feature: https://github.com/piraeusdatastore/linstor-csi/issues/77#issuecomment-664175467
   allowRemoteVolumeAccess: "false"
   disklessOnRemaining: "false"
   csi.storage.k8s.io/fstype: xfs
