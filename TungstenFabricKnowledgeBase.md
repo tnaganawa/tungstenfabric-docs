@@ -4200,6 +4200,224 @@ hippo=>
 
 So, it is now possible to deploy DBaaS inside of vRouter :)
 
+### moco
+
+moco is an implementation of mysql operator which supports key features such as multi node replication.
+- https://github.com/cybozu-go/moco/
+- https://cybozu-go.github.io/moco/setup.html
+
+To install this in tungsten fabric + piraeus environment, cert-manager and moco yamls need some modification, since both use mutation / validation webhook. (since kubernetes nodes cannot reach overlay IP, hostNetwork: true need to be used: https://cert-manager.io/docs/installation/compatibility/)
+
+```
+$ curl -fsLO https://github.com/jetstack/cert-manager/releases/latest/download/cert-manager.yaml
+$ curl -fsLO https://github.com/cybozu-go/moco/releases/latest/download/moco.yaml
+$ vi cert-manager.yaml moco.yaml
+$ kubectl apply -f cert-manager.yaml
+$ kubectl apply -f moco.yaml
+
+[root@ip-172-31-128-92 ~]# diff -u cert-manager.yaml.orig cert-manager.yaml
+--- cert-manager.yaml.orig	2021-07-17 16:23:12.127454145 +0000
++++ cert-manager.yaml	2021-07-17 16:24:12.855668925 +0000
+@@ -16921,7 +16921,7 @@
+     ports:
+         - name: https
+           port: 443
+-          targetPort: 10250
++          targetPort: 10260
+     selector:
+         app.kubernetes.io/component: webhook
+         app.kubernetes.io/instance: cert-manager
+@@ -17060,7 +17060,7 @@
+             containers:
+                 - args:
+                     - --v=2
+-                    - --secure-port=10250
++                    - --secure-port=10260
+                     - --dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)
+                     - --dynamic-serving-ca-secret-name=cert-manager-webhook-ca
+                     - --dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.cert-manager,cert-manager-webhook.cert-manager.svc
+@@ -17083,7 +17083,7 @@
+                     timeoutSeconds: 1
+                   name: cert-manager
+                   ports:
+-                    - containerPort: 10250
++                    - containerPort: 10260
+                       name: https
+                   readinessProbe:
+                     failureThreshold: 3
+@@ -17096,6 +17096,8 @@
+                     successThreshold: 1
+                     timeoutSeconds: 1
+                   resources: {}
++            hostNetwork: true
++            dnsPolicy: ClusterFirstWithHostNet
+             securityContext:
+                 runAsNonRoot: true
+             serviceAccountName: cert-manager-webhook
+[root@ip-172-31-128-92 ~]# 
+
+[root@ip-172-31-128-92 ~]# diff -u moco.yaml.orig moco.yaml
+--- moco.yaml.orig	2021-07-17 16:36:15.793430841 +0000
++++ moco.yaml	2021-07-17 16:37:40.660472743 +0000
+@@ -9918,6 +9918,8 @@
+       securityContext:
+         runAsNonRoot: true
+       terminationGracePeriodSeconds: 10
++      hostNetwork: true
++      dnsPolicy: ClusterFirstWithHostNet
+       volumes:
+       - name: cert
+         secret:
+[root@ip-172-31-128-92 ~]# 
+```
+
+After installation, moco-controller will be in Running status.
+```
+[root@ip-172-31-128-92 ~]# kubectl -n moco-system get pod -o wide
+NAME                               READY   STATUS    RESTARTS   AGE   IP               NODE                                                NOMINATED NODE   READINESS GATES
+moco-controller-69d5884d9b-j2qr7   1/1     Running   0          29s   172.31.128.176   ip-172-31-128-176.ap-northeast-1.compute.internal   <none>           <none>
+moco-controller-69d5884d9b-khr9c   1/1     Running   0          29s   172.31.128.209   ip-172-31-128-209.ap-northeast-1.compute.internal   <none>           <none>
+[root@ip-172-31-128-92 ~]# 
+```
+
+After installation, yaml for mysqlcluster can be created.
+ - one linstor storage class is defined as default storage class, and CSI topolgy feature is enabled
+
+```
+$ cat mysqlcluster1.yaml
+apiVersion: moco.cybozu.com/v1beta1
+kind: MySQLCluster
+metadata:
+  namespace: default
+  name: test
+spec:
+  # replicas is the number of mysqld Pods.  The default is 1.
+  replicas: 3
+  podTemplate:
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - mysql
+              - key: app.kubernetes.io/instance
+                operator: In
+                values:
+                - test
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      # At least a container named "mysqld" must be defined.
+      - name: mysqld
+        image: quay.io/cybozu/mysql:8.0.25
+        # By limiting CPU and memory, Pods will have Guaranteed QoS class.
+        # requests can be omitted; it will be set to the same value as limits.
+        resources:
+          limits:
+            cpu: "1" ### modified
+            memory: "1Gi" ### modified
+      securityContext:  ### modified
+        fsGroup: 10000  ### modified: https://github.com/cybozu-go/moco/issues/248
+  volumeClaimTemplates:
+  # At least a PVC named "mysql-data" must be defined.
+  - metadata:
+      name: mysql-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 4Gi ### modified
+$ 
+```
+
+Then moco automatically creates 3-pod mysql cluster.
+```
+[root@ip-172-31-128-92 ~]# kubectl get pod | grep moco
+moco-test-0                                   3/3     Running   0          86s
+moco-test-1                                   3/3     Running   0          86s
+moco-test-2                                   3/3     Running   0          86s
+[root@ip-172-31-128-92 ~]# 
+
+[root@ip-172-31-128-92 ~]# kubectl exec -it moco-test-0 -c mysqld -- bash
+groups: cannot find name for group ID 10000
+I have no name!@moco-test-0:/$ df -h
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          30G  7.9G   23G  27% /
+tmpfs            64M     0   64M   0% /dev
+tmpfs           7.8G     0  7.8G   0% /sys/fs/cgroup
+/dev/xvda1       30G  7.9G   23G  27% /run
+tmpfs           7.8G   20K  7.8G   1% /mysql-credentials
+shm              64M     0   64M   0% /dev/shm
+/dev/drbd1000   4.0G  1.7G  2.4G  43% /var/lib/mysql  <-- drbd device is used as mysql volume
+tmpfs           7.8G   12K  7.8G   1% /run/secrets/kubernetes.io/serviceaccount
+tmpfs           7.8G     0  7.8G   0% /proc/scsi
+tmpfs           7.8G     0  7.8G   0% /sys/firmware
+I have no name!@moco-test-0:/$ 
+```
+
+kubectl-moco plugin can be used to access mysql cli.
+```
+curl -O -L https://github.com/cybozu-go/moco/releases/download/v0.10.4/kubectl-moco-linux-amd64
+chmod 755 kubectl-moco-linux-amd64 
+mv -i kubectl-moco-linux-amd64 /usr/bin/kubectl-moco
+
+root@ip-172-31-128-92 ~]# kubectl moco mysql -it test
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 30
+Server version: 8.0.25 Source distribution
+
+Copyright (c) 2000, 2021, Oracle and/or its affiliates.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+mysql> 
+mysql> show tables;
+ERROR 1046 (3D000): No database selected
+mysql> show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| performance_schema |
+| sys                |
++--------------------+
+4 rows in set (0.01 sec)
+
+mysql> use sys
+Database changed
+mysql> show tables;
++-----------------------------------------------+
+| Tables_in_sys                                 |
++-----------------------------------------------+
+| host_summary                                  |
+| host_summary_by_file_io                       |
+```
+
+With kubectl moco, switchover of mysql cluster can be used.
+ - as far as I tried, mysql cli is not disconnected during switchover
+
+```
+[root@ip-172-31-128-92 ~]# kubectl get mysqlcluster
+NAME   AVAILABLE   HEALTHY   PRIMARY   SYNCED REPLICAS   ERRANT REPLICAS   LAST BACKUP
+test   True        True      0         3                                   <no value>
+[root@ip-172-31-128-92 ~]# 
+
+
+[root@ip-172-31-128-92 ~]# kubectl moco switchover test
+[root@ip-172-31-128-92 ~]# kubectl get mysqlcluster
+NAME   AVAILABLE   HEALTHY   PRIMARY   SYNCED REPLICAS   ERRANT REPLICAS   LAST BACKUP
+test   True        True      1         3                                   <no value>
+[root@ip-172-31-128-92 ~]# 
+```
+
 
 ## Random tungsten fabric patch (not tested)
 #### static schedule for svc-monitor logic to choose available vRouters
