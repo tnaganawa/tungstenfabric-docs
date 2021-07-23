@@ -3231,6 +3231,14 @@ vgcreate drbdpool /dev/loop0
 nodes="ip-172-31-128-114.ap-northeast-1.compute.internal ip-172-31-128-176.ap-northeast-1.compute.internal ip-172-31-128-209.ap-northeast-1.compute.internal"
 for node in $nodes; do kubectl linstor --controller 127.0.0.1 storage-pool create lvm ${node} lvm-thick drbdpool; done
 
+# for lvmthin
+pvcreate /dev/loop0
+vgcreate linstorThinpool /dev/loop0
+lvcreate -l 100%FREE --thinpool linstorThinpool/thinpool
+
+for node in $nodes; do kubectl linstor --controller 127.0.0.1 storage-pool create lvmthin ${node} lvm-thin linstorThinpool/thinpool; done
+
+
 ## helm 3 installation (on control-plane node)
 curl -O https://get.helm.sh/helm-v3.4.2-linux-amd64.tar.gz
 tar xvf helm-v3.4.2-linux-amd64.tar.gz
