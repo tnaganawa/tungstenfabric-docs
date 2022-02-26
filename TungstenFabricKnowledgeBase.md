@@ -3449,7 +3449,6 @@ spec:
     volumeMounts:
     - mountPath: "/mnt"
       name: task-pv-storage
-  schedulerName: stork ## this is recommended, since without this, pod will be created on some nodes which doesn't have drbd volume .. (DfltDisklessStorPool will be used)
   volumes:
     - name: task-pv-storage
       persistentVolumeClaim:
