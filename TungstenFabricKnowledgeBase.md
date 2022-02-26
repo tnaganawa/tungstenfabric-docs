@@ -3208,9 +3208,9 @@ Let me add some URLs.
 
 To install this, firstly create kubernetes cluster with tungsten fabric CNI based on ansible-deployer.
  - https://github.com/tnaganawa/tungstenfabric-docs/blob/master/TungstenFabricPrimer.md#2-tungstenfabric-up-and-running
- - K8S_VERSION is set to 1.19.6, tungstenfabric/R2011-latest is used
+ - K8S_VERSION is set to 1.21.10, tungstenfabric/R2011-latest is used
  - 1 control-plane node, and 3 worker nodes are used. CentOS7 with kernel-3.10.0-1062.12.1.el7.x86_64.rpm is used.
- - EC2 instance (4vCPU, 15 GB mem, 20 GB disk) is used.
+ - EC2 instance (4vCPU, 15 GB mem, 50 GB disk) is used.
 
 After installation is done, those commands will be typed.
 ```
@@ -3219,8 +3219,7 @@ yum -y install lvm2
 curl -O https://vault.centos.org/7.7.1908/updates/x86_64/Packages/kernel-devel-3.10.0-1062.12.1.el7.x86_64.rpm
 yum localinstall -y kernel-devel-3.10.0-1062.12.1.el7.x86_64.rpm
 
-(From AWS console, add ebs to each worker node (20GB): /dev/xvdf will be created)
-(or loopback mount also works)
+(loopback mount for datavg)
 fallocate -l 10G /linstor.img
 losetup /dev/loop0 /linstor.img
 losetup -l
@@ -3245,9 +3244,9 @@ tar xvf helm-v3.4.2-linux-amd64.tar.gz
 mv linux-amd64/helm /usr/local/bin/helm
 
 ## piraeus operator installation (on control-plane node)
-curl -O -L https://github.com/piraeusdatastore/piraeus-operator/archive/refs/tags/v1.5.1.tar.gz
-tar xvf v1.5.1.tar.gz
-cd piraeus-operator-1.5.1
+curl -O -L https://github.com/piraeusdatastore/piraeus-operator/archive/refs/tags/v1.8.0-rc.1.tar.gz
+tar xvf v1.8.0-rc.1.tar.gz
+cd piraeus-operator-v1.8.0-rc.1
 vi charts/piraeus/values.yaml
 (kernelModuleInjectionImage and storagePools will be manually set)
 
@@ -3256,33 +3255,12 @@ diff --git a/charts/piraeus/values.yaml b/charts/piraeus/values.yaml
 index 0c986bf..10bfd54 100644
 --- a/charts/piraeus/values.yaml
 +++ b/charts/piraeus/values.yaml
-@@ -39,7 +39,7 @@ csi:
-   nodeTolerations: []
-   controllerAffinity: {}
-   controllerTolerations: []
--  enableTopology: false
-+  enableTopology: true
-   resources: {}
- priorityClassName: ""
- drbdRepoCred: "" # <- Specify the kubernetes secret name here
 @@ -73,13 +73,18 @@ operator:
-   satelliteSet:
-     enabled: true
-     satelliteImage: quay.io/piraeusdatastore/piraeus-server:v1.11.0
--    storagePools: {}
-+    storagePools:
-+      lvmPools:
-+      - name: lvm-thick
-+        volumeGroup: drbdpool
-+        devicePaths:
-+        - /dev/xvdf
-     sslSecret: ""
-     automaticStorageType: None
      affinity: {}
      tolerations: []
      resources: {}
--    kernelModuleInjectionImage: quay.io/piraeusdatastore/drbd9-bionic:v9.0.26
-+    kernelModuleInjectionImage: quay.io/piraeusdatastore/drbd9-centos7:v9.0.26
+-    kernelModuleInjectionImage: quay.io/piraeusdatastore/drbd9-bionic:v9.1.26
++    kernelModuleInjectionImage: quay.io/piraeusdatastore/drbd9-centos7:v9.1.26
      kernelModuleInjectionMode: Compile
      kernelModuleInjectionResources: {}
  haController:
@@ -3294,9 +3272,6 @@ helm install piraeus-op ./charts/piraeus --set etcd.persistentVolume.enabled=fal
 
 Since piraeus operator creates ClusterIP Service without selector for piraeus-cs-op and tungsten fabric kube-manager cannot handle this, this kubectl patch command is needed.
 ```
-kubectl patch svc piraeus-op-cs -p '{"spec":{"selector": {"app": "piraeus-op-cs"}}}'
-
-## Note: from piraeus-operator v1.5.0, this command needs to be used instead.
 kubectl patch svc piraeus-op-cs -p '{"spec":{"selector": {"app.kubernetes.io/instance": "piraeus-op-cs"}}}'
 ```
 
@@ -3391,11 +3366,9 @@ reclaimPolicy: Delete
 parameters:
   layerlist: drbd storage
   placementCount: "1" ## set this to 2 or 3, when data replica is needed
-  placementPolicy: FollowTopology ## this might need to be commented out, since piraeus-operator currently disables CSI topology feature: https://github.com/piraeusdatastore/linstor-csi/issues/77#issuecomment-664175467
+  placementPolicy: FollowTopology
   allowRemoteVolumeAccess: "false"
   disklessOnRemaining: "false"
-  csi.storage.k8s.io/fstype: xfs
-  mountOpts: noatime,discard
   storagePool: lvm-thick
 
 [root@ip-172-31-128-154 ~]# kubectl get sc
@@ -3415,7 +3388,7 @@ spec:
   volumeMode: Filesystem
   resources:
     requests:
-      storage: 2Gi
+      storage: 2Gi ## change as needed
 
 [root@ip-172-31-128-223 ~]# kubectl get pvc
 NAME          STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS      AGE
@@ -3460,7 +3433,7 @@ root@ip-172-31-128-6:/#
 ```
 
 
-On the pod, xfs system is mounted, and read / write is available.
+On the pod, file system is mounted, and read / write is available.
 ```
 [root@ip-172-31-128-223 ~]# cat cirros1.yaml 
 apiVersion: v1
@@ -3564,14 +3537,7 @@ index 252f8e9..f98d4a7 100644
    satelliteSet:
      enabled: true
      satelliteImage: quay.io/piraeusdatastore/piraeus-server:v1.11.1
--    storagePools: {}
-+    storagePools:
-+      lvmThinPools:
-+      - name: lvm-thin
-+        thinVolume: thinpool
-+        volumeGroup: linstor_thinpool
-+        devicePaths:
-+        - /dev/xvdf
+     storagePools: {}
      sslSecret: ""
      automaticStorageType: None
      affinity: {}
@@ -3845,7 +3811,7 @@ xvdf                                                                       202:8
 ### CSI topology feature
 
 CSI topology feature is one way to locate pods on nodes where PV is available (similar to stork, but it is not needed to modify pod spec).
- - although it is handy for small installation, some limitation is still there, so this feature is disabled by default: https://github.com/piraeusdatastore/piraeus-operator/issues/68#issuecomment-688330397
+ - after v1.7.0, this feature is enabled by default: https://github.com/piraeusdatastore/piraeus-operator/releases/tag/v1.7.0
 
 To enabled this, enableTopology feature needs to be set to true,
 ```
@@ -3960,6 +3926,33 @@ When PVCs are created in parallel, piraeus-operator sometimes leads to some time
 To workaround this, it is useful to wait for previous create pvc command to finish with this kubectl command.
 ```
 kubectl create -f /tmp/pvc11.yaml; kubectl get --watch pvc demo-rwo-r11 --template '{{if eq .status.phase "Bound"}}{{.err}}{{end}}' | head -n 0
+```
+
+Note:  
+after v1.8.0, it is possible to set number of CSI worker thread.
+https://github.com/piraeusdatastore/piraeus-operator/commit/42c958be26b33451c1000e10533cfb24c1090a8b
+
+Setting each thread smaller value such as 4, the issue is resolved.
+
+```
+[root@ip-172-31-27-185 piraeus-operator-1.8.0-rc.1]# diff -u charts/piraeus/values.yaml.orig charts/piraeus/values.yaml 
+--- charts/piraeus/values.yaml.orig	2022-02-26 11:02:31.992127986 +0000
++++ charts/piraeus/values.yaml	2022-02-26 11:03:05.456370012 +0000
+@@ -31,10 +31,10 @@
+   csiProvisionerImage: k8s.gcr.io/sig-storage/csi-provisioner:v3.1.0
+   csiSnapshotterImage: k8s.gcr.io/sig-storage/csi-snapshotter:v5.0.1
+   csiResizerImage: k8s.gcr.io/sig-storage/csi-resizer:v1.4.0
+-  csiAttacherWorkerThreads: 10
+-  csiProvisionerWorkerThreads: 10
+-  csiSnapshotterWorkerThreads: 10
+-  csiResizerWorkerThreads: 10
++  csiAttacherWorkerThreads: 4
++  csiProvisionerWorkerThreads: 4
++  csiSnapshotterWorkerThreads: 4
++  csiResizerWorkerThreads: 4
+   controllerReplicas: 1
+   nodeAffinity: {}
+   nodeTolerations: []
 ```
 
 ### postgresql-operator
