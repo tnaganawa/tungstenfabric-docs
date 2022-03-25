@@ -3244,9 +3244,9 @@ tar xvf helm-v3.4.2-linux-amd64.tar.gz
 mv linux-amd64/helm /usr/local/bin/helm
 
 ## piraeus operator installation (on control-plane node)
-curl -O -L https://github.com/piraeusdatastore/piraeus-operator/archive/refs/tags/v1.8.0-rc.1.tar.gz
-tar xvf v1.8.0-rc.1.tar.gz
-cd piraeus-operator-v1.8.0-rc.1
+curl -O -L https://github.com/piraeusdatastore/piraeus-operator/archive/refs/tags/v1.8.0.tar.gz
+tar xvf v1.8.0.tar.gz
+cd piraeus-operator-v1.8.0
 vi charts/piraeus/values.yaml
 (kernelModuleInjectionImage and storagePools will be manually set)
 
@@ -3922,13 +3922,7 @@ Events:                <none>
 When PVCs are created in parallel, piraeus-operator sometimes leads to some timeout, and some volume could be in 'Inconsistent' state.
  - https://github.com/LINBIT/linstor-server/issues/214
 
-To workaround this, it is useful to wait for previous create pvc command to finish with this kubectl command.
-```
-kubectl create -f /tmp/pvc11.yaml; kubectl get --watch pvc demo-rwo-r11 --template '{{if eq .status.phase "Bound"}}{{.err}}{{end}}' | head -n 0
-```
-
-Note:  
-after v1.8.0, it is possible to set number of CSI worker thread.
+After v1.8.0, it is possible to set number of CSI worker thread.
 https://github.com/piraeusdatastore/piraeus-operator/commit/42c958be26b33451c1000e10533cfb24c1090a8b
 
 Setting each thread smaller value such as 4, the issue is resolved.
