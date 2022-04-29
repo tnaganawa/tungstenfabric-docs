@@ -3246,7 +3246,7 @@ mv linux-amd64/helm /usr/local/bin/helm
 ## piraeus operator installation (on control-plane node)
 curl -O -L https://github.com/piraeusdatastore/piraeus-operator/archive/refs/tags/v1.8.0.tar.gz
 tar xvf v1.8.0.tar.gz
-cd piraeus-operator-v1.8.0
+cd piraeus-operator-1.8.0
 vi charts/piraeus/values.yaml
 (kernelModuleInjectionImage and storagePools will be manually set)
 
